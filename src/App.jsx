@@ -375,9 +375,9 @@ const Icon = ({ name, size = 16 }) => {
 // ============================================================
 const VersaLogo = ({ size = 28 }) => (
   <svg width={size} height={size} viewBox="0 0 100 100">
-    <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="6"/>
-    <path d="M28 30 L50 68 L72 30" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M50 30 L72 68" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="5"/>
+    <path d="M14 34 L31 69 L48 34" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M52 69 L69 34 L86 69" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
