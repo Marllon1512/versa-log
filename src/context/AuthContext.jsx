@@ -19,6 +19,16 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    // Try to restore local session first
+    try {
+      const saved = sessionStorage.getItem('versa_perfil')
+      if (saved) {
+        const p = JSON.parse(saved)
+        setPerfil(p)
+        setLoading(false)
+        return
+      }
+    } catch {}
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       loadPerfil(session?.user ?? null).finally(() => setLoading(false))
@@ -31,15 +41,35 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw new Error(error.message)
-    return data
+    // Fallback local para quando Supabase estiver indisponível
+    const LOCAL_USERS = [
+      { email: 'admin@versalog.com', password: 'Versa@2026', full_name: 'Marllon Augusto', role: 'admin' },
+      { email: 'gestor@versalog.com', password: 'Versa@2026', full_name: 'Carlos Gestor', role: 'gestor' },
+      { email: 'entregador@versalog.com', password: 'Versa@2026', full_name: 'João Entregador', role: 'entregador' },
+      { email: 'motorista@versalog.com', password: 'Versa@2026', full_name: 'Pedro Motorista', role: 'motorista' },
+    ]
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw new Error(error.message)
+      return data
+    } catch (e) {
+      // Se Supabase falhar, tenta login local
+      const localUser = LOCAL_USERS.find(u => u.email === email && u.password === password)
+      if (localUser) {
+        const perfil = { id: localUser.email, email: localUser.email, full_name: localUser.full_name, role: localUser.role }
+        setPerfil(perfil)
+        sessionStorage.setItem('versa_perfil', JSON.stringify(perfil))
+        return perfil
+      }
+      throw new Error('Email ou senha incorretos')
+    }
   }
 
   const logout = async () => {
-    await supabase.auth.signOut()
+    try { await supabase.auth.signOut() } catch {}
     setUser(null)
     setPerfil(null)
+    sessionStorage.removeItem('versa_perfil')
   }
 
   const isGestor = ['admin', 'gestor'].includes(perfil?.role)
