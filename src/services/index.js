@@ -197,6 +197,17 @@ export const pontoService = {
     if (error) throw error
     return data || []
   },
+  async listAllHoje() {
+    const hoje = new Date().toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('pontos')
+      .select('*')
+      .eq('data', hoje)
+      .order('usuario_nome')
+      .order('data_hora')
+    if (error) throw error
+    return data || []
+  },
 }
 
 // ── Assinaturas ───────────────────────────────────────────

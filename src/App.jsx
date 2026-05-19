@@ -370,7 +370,10 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
 // ============================================================
 function Dashboard() {
   const hoje = new Date().toISOString().split('T')[0]
+  const [selected, setSelected] = useState(null)
   const { data: pedidos, loading, reload } = useData(() => pedidosService.list(), [])
+
+  if (selected) return <PedidoDetalhe pedidoId={selected} onBack={() => { setSelected(null); reload() }} />
 
   const ph = (pedidos || []).filter(p => p.data_entrega === hoje)
 
@@ -406,12 +409,13 @@ function Dashboard() {
         <div style={{ fontWeight: 600, marginBottom: 14 }}>Entregas de hoje</div>
         {loading ? <Spinner /> : ph.length === 0 ? <Empty icon="📦" text="Nenhum pedido para hoje" /> :
           ph.map(p => (
-            <div className="li" key={p.id} style={{ cursor: 'default' }}>
+            <div className="li" key={p.id} onClick={() => setSelected(p.id)} style={{ cursor: 'pointer' }}>
               <div className="li-main">
                 <div className="li-title">{p.cliente}</div>
                 <div className="li-sub">#{p.numero_pedido} · {p.endereco}</div>
               </div>
               <Badge status={p.status} />
+              <Ic n="chev" s={13} style={{ color: 'var(--t3)', flexShrink: 0 }} />
             </div>
           ))}
       </div>
@@ -529,11 +533,44 @@ function PedidoCard({ pedido: p, onClick }) {
   )
 }
 
+// ── PDF simples ───────────────────────────────────────────
+function gerarPDFSimples(pedido, produtos) {
+  const w = window.open('', '_blank')
+  const rows = produtos.map(p =>
+    `<tr><td>${p.nome_produto}</td><td>${p.quantidade}</td><td>${p.status_produto || 'Pendente'}</td></tr>`
+  ).join('')
+  w.document.write(`
+    <html><head><title>Pedido #${pedido.numero_pedido}</title>
+    <style>
+      body{font-family:sans-serif;padding:24px;color:#111}
+      h1{font-size:20px;margin-bottom:4px}
+      .sub{color:#666;font-size:13px;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse;margin-top:16px}
+      th,td{border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px}
+      th{background:#f5f5f5;font-weight:600}
+    </style>
+    </head><body>
+    <h1>Pedido #${pedido.numero_pedido}</h1>
+    <div class="sub">Status: ${pedido.status}</div>
+    <p><b>Cliente:</b> ${pedido.cliente}</p>
+    <p><b>Endereço:</b> ${pedido.endereco}${pedido.cidade ? ', ' + pedido.cidade : ''}</p>
+    <p><b>Entrega:</b> ${pedido.data_entrega ? new Date(pedido.data_entrega + 'T12:00').toLocaleDateString('pt-BR') : '—'}</p>
+    ${pedido.entregador_nome ? `<p><b>Entregador:</b> ${pedido.entregador_nome}</p>` : ''}
+    ${pedido.observacoes ? `<p><b>Obs:</b> ${pedido.observacoes}</p>` : ''}
+    ${produtos.length > 0 ? `<table><thead><tr><th>Produto</th><th>Qtd</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
+    <script>window.onload=()=>{window.print()}</script>
+    </body></html>
+  `)
+  w.document.close()
+}
+
 // ── Pedido Detalhe ────────────────────────────────────────
 function PedidoDetalhe({ pedidoId, onBack }) {
   const { perfil, isGestor } = useAuth()
   const [showEdit, setShowEdit] = useState(false)
   const [showTroca, setShowTroca] = useState(false)
+  const [showRemarcar, setShowRemarcar] = useState(false)
+  const [showCancelar, setShowCancelar] = useState(false)
   const { run: runAction, loading: actionLoading } = useAction()
 
   const { data: pedido, loading, reload } = useData(() => pedidosService.getById(pedidoId), [pedidoId])
@@ -581,6 +618,28 @@ function PedidoDetalhe({ pedidoId, onBack }) {
     })
   }
 
+  const handleRemarcar = async ({ novaData, motivo }) => {
+    await runAction(async () => {
+      await pedidosService.update(pedidoId, { status: 'Remarcado', data_entrega: novaData })
+      await pedidosService.addHistorico(pedidoId, 'Remarcado',
+        `Entrega remarcada para ${new Date(novaData + 'T12:00').toLocaleDateString('pt-BR')}. Motivo: ${motivo || 'Não informado'}`, perfil)
+      reload()
+      reloadHist()
+      setShowRemarcar(false)
+    })
+  }
+
+  const handleCancelar = async (motivo) => {
+    await runAction(async () => {
+      await pedidosService.update(pedidoId, { status: 'Cancelado' })
+      await pedidosService.addHistorico(pedidoId, 'Cancelado',
+        `Pedido cancelado. Motivo: ${motivo || 'Não informado'}`, perfil)
+      reload()
+      reloadHist()
+      setShowCancelar(false)
+    })
+  }
+
   if (loading) return <div className="page"><Spinner /></div>
   if (!pedido) return <div className="page"><Empty text="Pedido não encontrado" /></div>
 
@@ -591,7 +650,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
         <div className="row">
-          <Btn variant="secondary" size="sm" onClick={() => {/* TODO: gerar PDF */}}><Ic n="pdf" s={13} /> Gerar PDF</Btn>
+          <Btn variant="secondary" size="sm" onClick={() => gerarPDFSimples(pedido, produtos || [])}><Ic n="pdf" s={13} /> Gerar PDF</Btn>
           {isGestor && <Btn variant="secondary" size="sm" onClick={() => setShowEdit(true)}><Ic n="edit" s={13} /></Btn>}
         </div>
       </div>
@@ -667,8 +726,8 @@ function PedidoDetalhe({ pedidoId, onBack }) {
 
       {isGestor && !['Entregue', 'Cancelado'].includes(pedido.status) && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <button className="btn btn-s" style={{ flex: 1, justifyContent: 'center', color: 'var(--amber)' }}>📅 Remarcar</button>
-          <button className="btn btn-d" style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+          <button className="btn btn-s" style={{ flex: 1, justifyContent: 'center', color: 'var(--amber)' }} onClick={() => setShowRemarcar(true)}>📅 Remarcar</button>
+          <button className="btn btn-d" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowCancelar(true)}>Cancelar</button>
         </div>
       )}
 
@@ -712,6 +771,24 @@ function PedidoDetalhe({ pedidoId, onBack }) {
           entregadores={entregadores || []}
           onClose={() => setShowTroca(false)}
           onSave={handleTroca}
+          loading={actionLoading}
+        />
+      )}
+
+      {showRemarcar && (
+        <RemarcarModal
+          pedido={pedido}
+          onClose={() => setShowRemarcar(false)}
+          onSave={handleRemarcar}
+          loading={actionLoading}
+        />
+      )}
+
+      {showCancelar && (
+        <CancelarModal
+          pedido={pedido}
+          onClose={() => setShowCancelar(false)}
+          onSave={handleCancelar}
           loading={actionLoading}
         />
       )}
@@ -838,6 +915,66 @@ function TrocarEntregadorModal({ pedido, entregadores, onClose, onSave, loading 
         <label className="fl">Motivo (opcional)</label>
         <input className="fi" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Ex: entregador indisponível..." />
       </div>
+    </Modal>
+  )
+}
+
+function RemarcarModal({ pedido, onClose, onSave, loading }) {
+  const [novaData, setNovaData] = useState(pedido.data_entrega || '')
+  const [motivo, setMotivo] = useState('')
+  return (
+    <Modal
+      title="Remarcar Entrega"
+      onClose={onClose}
+      footer={
+        <>
+          <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+          <Btn disabled={!novaData || !motivo} loading={loading} onClick={() => onSave({ novaData, motivo })}>Confirmar</Btn>
+        </>
+      }
+    >
+      <div className="fg">
+        <label className="fl">Nova data de entrega *</label>
+        <input className="fi" type="date" value={novaData} onChange={e => setNovaData(e.target.value)} />
+      </div>
+      <div className="fg">
+        <label className="fl">Motivo *</label>
+        <textarea className="fi" rows={3} value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Ex: cliente ausente, reagendamento solicitado..." />
+      </div>
+    </Modal>
+  )
+}
+
+function CancelarModal({ pedido, onClose, onSave, loading }) {
+  const [motivo, setMotivo] = useState('')
+  const [confirmar, setConfirmar] = useState(false)
+  return (
+    <Modal
+      title="Cancelar Pedido"
+      onClose={onClose}
+      footer={
+        <>
+          <Btn variant="ghost" onClick={onClose}>Voltar</Btn>
+          <Btn
+            disabled={!motivo || !confirmar}
+            loading={loading}
+            onClick={() => onSave(motivo)}
+            style={{ background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }}
+          >
+            Cancelar pedido
+          </Btn>
+        </>
+      }
+    >
+      <Alert type="error">Esta ação não pode ser desfeita. O pedido #{pedido.numero_pedido} será marcado como Cancelado.</Alert>
+      <div className="fg" style={{ marginTop: 12 }}>
+        <label className="fl">Motivo do cancelamento *</label>
+        <textarea className="fi" rows={3} value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Ex: cliente desistiu, pagamento não confirmado..." />
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginTop: 10 }}>
+        <input type="checkbox" checked={confirmar} onChange={e => setConfirmar(e.target.checked)} />
+        Confirmo que desejo cancelar este pedido
+      </label>
     </Modal>
   )
 }
@@ -1923,9 +2060,13 @@ function MinhaRota() {
 // PONTO
 // ============================================================
 function Ponto() {
-  const { perfil } = useAuth()
+  const { perfil, isGestor } = useAuth()
   const [time, setTime] = useState(new Date())
   const { data: pontos, reload } = useData(() => pontoService.listHoje(perfil?.id), [perfil?.id])
+  const { data: todosPontos, reload: reloadTodos } = useData(
+    () => isGestor ? pontoService.listAllHoje() : Promise.resolve([]),
+    [isGestor]
+  )
   const { run, loading } = useAction()
 
   useEffect(() => {
@@ -1943,18 +2084,33 @@ function Ponto() {
         data: new Date().toISOString().split('T')[0],
       })
       reload()
+      if (isGestor) reloadTodos()
     })
   }
 
-  const calcHoras = () => {
-    const ps = pontos || []
-    const entrada = ps.find(p => p.tipo === 'Entrada')
-    const saida = [...ps].reverse().find(p => p.tipo === 'Saída')
-    if (!entrada || !saida) return null
-    return ((new Date(saida.data_hora) - new Date(entrada.data_hora)) / 3600000).toFixed(1)
+  const calcHoras = (ps) => {
+    const registros = ps || []
+    let totalMs = 0
+    let lastEntrada = null
+    for (const p of registros) {
+      if (p.tipo === 'Entrada' || p.tipo === 'Retorno') {
+        lastEntrada = new Date(p.data_hora)
+      } else if ((p.tipo === 'Almoço' || p.tipo === 'Saída') && lastEntrada) {
+        totalMs += new Date(p.data_hora) - lastEntrada
+        lastEntrada = null
+      }
+    }
+    if (totalMs === 0) return null
+    return (totalMs / 3600000).toFixed(1)
   }
 
-  const horas = calcHoras()
+  const horas = calcHoras(pontos)
+
+  const porFuncionario = {}
+  ;(todosPontos || []).forEach(p => {
+    if (!porFuncionario[p.usuario_id]) porFuncionario[p.usuario_id] = { nome: p.usuario_nome, pontos: [] }
+    porFuncionario[p.usuario_id].pontos.push(p)
+  })
 
   return (
     <div className="page">
@@ -1974,7 +2130,8 @@ function Ponto() {
           ))}
         </div>
       </div>
-      <div style={{ fontWeight: 600, marginBottom: 10 }}>Registros de hoje</div>
+
+      <div style={{ fontWeight: 600, marginBottom: 10 }}>Meus registros de hoje</div>
       {(pontos || []).length === 0 ? <Empty text="Nenhum registro hoje" /> :
         (pontos || []).map(p => (
           <div className="li" key={p.id} style={{ cursor: 'default' }}>
@@ -1986,6 +2143,29 @@ function Ponto() {
             </div>
           </div>
         ))}
+
+      {isGestor && Object.keys(porFuncionario).length > 0 && (
+        <>
+          <div style={{ fontWeight: 600, marginBottom: 12, marginTop: 28 }}>Ponto da equipe hoje</div>
+          {Object.values(porFuncionario).map(func => {
+            const h = calcHoras(func.pontos)
+            return (
+              <div className="card" key={func.nome} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' }}>
+                  <div style={{ fontWeight: 600 }}>{func.nome}</div>
+                  {h && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>⏱ {h}h trabalhadas</span>}
+                </div>
+                {func.pontos.map(p => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: '1px solid var(--border)', fontSize: 13 }}>
+                    <span style={{ color: 'var(--t2)' }}>{p.tipo}</span>
+                    <span>{new Date(p.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </>
+      )}
     </div>
   )
 }
