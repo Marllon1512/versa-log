@@ -566,12 +566,17 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   const [showTroca, setShowTroca] = useState(false)
   const [showRemarcar, setShowRemarcar] = useState(false)
   const [showCancelar, setShowCancelar] = useState(false)
+  const [showWaGestor, setShowWaGestor] = useState(false)
   const { run: runAction, loading: actionLoading } = useAction()
 
   const { data: pedido, loading, reload } = useData(() => pedidosService.getById(pedidoId), [pedidoId])
   const { data: historico, reload: reloadHist } = useData(() => pedidosService.getHistorico(pedidoId), [pedidoId])
   const { data: assinatura } = useData(() => assinaturasService.getByPedido(pedidoId), [pedidoId])
   const { data: entregadores } = useData(() => usuariosService.listEntregadores(), [])
+  const { data: histCliente } = useData(
+    () => pedido?.cliente ? pedidosService.list({ cliente: pedido.cliente }) : Promise.resolve([]),
+    [pedido?.cliente]
+  )
 
   const d = useDateInfo(pedido?.data_entrega)
 
@@ -678,9 +683,9 @@ function PedidoDetalhe({ pedidoId, onBack }) {
             </div>
             <div className="row">
               <a href={`tel:${pedido.telefone}`}><Btn variant="secondary" size="sm">Ligar</Btn></a>
-              <a href={`https://wa.me/55${pedido.telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">
-                <Btn variant="success" size="sm"><Ic n="wa" s={12} /> WhatsApp</Btn>
-              </a>
+              <Btn variant="success" size="sm" onClick={() => setShowWaGestor(true)}>
+                <Ic n="wa" s={12} /> WhatsApp
+              </Btn>
             </div>
           </div>
         )}
@@ -737,7 +742,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
         </Btn>
       )}
 
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>Histórico</div>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>Histórico do pedido</div>
       {(historico || []).length === 0 ? <Empty text="Nenhum registro" /> :
         (historico || []).map(h => (
           <div key={h.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
@@ -750,6 +755,8 @@ function PedidoDetalhe({ pedidoId, onBack }) {
             </div>
           </div>
         ))}
+
+      <HistoricoCliente pedidos={histCliente} pedidoAtualId={pedidoId} />
 
       {showEdit && (
         <NovoPedidoModal
@@ -787,6 +794,33 @@ function PedidoDetalhe({ pedidoId, onBack }) {
           loading={actionLoading}
         />
       )}
+
+      {showWaGestor && pedido.telefone && (
+        <WaTemplatesModal pedido={pedido} tipo="gestor" onClose={() => setShowWaGestor(false)} />
+      )}
+    </div>
+  )
+}
+
+// ── Histórico do cliente (usado dentro de PedidoDetalhe) ──
+function HistoricoCliente({ pedidos, pedidoAtualId }) {
+  const outros = (pedidos || []).filter(p => p.id !== pedidoAtualId)
+  if (outros.length === 0) return null
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>Outros pedidos do cliente ({outros.length})</div>
+      {outros.slice(0, 6).map(p => (
+        <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>#{p.numero_pedido}</div>
+            <div style={{ fontSize: 12, color: 'var(--t2)' }}>
+              {p.data_entrega ? new Date(p.data_entrega + 'T12:00').toLocaleDateString('pt-BR') : '—'}
+              {p.local_separacao ? ` · ${p.local_separacao}` : ''}
+            </div>
+          </div>
+          <Badge status={p.status} />
+        </div>
+      ))}
     </div>
   )
 }
@@ -1808,6 +1842,67 @@ function Mapa() {
   )
 }
 
+// ── WhatsApp Templates Modal ──────────────────────────────
+function WaTemplatesModal({ pedido, onClose, tipo = 'entregador' }) {
+  const nome = pedido.cliente?.split(' ')[0] || pedido.cliente || ''
+  const num = pedido.numero_pedido || ''
+  const data = pedido.data_entrega ? new Date(pedido.data_entrega + 'T12:00').toLocaleDateString('pt-BR') : ''
+
+  const templates = tipo === 'entregador' ? [
+    {
+      icon: '🚚', label: 'A caminho',
+      msg: `Olá ${nome}! Sou da Versa Log e estou a caminho com seu pedido #${num}. Chego em breve! 🚚`,
+    },
+    {
+      icon: '📦', label: 'Cheguei',
+      msg: `Olá ${nome}! Estou na porta com seu pedido #${num}. Por favor me aguarde! 📦`,
+    },
+    {
+      icon: '❌', label: 'Ausente',
+      msg: `Olá ${nome}! Tentei entregar seu pedido #${num} mas não encontrei ninguém no endereço. Por favor entre em contato para reagendar. 📞`,
+    },
+  ] : [
+    {
+      icon: '✅', label: 'Confirmação',
+      msg: `Olá ${nome}! Seu pedido #${num} está confirmado para entrega${data ? ` em ${data}` : ' em breve'}. Qualquer dúvida estamos à disposição! 🗓`,
+    },
+    {
+      icon: '📅', label: 'Remarcação',
+      msg: `Olá ${nome}! Informamos que a entrega do pedido #${num} precisou ser remarcada. Em breve entraremos em contato com a nova data. Pedimos desculpas pelo transtorno. 📅`,
+    },
+    {
+      icon: '🚫', label: 'Cancelamento',
+      msg: `Olá ${nome}! Infelizmente seu pedido #${num} foi cancelado. Entre em contato com nossa equipe para mais informações. 🚫`,
+    },
+  ]
+
+  const enviar = (msg) => {
+    const tel = pedido.telefone?.replace(/\D/g, '')
+    window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank')
+    onClose()
+  }
+
+  return (
+    <Modal title="Enviar via WhatsApp" subtitle={pedido.telefone} onClose={onClose}>
+      {templates.map(t => (
+        <div
+          key={t.label}
+          onClick={() => enviar(t.msg)}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 8, cursor: 'pointer', gap: 12 }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 3 }}>{t.icon} {t.label}</div>
+            <div style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {t.msg.substring(0, 72)}…
+            </div>
+          </div>
+          <Ic n="wa" s={16} style={{ color: '#25D366', flexShrink: 0 }} />
+        </div>
+      ))}
+    </Modal>
+  )
+}
+
 // ============================================================
 // MINHA ROTA
 // ============================================================
@@ -1824,6 +1919,9 @@ function MinhaRota() {
   const [sigNome, setSigNome] = useState('')
   const [sigDoc, setSigDoc] = useState('')
   const [obs, setObs] = useState('')
+  const [checklist, setChecklist] = useState({})
+  const [sigDrawn, setSigDrawn] = useState(false)
+  const [showWa, setShowWa] = useState(false)
   const { run, loading: actionLoading } = useAction()
   const canvasRef = useRef(null)
   const drawingRef = useRef(false)
@@ -1859,6 +1957,7 @@ function MinhaRota() {
     e.preventDefault()
     drawingRef.current = true
     lastPosRef.current = getPos(e, canvasRef.current)
+    if (!sigDrawn) setSigDrawn(true)
   }
 
   const draw = (e) => {
@@ -1878,7 +1977,7 @@ function MinhaRota() {
 
   const endDraw = () => { drawingRef.current = false }
 
-  const clearSig = () => { initCanvas() }
+  const clearSig = () => { initCanvas(); setSigDrawn(false) }
 
   const iniciarEntrega = (p) => {
     setActive(p)
@@ -1887,6 +1986,8 @@ function MinhaRota() {
     setSigNome('')
     setSigDoc('')
     setObs('')
+    setChecklist({})
+    setSigDrawn(false)
   }
 
   const concluir = () => {
@@ -1913,12 +2014,27 @@ function MinhaRota() {
   const pendentes = (pedidos || []).filter(p => p.status !== 'Entregue')
   const entregues = (pedidos || []).filter(p => p.status === 'Entregue')
 
+  const checkItems = active ? [
+    { id: 'produtos', label: 'Produto(s) conferidos no veículo' },
+    { id: 'endereco', label: `Endereço verificado: ${active.endereco}` },
+    { id: 'condicao', label: 'Produto em boas condições (sem avaria visível)' },
+    ...(active.telefone ? [{ id: 'telefone', label: `Telefone do cliente anotado: ${active.telefone}` }] : []),
+  ] : []
+  const checklistDone = checkItems.every(i => checklist[i.id])
+
   if (active) {
     return (
       <div className="page">
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <Btn variant="ghost" size="sm" onClick={() => setActive(null)}>← Cancelar</Btn>
-          <div style={{ fontSize: 12, color: 'var(--t2)' }}>Etapa {step + 1} de {steps.length}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {active.telefone && (
+              <button className="btn btn-s btn-sm" style={{ color: '#25D366', borderColor: '#25D36633' }} onClick={() => setShowWa(true)}>
+                <Ic n="wa" s={13} /> WhatsApp
+              </button>
+            )}
+            <div style={{ fontSize: 12, color: 'var(--t2)' }}>Etapa {step + 1}/{steps.length}</div>
+          </div>
         </div>
         <div className="steps">{steps.map((_, i) => <div key={i} className={`dot${i === step ? ' on' : i < step ? ' done' : ''}`} />)}</div>
         <div style={{ fontWeight: 600, marginBottom: 2 }}>{active.cliente}</div>
@@ -1926,17 +2042,25 @@ function MinhaRota() {
 
         {step === 0 && (
           <div>
-            <div className="card" style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📍</div>
-              <div style={{ fontWeight: 500, marginBottom: 4 }}>Pronto para iniciar?</div>
-              <div style={{ fontSize: 12, color: 'var(--t2)' }}>Localização GPS será registrada automaticamente</div>
-            </div>
-            <Btn style={{ width: '100%', justifyContent: 'center', padding: 13 }} loading={actionLoading}
+            <div style={{ fontWeight: 600, marginBottom: 12 }}>Conferência antes de sair</div>
+            {checkItems.map(item => (
+              <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: checklist[item.id] ? 'rgba(34,197,94,0.06)' : 'var(--bg1)', border: `1px solid ${checklist[item.id] ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`, borderRadius: 10, marginBottom: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!checklist[item.id]} onChange={e => setChecklist(prev => ({ ...prev, [item.id]: e.target.checked }))} style={{ width: 16, height: 16, accentColor: 'var(--green)', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, flex: 1 }}>{item.label}</span>
+                {checklist[item.id] && <Ic n="check" s={13} style={{ color: 'var(--green)', flexShrink: 0 }} />}
+              </label>
+            ))}
+            {!checklistDone && (
+              <div style={{ fontSize: 12, color: 'var(--t3)', textAlign: 'center', marginBottom: 8 }}>
+                Confirme todos os itens acima para liberar o início
+              </div>
+            )}
+            <Btn style={{ width: '100%', justifyContent: 'center', padding: 13, marginTop: 4 }} disabled={!checklistDone || actionLoading} loading={actionLoading}
               onClick={() => run(async () => {
                 await pedidosService.update(active.id, { status: 'Em Rota', hora_inicio: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) })
                 setStep(1)
               })}>
-              Iniciar atendimento
+              ✓ Tudo conferido — Iniciar entrega
             </Btn>
           </div>
         )}
@@ -1976,7 +2100,7 @@ function MinhaRota() {
             </div>
             <div className="fg">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label className="fl" style={{ margin: 0 }}>Assinatura do cliente</label>
+                <label className="fl" style={{ margin: 0 }}>Assinatura do cliente *</label>
                 <button className="btn btn-g btn-sm" onClick={clearSig}>Limpar</button>
               </div>
               <canvas
@@ -1992,9 +2116,14 @@ function MinhaRota() {
                 onTouchMove={draw}
                 onTouchEnd={endDraw}
               />
-              <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>Assine com o dedo ou mouse</div>
+              <div style={{ fontSize: 11, marginTop: 4, color: sigDrawn ? 'var(--green)' : 'var(--t3)' }}>
+                {sigDrawn ? '✓ Assinatura registrada' : 'Assine com o dedo ou mouse'}
+              </div>
             </div>
-            <Btn style={{ width: '100%', justifyContent: 'center', padding: 13 }} disabled={!sigNome} onClick={() => setStep(3)}>
+            {sigNome && !sigDrawn && (
+              <Alert type="warning" style={{ marginBottom: 10 }}>A assinatura do cliente é obrigatória para concluir a entrega.</Alert>
+            )}
+            <Btn style={{ width: '100%', justifyContent: 'center', padding: 13 }} disabled={!sigNome || !sigDrawn} onClick={() => setStep(3)}>
               Continuar
             </Btn>
           </div>
@@ -2009,7 +2138,7 @@ function MinhaRota() {
             <div className="card" style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 500, marginBottom: 8 }}>Resumo da entrega</div>
               <div style={{ fontSize: 13, color: 'var(--t2)' }}>📸 {fotos.length} foto(s)</div>
-              <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 4 }}>✍ Recebido por: {sigNome}</div>
+              <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 4 }}>✍ Recebido por: {sigNome}{sigDoc ? ` (${sigDoc})` : ''}</div>
               {obs && <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 4 }}>💬 {obs}</div>}
             </div>
             <Btn style={{ width: '100%', justifyContent: 'center', padding: 13, background: 'var(--green)' }} loading={actionLoading} onClick={concluir}>
@@ -2017,6 +2146,8 @@ function MinhaRota() {
             </Btn>
           </div>
         )}
+
+        {showWa && <WaTemplatesModal pedido={active} tipo="entregador" onClose={() => setShowWa(false)} />}
       </div>
     )
   }

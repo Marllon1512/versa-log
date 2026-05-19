@@ -7,6 +7,7 @@ export const pedidosService = {
     if (filters.data_entrega) q = q.eq('data_entrega', filters.data_entrega)
     if (filters.entregador_id) q = q.eq('entregador_id', filters.entregador_id)
     if (filters.local_separacao) q = q.eq('local_separacao', filters.local_separacao)
+    if (filters.cliente) q = q.ilike('cliente', `%${filters.cliente}%`)
     const { data, error } = await q
     if (error) throw error
     return data || []
