@@ -82,6 +82,7 @@ function Topbar({ page, setPage }) {
     ...(isGestor ? [
       { id: 'dashboard', label: 'Painel' },
       { id: 'pedidos', label: 'Pedidos' },
+      { id: 'separacao', label: 'Separação' },
       { id: 'agenda', label: 'Agenda' },
       { id: 'assistencia', label: 'Assistência' },
       { id: 'conferencia', label: 'Conferência' },
@@ -89,6 +90,7 @@ function Topbar({ page, setPage }) {
       { id: 'ranking', label: 'Ranking' },
       { id: 'mapa', label: 'Mapa' },
     ] : []),
+    ...(!isGestor && ['estoque', 'conferente'].includes(perfil?.role) ? [{ id: 'separacao', label: 'Separação' }] : []),
     { id: 'rota', label: 'Minha Rota' },
     { id: 'ponto', label: 'Ponto' },
     ...(isGestor ? [{ id: 'config', label: 'Configurações' }] : []),
@@ -112,6 +114,256 @@ function Topbar({ page, setPage }) {
     </div>
   )
 }
+
+// ============================================================
+// SEPARACAO
+// ============================================================
+function Separacao() {
+  const { perfil, isGestor } = useAuth()
+  const [selectedId, setSelectedId] = useState(null)
+  const { data: pedidos, loading, reload } = useData(() => pedidosService.list(), [])
+
+  const hoje = new Date().toISOString().split('T')[0]
+  const amanha = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const seteD = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+
+  // Filtra pedidos que precisam de separação (não entregues nem cancelados)
+  const pendentes = (pedidos || []).filter(p =>
+    !['Entregue', 'Cancelado', 'Pronto para Rota', 'Em Rota'].includes(p.status)
+  )
+
+  const deHoje = pendentes.filter(p => p.data_entrega === hoje)
+  const deAmanha = pendentes.filter(p => p.data_entrega === amanha)
+  const de7Dias = pendentes.filter(p => p.data_entrega > amanha && p.data_entrega <= seteD)
+
+  if (selectedId) return <SeparacaoDetalhe pedidoId={selectedId} onBack={() => { setSelectedId(null); reload() }} />
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <div>
+          <h1>Separação</h1>
+          <div className="ph-sub">Agenda dos próximos 7 dias</div>
+        </div>
+        <Btn variant="secondary" size="sm" onClick={reload}><Ic n="refresh" s={13} /></Btn>
+      </div>
+
+      {/* Stats */}
+      <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 24 }}>
+        {[
+          { label: 'Hoje', val: deHoje.length, color: deHoje.length > 0 ? 'var(--red)' : 'var(--green)', bg: deHoje.length > 0 ? 'var(--rdim)' : 'var(--gdim)' },
+          { label: 'Amanhã', val: deAmanha.length, color: 'var(--amber)', bg: 'var(--adim2)' },
+          { label: '7 dias', val: de7Dias.length, color: 'var(--accent)', bg: 'var(--adim)' },
+        ].map(s => (
+          <div className="stat" key={s.label}>
+            <div className="stat-val" style={{ color: s.color }}>{loading ? '—' : s.val}</div>
+            <div className="stat-lbl">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {loading ? <Spinner /> : (
+        <>
+          {deHoje.length > 0 && <SeparacaoGrupo titulo="Hoje" pedidos={deHoje} onSelect={setSelectedId} urgente />}
+          {deAmanha.length > 0 && <SeparacaoGrupo titulo="Amanhã" pedidos={deAmanha} onSelect={setSelectedId} />}
+          {de7Dias.length > 0 && <SeparacaoGrupo titulo="Próximos 7 dias" pedidos={de7Dias} onSelect={setSelectedId} />}
+          {pendentes.length === 0 && <Empty icon="📦" text="Nenhum pedido pendente de separação" />}
+        </>
+      )}
+    </div>
+  )
+}
+
+function SeparacaoGrupo({ titulo, pedidos, onSelect, urgente }) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: urgente ? 'var(--red)' : 'var(--t1)' }}>{titulo}</div>
+          <span className="badge bg" style={{ fontSize: 11 }}>{pedidos.length}</span>
+        </div>
+        <Ic n="chev" s={13} style={{ color: 'var(--t3)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />
+      </div>
+      {open && pedidos.map(p => <SeparacaoCard key={p.id} pedido={p} onClick={() => onSelect(p.id)} />)}
+    </div>
+  )
+}
+
+function SeparacaoCard({ pedido: p, onClick }) {
+  const totalProd = p.produtos?.length || 0
+  const separados = p.produtos?.filter(pr => pr.status_produto === 'Separado').length || 0
+  const progresso = totalProd > 0 ? Math.round((separados / totalProd) * 100) : 0
+  const statusSep = separados === totalProd && totalProd > 0 ? 'Separado' : separados > 0 ? 'Separando' : 'Pendente'
+
+  return (
+    <div className="li" onClick={onClick}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Ic n="save" s={14} style={{ color: 'var(--accent)' }} />
+      </div>
+      <div className="li-main">
+        <div className="li-title">{p.cliente}</div>
+        <div className="li-sub">#{p.numero_pedido} · {separados}/{totalProd} produto(s)</div>
+        {totalProd > 0 && (
+          <div style={{ marginTop: 5, height: 3, background: 'var(--bg3)', borderRadius: 2 }}>
+            <div style={{ width: `${progresso}%`, height: '100%', background: progresso === 100 ? 'var(--green)' : 'var(--accent)', borderRadius: 2, transition: 'width .3s' }} />
+          </div>
+        )}
+      </div>
+      <Badge status={statusSep} />
+      <Ic n="chev" s={13} style={{ color: 'var(--t3)', flexShrink: 0 }} />
+    </div>
+  )
+}
+
+function SeparacaoDetalhe({ pedidoId, onBack }) {
+  const { perfil } = useAuth()
+  const { data: pedido, loading, reload } = useData(() => pedidosService.getById(pedidoId), [pedidoId])
+  const { run, loading: saving } = useAction()
+  const [produtos, setProdutos] = useState([])
+  const [sucesso, setSucesso] = useState('')
+
+  useEffect(() => {
+    if (pedido?.produtos) {
+      setProdutos(pedido.produtos.map(p => ({ ...p, _volumes: p.volumes || '', _local: p.local_separacao || '', _peso: p.nivel_peso || '', _foto: p.foto_separacao || null })))
+    }
+  }, [pedido?.id])
+
+  const updateProd = (id, field, value) => {
+    setProdutos(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p))
+  }
+
+  const marcarSeparado = async (prod) => {
+    if (!prod._local) { alert('Informe o local do produto antes de marcar como separado.'); return }
+    await run(async () => {
+      await produtosService.update(prod.id, {
+        status_produto: 'Separado',
+        volumes: prod._volumes ? parseInt(prod._volumes) : null,
+        local_separacao: prod._local,
+        nivel_peso: prod._peso,
+      })
+      // Atualiza local
+      setProdutos(prev => prev.map(p => p.id === prod.id ? { ...p, status_produto: 'Separado' } : p))
+      setSucesso(prod.id)
+      setTimeout(() => setSucesso(''), 2000)
+
+      // Verifica se todos foram separados
+      const todos = produtos.map(p => p.id === prod.id ? { ...p, status_produto: 'Separado' } : p)
+      const allDone = todos.every(p => p.status_produto === 'Separado')
+      if (allDone) {
+        await pedidosService.update(pedidoId, { status: 'Pronto para Rota' })
+        await pedidosService.addHistorico(pedidoId, 'Pronto para Rota', 'Todos os produtos separados. Pedido pronto para rota.', perfil)
+        reload()
+      }
+    })
+  }
+
+  if (loading) return <div className="page"><Spinner /></div>
+  if (!pedido) return <div className="page"><Empty text="Pedido não encontrado" /></div>
+
+  const todosSeparados = produtos.every(p => p.status_produto === 'Separado')
+
+  return (
+    <div className="page">
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+        <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
+        <Badge status={pedido.status} />
+      </div>
+
+      <h1 style={{ fontSize: 20, marginBottom: 2 }}>{pedido.cliente}</h1>
+      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 4 }}>Pedido #{pedido.numero_pedido}</div>
+      <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
+        📅 Entrega: {pedido.data_entrega ? new Date(pedido.data_entrega + 'T12:00').toLocaleDateString('pt-BR') : '—'}
+      </div>
+
+      {todosSeparados && (
+        <Alert type="success" style={{ marginBottom: 16 }}>✓ Todos os produtos separados! Pedido marcado como Pronto para Rota.</Alert>
+      )}
+
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>Produtos ({produtos.length})</div>
+
+      {produtos.map(pr => (
+        <div key={pr.id} style={{
+          background: pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.05)' : 'var(--bg1)',
+          border: `1px solid ${pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+          borderRadius: 12, padding: 16, marginBottom: 12,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{pr.nome_produto}</div>
+              <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 2 }}>Qtd: {pr.quantidade}</div>
+            </div>
+            <Badge status={pr.status_produto || 'Pendente'} />
+          </div>
+
+          {pr.status_produto !== 'Separado' ? (
+            <>
+              <div className="grid2" style={{ marginBottom: 10 }}>
+                <div className="fg" style={{ marginBottom: 0 }}>
+                  <label className="fl">Volumes (caixas)</label>
+                  <input className="fi" type="number" value={pr._volumes} onChange={e => updateProd(pr.id, '_volumes', e.target.value)} placeholder="Qtd caixas" min="0" />
+                </div>
+                <div className="fg" style={{ marginBottom: 0 }}>
+                  <label className="fl">Local *</label>
+                  <input className="fi" value={pr._local} onChange={e => updateProd(pr.id, '_local', e.target.value)} placeholder="Ex: A3, Corredor 2" />
+                </div>
+              </div>
+
+              <div className="fg" style={{ marginBottom: 12 }}>
+                <label className="fl">Peso</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[['1','Muito Leve'],['2','Leve'],['3','Médio'],['4','Pesado'],['5','Muito Pesado']].map(([val, label]) => (
+                    <button key={val}
+                      className={`btn ${pr._peso === val ? 'btn-p' : 'btn-s'} btn-sm`}
+                      style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}
+                      onClick={() => updateProd(pr.id, '_peso', val)}
+                      title={label}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="fg" style={{ marginBottom: 12 }}>
+                <label className="fl">Foto da separação *</label>
+                <div className="upload-zone" style={{ padding: 16 }} onClick={() => updateProd(pr.id, '_foto', `foto_${Date.now()}`)}>
+                  {pr._foto ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                      <span style={{ fontSize: 20 }}>📷</span>
+                      <span style={{ fontSize: 13, color: 'var(--green)' }}>✓ Foto registrada</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 24, marginBottom: 4 }}>📷</div>
+                      <div style={{ fontSize: 13 }}>Toque para fotografar</div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <Btn
+                style={{ width: '100%', justifyContent: 'center', padding: 12, background: sucesso === pr.id ? 'var(--green)' : undefined }}
+                disabled={!pr._local || !pr._foto || saving}
+                loading={saving}
+                onClick={() => marcarSeparado(pr)}
+              >
+                {sucesso === pr.id ? '✓ Separado!' : '📦 Marcar Separado'}
+              </Btn>
+            </>
+          ) : (
+            <div style={{ fontSize: 13, color: 'var(--t2)' }}>
+              {pr.local_separacao && <div>📍 Local: <span style={{ color: 'var(--t1)' }}>{pr.local_separacao}</span></div>}
+              {pr.volumes && <div style={{ marginTop: 4 }}>📦 Volumes: <span style={{ color: 'var(--t1)' }}>{pr.volumes}</span></div>}
+              {pr.nivel_peso && <div style={{ marginTop: 4 }}>⚖️ Peso: <span style={{ color: 'var(--t1)' }}>{['','Muito Leve','Leve','Médio','Pesado','Muito Pesado'][parseInt(pr.nivel_peso)] || pr.nivel_peso}</span></div>}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 
 // ============================================================
 // DASHBOARD
@@ -1811,6 +2063,7 @@ function AppContent() {
   const PAGES = {
     dashboard: <Dashboard />,
     pedidos: <Pedidos />,
+    separacao: <Separacao />,
     agenda: <Agenda />,
     assistencia: <Assistencia />,
     conferencia: <Conferencia />,
