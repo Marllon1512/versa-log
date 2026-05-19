@@ -98,9 +98,9 @@ export function Textarea({ label, ...props }) {
 }
 
 // ── Alert ─────────────────────────────────────────────────
-export function Alert({ type = 'info', children }) {
+export function Alert({ type = 'info', children, style }) {
   const cls = { warning: 'alert-w', error: 'alert-e', success: 'alert-s', info: 'alert-w' }[type]
-  return <div className={`alert ${cls}`}>{children}</div>
+  return <div className={`alert ${cls}`} style={style}>{children}</div>
 }
 
 // ── Loading spinner ───────────────────────────────────────
@@ -143,9 +143,9 @@ const ICONS = {
   calendar: 'M3 4h18v18H3zM16 2v4M8 2v4M3 10h18',
 }
 
-export function Ic({ n, s = 15 }) {
+export function Ic({ n, s = 15, style }) {
   return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={style}>
       <path d={ICONS[n] || ''} />
     </svg>
   )

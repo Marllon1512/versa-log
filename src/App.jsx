@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import './styles.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useData, useAction, useDateInfo, usePrazo } from './hooks/index'
-import { Btn, Badge, Modal, Ic, Logo, Alert, Spinner, Empty, Input, Select, Textarea } from './components/ui/index'
+import { Btn, Badge, Modal, Ic, Logo, Alert, Spinner, Empty, Input } from './components/ui/index'
 import { pedidosService } from './services/pedidos'
 import {
   produtosService, usuariosService, equipesService,
@@ -191,11 +191,6 @@ function SeparacaoGrupo({ titulo, pedidos, onSelect, urgente }) {
 }
 
 function SeparacaoCard({ pedido: p, onClick }) {
-  const totalProd = p.produtos?.length || 0
-  const separados = p.produtos?.filter(pr => pr.status_produto === 'Separado').length || 0
-  const progresso = totalProd > 0 ? Math.round((separados / totalProd) * 100) : 0
-  const statusSep = separados === totalProd && totalProd > 0 ? 'Separado' : separados > 0 ? 'Separando' : 'Pendente'
-
   return (
     <div className="li" onClick={onClick}>
       <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -203,14 +198,14 @@ function SeparacaoCard({ pedido: p, onClick }) {
       </div>
       <div className="li-main">
         <div className="li-title">{p.cliente}</div>
-        <div className="li-sub">#{p.numero_pedido} · {separados}/{totalProd} produto(s)</div>
-        {totalProd > 0 && (
-          <div style={{ marginTop: 5, height: 3, background: 'var(--bg3)', borderRadius: 2 }}>
-            <div style={{ width: `${progresso}%`, height: '100%', background: progresso === 100 ? 'var(--green)' : 'var(--accent)', borderRadius: 2, transition: 'width .3s' }} />
+        <div className="li-sub">#{p.numero_pedido}{p.local_separacao ? ` · ${p.local_separacao}` : ''}</div>
+        {p.data_entrega && (
+          <div style={{ fontSize: 11, color: 'var(--t2)', marginTop: 2 }}>
+            📅 {new Date(p.data_entrega + 'T12:00').toLocaleDateString('pt-BR')}
           </div>
         )}
       </div>
-      <Badge status={statusSep} />
+      <Badge status={p.status} />
       <Ic n="chev" s={13} style={{ color: 'var(--t3)', flexShrink: 0 }} />
     </div>
   )
@@ -1470,6 +1465,27 @@ function Conferencia() {
   )
 }
 
+function gerarPDFConferencia(c) {
+  const w = window.open('', '_blank')
+  w.document.write(`
+    <html><head><title>Conferência #${c.numero_pedido}</title>
+    <style>body{font-family:sans-serif;padding:24px}h1{font-size:18px}p{font-size:13px;margin:4px 0}.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:${c.resultado==='Aprovado'?'#dcfce7;color:#16a34a':'#fee2e2;color:#dc2626'}}</style>
+    </head><body>
+    <h1>Conferência — Pedido #${c.numero_pedido}</h1>
+    <p><span class="badge">${c.resultado || 'Pendente'}</span></p>
+    <p><b>Produto:</b> ${c.produto}</p>
+    <p><b>NF:</b> ${c.numero_nf}</p>
+    <p><b>Fornecedor:</b> ${c.fornecedor}</p>
+    <p><b>Conferente:</b> ${c.conferente_nome}</p>
+    <p><b>Data:</b> ${new Date(c.data_hora).toLocaleString('pt-BR')}</p>
+    ${c.motivo_reprovacao ? `<p><b>Motivo:</b> ${c.motivo_reprovacao}</p>` : ''}
+    ${c.descricao_reprovacao ? `<p><b>Descrição:</b> ${c.descricao_reprovacao}</p>` : ''}
+    <script>window.onload=()=>{window.print()}</script>
+    </body></html>
+  `)
+  w.document.close()
+}
+
 function ConferenciaDetalhe({ id, onBack }) {
   const { data: c, loading } = useData(() => conferenciasService.getById(id), [id])
   if (loading) return <div className="page"><Spinner /></div>
@@ -1478,7 +1494,7 @@ function ConferenciaDetalhe({ id, onBack }) {
     <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
-        <Btn variant="secondary" size="sm"><Ic n="pdf" s={13} /> Gerar PDF</Btn>
+        <Btn variant="secondary" size="sm" onClick={() => gerarPDFConferencia(c)}><Ic n="pdf" s={13} /> Gerar PDF</Btn>
       </div>
       <Badge status={c.resultado || 'Pendente'} style={{ marginBottom: 8 }} />
       <h1 style={{ fontSize: 18, marginBottom: 4 }}>{c.produto}</h1>
@@ -1887,7 +1903,7 @@ function MinhaRota() {
         assinatura_url: sigData,
         data_hora: new Date().toISOString(),
       })
-      await pedidosService.addHistorico(active.id, 'Entregue', `Concluído por ${perfil?.full_name}. Recebido por: ${sigNome}`, perfil)
+      await pedidosService.addHistorico(active.id, 'Entregue', `Concluído por ${perfil?.full_name}. Recebido por: ${sigNome}${obs ? `. Obs: ${obs}` : ''}`, perfil)
       reload()
       setActive(null)
     })
