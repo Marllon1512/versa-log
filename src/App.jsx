@@ -1315,7 +1315,9 @@ function Assistencia() {
 
       try {
         const { data: inseridos, error } = await supabase
-          .from('assistencias').insert(payload).select('id, cliente, pedido_ref')
+          .from('assistencias')
+          .upsert(payload, { onConflict: 'pedido_ref,cliente', ignoreDuplicates: false })
+          .select('id, cliente, pedido_ref')
 
         if (error) {
           console.error(`[Import] ❌ Batch ${Math.floor(i / BATCH) + 1}:`, error.code, error.message, error.details)
@@ -1807,7 +1809,7 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
                 </thead>
                 <tbody>
                   {rawDebug.cabecalho.slice(0, 14).map((cab, idx) => {
-                    const MAPA = { 1: 'pedido_ref', 2: 'produto', 3: 'qtd', 5: 'fornecedor', 6: 'cliente ⭐', 7: 'loja', 8: 'data_venda', 9: 'data_abertura', 10: 'categoria', 11: 'descricao' }
+                    const MAPA = { 2: 'pedido_ref', 3: 'produto', 4: 'qtd', 6: 'fornecedor', 7: 'cliente ⭐', 8: 'loja', 9: 'data_venda', 10: 'data_abertura', 11: 'categoria', 12: 'descricao' }
                     const campo = MAPA[idx] || '—'
                     const destaque = campo.includes('cliente') || campo.includes('pedido')
                     return (
