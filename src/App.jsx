@@ -1324,32 +1324,36 @@ function Assistencia() {
           console.error('  objeto completo:', error)
           erros += batch.length
         } else {
-          // Monta os itens de produto de todos do batch de uma vez
+          // Usa índice posicional (PostgreSQL garante mesma ordem do INSERT)
+          // Não usa batch.find para evitar colisão quando cliente+pedido_ref se repete
           const itemsPayload = []
-          for (const rec of inseridos || []) {
-            const row = batch.find(r => r.cliente === rec.cliente && (r.pedido_ref || '') === (rec.pedido_ref || ''))
-            if (row?.produto) {
-              itemsPayload.push({
-                assistencia_id: rec.id,
-                produto: row.produto,
-                fornecedor: row.fornecedor || null,
-                motivo: row.categoria || 'Outros',
-                descricao: row.descricao || null,
-                status: 'Aberto',
-                prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-              })
-            }
+          for (let j = 0; j < (inseridos || []).length; j++) {
+            const rec = inseridos[j]
+            const row = batch[j]
+            // Cria item mesmo se produto vazio — usa categoria ou descrição como fallback
+            const nomeProduto = (row.produto || row.categoria || row.descricao || '').trim() || 'Item importado'
+            itemsPayload.push({
+              assistencia_id: rec.id,
+              produto: nomeProduto,
+              fornecedor: row.fornecedor || null,
+              motivo: row.categoria || 'Outros',
+              descricao: row.descricao || null,
+              status: 'Aberto',
+              prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+            })
           }
           if (itemsPayload.length) {
+            console.log(`[Import] Inserindo ${itemsPayload.length} itens — primeiro:`, JSON.stringify(itemsPayload[0]))
             const { error: ie } = await supabase.from('assistencia_itens').insert(itemsPayload)
             if (ie) {
               console.error(`[Import] ❌ Erro batch ${Math.floor(i / BATCH) + 1} — assistencia_itens:`)
               console.error('  code:', ie.code, '| message:', ie.message)
               console.error('  details:', ie.details, '| hint:', ie.hint)
+            } else {
+              console.log(`[Import] ✅ Batch ${Math.floor(i / BATCH) + 1}: ${inseridos.length} assistencias + ${itemsPayload.length} itens`)
             }
           }
           criadas += inseridos?.length || 0
-          console.log(`[Import] ✅ Batch ${Math.floor(i / BATCH) + 1}: ${inseridos?.length || 0} assistencias criadas`)
         }
       } catch (e) {
         console.error(`[Import] ❌ Exceção no batch ${Math.floor(i / BATCH) + 1}:`, e)
@@ -1417,8 +1421,12 @@ function AssistenciaCard({ assistencia: a, onClick }) {
   return (
     <div className="li" style={{ borderLeft: `3px solid ${cor}`, background: bg }} onClick={onClick}>
       <div className="li-main">
-        <div className="li-title">{a.cliente}</div>
-        <div className="li-sub">{a.loja ? `${a.loja} · ` : ''}{a.pedido_ref ? `#${a.pedido_ref} · ` : ''}{a.tipo_problema || 'Sem categoria'}</div>
+        <div className="li-title" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span>{a.cliente}</span>
+          {a.pedido_ref && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'var(--adim)', borderRadius: 4, padding: '1px 6px' }}>#{a.pedido_ref}</span>}
+          {a.loja && <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 400 }}>{a.loja}</span>}
+        </div>
+        <div className="li-sub">{a.tipo_problema || 'Sem categoria'}{a.categoria ? ` · ${a.categoria}` : ''}</div>
         {ativo && <div style={{ fontSize: 11, color: cor, marginTop: 2 }}>⏱ {dias} dias aberto</div>}
       </div>
       <Badge status={a.status} />
