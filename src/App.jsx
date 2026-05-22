@@ -342,7 +342,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
 
               <Btn
                 style={{ width: '100%', justifyContent: 'center', padding: 12, background: sucesso === pr.id ? 'var(--green)' : undefined }}
-                disabled={!pr._local || !pr._foto || saving}
+                disabled={!pr._local || saving}
                 loading={saving}
                 onClick={() => marcarSeparado(pr)}
               >
@@ -534,6 +534,7 @@ function PedidoCard({ pedido: p, onClick }) {
 // ── PDF simples ───────────────────────────────────────────
 function gerarPDFSimples(pedido, produtos) {
   const w = window.open('', '_blank')
+  if (!w) { alert('Permita popups para gerar o PDF.'); return }
   const rows = produtos.map(p =>
     `<tr><td>${p.nome_produto}</td><td>${p.quantidade}</td><td>${p.status_produto || 'Pendente'}</td></tr>`
   ).join('')
@@ -1256,45 +1257,58 @@ function Assistencia() {
   }
 
   const handleImport = async (rows) => {
+    let criadas = 0, atualizadas = 0, erros = 0
     for (const row of rows) {
-      const existing = lista.find(a => a.pedido_ref === row.pedido_ref && a.cliente === row.cliente)
-      if (existing) {
-        await assistenciasService.update(existing.id, {
-          loja: row.loja || existing.loja,
-          categoria: row.categoria || existing.categoria,
-        })
-      } else {
-        const nova = await assistenciasService.create({
-          cliente: row.cliente,
-          pedido_ref: row.pedido_ref,
-          loja: row.loja,
-          categoria: row.categoria,
-          tipo_problema: row.categoria || row.produto || 'Outros',
-          observacoes: row.descricao,
-          data_abertura: row.data_abertura || hoje.toISOString().split('T')[0],
-          status: 'Aberto',
-          origem: 'excel',
-          created_by: perfil?.id,
-        })
-        if (row.produto) {
-          await assistenciasService.createItem({
-            assistencia_id: nova.id,
-            produto: row.produto,
-            fornecedor: row.fornecedor,
-            motivo: row.categoria || 'Outros',
-            descricao: row.descricao,
-            status: 'Aberto',
-            prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      try {
+        const dataAbertura = row.data_abertura || hoje.toISOString().split('T')[0]
+        const existing = lista.find(a =>
+          a.pedido_ref && row.pedido_ref && a.pedido_ref === row.pedido_ref && a.cliente === row.cliente
+        )
+        if (existing) {
+          await assistenciasService.update(existing.id, {
+            loja: row.loja || existing.loja,
+            categoria: row.categoria || existing.categoria,
           })
+          atualizadas++
+        } else {
+          const nova = await assistenciasService.create({
+            cliente: row.cliente,
+            pedido_ref: row.pedido_ref || null,
+            loja: row.loja || null,
+            categoria: row.categoria || null,
+            tipo_problema: row.categoria || row.produto || 'Outros',
+            observacoes: row.descricao || null,
+            data_abertura: dataAbertura,
+            status: 'Aberto',
+            origem: 'excel',
+            created_by: perfil?.id,
+          })
+          if (row.produto) {
+            await assistenciasService.createItem({
+              assistencia_id: nova.id,
+              produto: row.produto,
+              fornecedor: row.fornecedor || null,
+              motivo: row.categoria || 'Outros',
+              descricao: row.descricao || null,
+              status: 'Aberto',
+              prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+            })
+          }
+          const dias = diasAberto(dataAbertura)
+          if (dias >= 7) {
+            await supabase.from('assistencia_tarefas').insert({ assistencia_id: nova.id, titulo: 'Verificar assistência importada atrasada', descricao: `Importada com ${dias} dias sem atualização`, tipo: 'follow_up', status: 'pendente', criado_automaticamente: true, prazo: hoje.toISOString().split('T')[0] })
+          }
+          criadas++
         }
-        const dias = diasAberto(row.data_abertura)
-        if (dias >= 7) {
-          await supabase.from('assistencia_tarefas').insert({ assistencia_id: nova.id, titulo: 'Verificar assistência importada atrasada', descricao: `Importada com ${dias} dias sem atualização`, tipo: 'follow_up', status: 'pendente', criado_automaticamente: true, prazo: hoje.toISOString().split('T')[0] })
-        }
+      } catch {
+        erros++
       }
     }
     await reload()
     setShowImport(false)
+    if (erros > 0) {
+      alert(`Importação concluída: ${criadas} criadas, ${atualizadas} atualizadas, ${erros} com erro.`)
+    }
   }
 
   if (selectedId) return <AssistenciaDetalhe id={selectedId} onBack={() => { setSelectedId(null); reload() }} />
@@ -1704,7 +1718,7 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
       footer={
         <>
           <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-          {preview && rows.length > 0 && <Btn loading={saving} onClick={async () => { setSaving(true); await onImport(rows); setSaving(false) }}>Importar {rows.length} registros</Btn>}
+          {preview && rows.length > 0 && <Btn loading={saving} onClick={async () => { setSaving(true); try { await onImport(rows) } catch { alert('Erro na importação. Verifique o console.') } setSaving(false) }}>Importar {rows.length} registros</Btn>}
         </>
       }
     >
@@ -2952,8 +2966,8 @@ function Ponto() {
         data_hora: new Date().toISOString(),
         data: new Date().toISOString().split('T')[0],
       })
-      reload()
-      if (isGestor) reloadTodos()
+      await reload()
+      if (isGestor) await reloadTodos()
     })
   }
 
