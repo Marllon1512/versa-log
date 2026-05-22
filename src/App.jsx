@@ -3,6 +3,8 @@ import './styles.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useData, useAction, useDateInfo, usePrazo } from './hooks/index'
 import { Btn, Badge, Modal, Ic, Logo, Alert, Spinner, Empty, Input } from './components/ui/index'
+import * as XLSX from 'xlsx'
+import { supabase } from './lib/supabase'
 import { pedidosService } from './services/pedidos'
 import {
   produtosService, usuariosService, equipesService,
@@ -85,6 +87,7 @@ function Topbar({ page, setPage }) {
       { id: 'separacao', label: 'Separação' },
       { id: 'agenda', label: 'Agenda' },
       { id: 'assistencia', label: 'Assistência' },
+      { id: 'roteiro', label: 'Roteiro' },
       { id: 'conferencia', label: 'Conferência' },
       { id: 'equipe', label: 'Equipe' },
       { id: 'ranking', label: 'Ranking' },
@@ -1216,28 +1219,57 @@ function Agenda() {
 }
 
 // ============================================================
-// ASSISTENCIA
+// ASSISTENCIA - CENTRAL
 // ============================================================
 function Assistencia() {
   const { perfil } = useAuth()
   const [sf, setSf] = useState('Todos')
+  const [busca, setBusca] = useState('')
   const [showNew, setShowNew] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
   const { data: assistencias, loading, reload } = useData(() => assistenciasService.list(), [])
-  const statuses = ['Todos', 'Aberto', 'Em andamento', 'Aguardando fábrica', 'Aguardando peça', 'Concluído', 'Cancelado']
 
-  const filtered = (assistencias || []).filter(a => sf === 'Todos' || a.status === sf)
+  const hoje = new Date()
+  const diasAberto = (d) => !d ? 0 : Math.floor((hoje - new Date(d)) / 86400000)
+
+  const lista = assistencias || []
+  const ativas = lista.filter(a => !['Concluído', 'Cancelado'].includes(a.status))
+  const criticas = ativas.filter(a => diasAberto(a.data_abertura) >= 30)
+  const urgentes = ativas.filter(a => { const d = diasAberto(a.data_abertura); return d >= 20 && d < 30 })
+
+  const statuses = ['Todos', 'Aberto', 'Em andamento', 'Aguardando fábrica', 'Aguardando peça', 'Agendado', 'Concluído', 'Cancelado']
+  const filtered = lista.filter(a => {
+    const okStatus = sf === 'Todos' || a.status === sf
+    const okBusca = !busca || [a.cliente, a.pedido_ref, a.loja, a.tipo_problema].some(v => v?.toLowerCase().includes(busca.toLowerCase()))
+    return okStatus && okBusca
+  })
 
   const handleCreate = async (dados) => {
     const { itens, ...assistencia } = dados
     const nova = await assistenciasService.create({ ...assistencia, created_by: perfil?.id })
     if (itens?.length) {
-      for (const item of itens) {
-        await assistenciasService.createItem({ ...item, assistencia_id: nova.id })
-      }
+      for (const item of itens) await assistenciasService.createItem({ ...item, assistencia_id: nova.id })
     }
     await reload()
     setShowNew(false)
+  }
+
+  const handleImport = async (rows) => {
+    for (const row of rows) {
+      const existing = lista.find(a => a.pedido_ref === row.pedido_ref && a.cliente === row.cliente)
+      if (existing) {
+        await assistenciasService.update(existing.id, { status: row.status || existing.status, loja: row.loja || existing.loja })
+      } else {
+        const nova = await assistenciasService.create({ ...row, data_abertura: row.data_abertura || hoje.toISOString().split('T')[0], status: row.status || 'Aberto', origem: 'excel', created_by: perfil?.id })
+        const dias = diasAberto(row.data_abertura)
+        if (dias >= 7) {
+          await supabase.from('assistencia_tarefas').insert({ assistencia_id: nova.id, titulo: 'Verificar assistência importada atrasada', descricao: `Importada com ${dias} dias de abertura sem atualização`, tipo: 'follow_up', status: 'pendente', criado_automaticamente: true, prazo: hoje.toISOString().split('T')[0] })
+        }
+      }
+    }
+    await reload()
+    setShowImport(false)
   }
 
   if (selectedId) return <AssistenciaDetalhe id={selectedId} onBack={() => { setSelectedId(null); reload() }} />
@@ -1245,40 +1277,81 @@ function Assistencia() {
   return (
     <div className="page">
       <div className="ph">
-        <h1>Assistência Técnica</h1>
-        <Btn size="sm" onClick={() => setShowNew(true)}><Ic n="plus" s={13} /> Nova Assistência</Btn>
+        <div>
+          <h1>Central de Assistências</h1>
+          <div className="ph-sub">{ativas.length} em andamento</div>
+        </div>
+        <div className="row" style={{ gap: 6 }}>
+          <Btn variant="secondary" size="sm" onClick={() => setShowImport(true)}><Ic n="save" s={13} /> Excel</Btn>
+          <Btn size="sm" onClick={() => setShowNew(true)}><Ic n="plus" s={13} /> Nova</Btn>
+        </div>
       </div>
-      <div className="filters">
+
+      <div className="stats" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 20 }}>
+        {[
+          { label: 'Críticas +30d', val: criticas.length, color: 'var(--red)', bg: 'var(--rdim)' },
+          { label: 'Urgentes +20d', val: urgentes.length, color: 'var(--amber)', bg: 'var(--adim2)' },
+          { label: 'Abertas', val: ativas.length, color: 'var(--accent)', bg: 'var(--adim)' },
+        ].map(s => (
+          <div className="stat" key={s.label}>
+            <div className="stat-val" style={{ color: s.color }}>{loading ? '—' : s.val}</div>
+            <div className="stat-lbl">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="fg" style={{ marginBottom: 12 }}>
+        <input className="fi" placeholder="Buscar cliente, pedido, loja..." value={busca} onChange={e => setBusca(e.target.value)} />
+      </div>
+      <div className="filters" style={{ marginBottom: 16 }}>
         {statuses.map(s => <button key={s} className={`fb${sf === s ? ' on' : ''}`} onClick={() => setSf(s)}>{s}</button>)}
       </div>
-      {loading ? <Spinner /> : filtered.length === 0 ? <Empty icon="🔧" text="Nenhuma assistência" /> :
+
+      {loading ? <Spinner /> : filtered.length === 0 ? <Empty icon="🔧" text="Nenhuma assistência encontrada" /> :
         filtered.map(a => <AssistenciaCard key={a.id} assistencia={a} onClick={() => setSelectedId(a.id)} />)}
+
       {showNew && <NovaAssistenciaModal onClose={() => setShowNew(false)} onSave={handleCreate} />}
+      {showImport && <ImportarExcelAssistenciaModal onClose={() => setShowImport(false)} onImport={handleImport} existentes={lista} />}
     </div>
   )
 }
 
 function AssistenciaCard({ assistencia: a, onClick }) {
-  const pr = usePrazo(a.data_abertura)
+  const dias = Math.floor((new Date() - new Date(a.data_abertura)) / 86400000)
+  const ativo = !['Concluído', 'Cancelado'].includes(a.status)
+  const cor = ativo ? (dias >= 30 ? '#ef4444' : dias >= 20 ? '#f59e0b' : dias >= 10 ? '#3b82f6' : 'var(--t3)') : 'var(--t3)'
+  const bg = ativo ? (dias >= 30 ? 'rgba(239,68,68,0.06)' : dias >= 20 ? 'rgba(245,158,11,0.06)' : dias >= 10 ? 'rgba(59,130,246,0.06)' : 'transparent') : 'transparent'
   return (
-    <div className="li" onClick={onClick}>
+    <div className="li" style={{ borderLeft: `3px solid ${cor}`, background: bg }} onClick={onClick}>
       <div className="li-main">
         <div className="li-title">{a.cliente}</div>
-        <div className="li-sub">{a.tipo_problema} · {a.responsavel_nome || 'Sem responsável'}</div>
-        {pr && <div style={{ fontSize: 11, color: pr.color, marginTop: 2 }}>⏱ {pr.text}</div>}
+        <div className="li-sub">{a.loja ? `${a.loja} · ` : ''}{a.pedido_ref ? `#${a.pedido_ref} · ` : ''}{a.tipo_problema || 'Sem categoria'}</div>
+        {ativo && <div style={{ fontSize: 11, color: cor, marginTop: 2 }}>⏱ {dias} dias aberto</div>}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-        <Badge status={a.status} />
-        {pr && <span className={`badge ${pr.badge}`} style={{ fontSize: 10 }}>{pr.text}</span>}
-      </div>
-      <Ic n="chev" s={13} style={{ color: 'var(--t3)' }} />
+      <Badge status={a.status} />
+      <Ic n="chev" s={13} style={{ color: 'var(--t3)', flexShrink: 0 }} />
     </div>
   )
 }
 
 function AssistenciaDetalhe({ id, onBack }) {
+  const { perfil } = useAuth()
   const { data: a, loading, reload } = useData(() => assistenciasService.getById(id), [id])
   const { run, loading: actionLoading } = useAction()
+  const [aba, setAba] = useState(0)
+
+  useEffect(() => {
+    if (!a) return
+    const dias = Math.floor((new Date() - new Date(a.updated_at || a.data_abertura)) / 86400000)
+    if (dias >= 7 && !['Concluído', 'Cancelado'].includes(a.status)) {
+      supabase.from('assistencia_tarefas').select('id').eq('assistencia_id', id).eq('criado_automaticamente', true).eq('status', 'pendente')
+        .then(({ data }) => {
+          if (!data?.length) {
+            supabase.from('assistencia_tarefas').insert({ assistencia_id: id, titulo: 'Assistência sem atualização há +7 dias', descricao: `Verificar e atualizar o status (${dias} dias sem alteração)`, tipo: 'follow_up', status: 'pendente', criado_automaticamente: true, prazo: new Date().toISOString().split('T')[0] })
+          }
+        })
+    }
+  }, [a?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateStatus = async (status) => {
     await run(() => assistenciasService.update(id, { status }))
@@ -1288,24 +1361,46 @@ function AssistenciaDetalhe({ id, onBack }) {
   if (loading) return <div className="page"><Spinner /></div>
   if (!a) return <div className="page"><Empty text="Não encontrado" /></div>
 
+  const dias = Math.floor((new Date() - new Date(a.data_abertura)) / 86400000)
+
   return (
     <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
         <select className="fi" style={{ width: 'auto' }} value={a.status} onChange={e => updateStatus(e.target.value)} disabled={actionLoading}>
-          {['Aberto', 'Em andamento', 'Aguardando fábrica', 'Aguardando peça', 'Agendado', 'Concluído', 'Cancelado'].map(s => (
-            <option key={s}>{s}</option>
-          ))}
+          {['Aberto', 'Em andamento', 'Aguardando fábrica', 'Aguardando peça', 'Agendado', 'Concluído', 'Cancelado'].map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
       <Badge status={a.status} style={{ marginBottom: 8 }} />
       <h1 style={{ fontSize: 20, marginBottom: 4 }}>{a.cliente}</h1>
-      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 16 }}>
-        Aberto em {new Date(a.data_abertura + 'T12:00').toLocaleDateString('pt-BR')} · {a.origem || 'app'}
+      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 4 }}>
+        {a.loja && <span>{a.loja} · </span>}
+        {a.pedido_ref && <span>#{a.pedido_ref} · </span>}
+        {dias} dias aberto
       </div>
-      {a.observacoes && <Alert type="warning">{a.observacoes}</Alert>}
-      <div style={{ fontWeight: 600, marginBottom: 10 }}>Itens ({(a.assistencia_itens || []).length})</div>
-      {(a.assistencia_itens || []).map(item => (
+      <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
+        Aberto em {new Date(a.data_abertura + 'T12:00').toLocaleDateString('pt-BR')}
+        {a.responsavel_nome && ` · ${a.responsavel_nome}`}
+      </div>
+
+      <div className="filters" style={{ marginBottom: 16 }}>
+        {['Produtos', 'Mensagens', 'Tarefas'].map((tab, i) => (
+          <button key={tab} className={`fb${aba === i ? ' on' : ''}`} onClick={() => setAba(i)}>{tab}</button>
+        ))}
+      </div>
+
+      {aba === 0 && <AssistenciaProdutosAba itens={a.assistencia_itens || []} />}
+      {aba === 1 && <AssistenciaMensagensAba assistenciaId={id} assistencia={a} perfil={perfil} />}
+      {aba === 2 && <AssistenciaTarefasAba assistenciaId={id} perfil={perfil} />}
+    </div>
+  )
+}
+
+function AssistenciaProdutosAba({ itens }) {
+  if (!itens.length) return <Empty icon="📦" text="Nenhum produto cadastrado" />
+  return (
+    <div>
+      {itens.map(item => (
         <div className="card-sm" key={item.id} style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
             <div style={{ fontWeight: 500, fontSize: 13 }}>{item.produto}</div>
@@ -1320,10 +1415,288 @@ function AssistenciaDetalhe({ id, onBack }) {
   )
 }
 
+const TEMPLATES_WPP = [
+  { label: 'Saudação', icon: '👋', gerar: (a) => `Olá ${a.cliente?.split(' ')[0] || 'cliente'}, tudo bem? Aqui é da ${a.loja || 'Versa Log'}, referente ao seu pedido${a.pedido_ref ? ` #${a.pedido_ref}` : ''}. Entramos em contato sobre a assistência técnica solicitada. Como podemos ajudar?` },
+  { label: 'Atualização', icon: '📋', gerar: (a) => `Olá ${a.cliente?.split(' ')[0] || 'cliente'}! Temos uma atualização sobre sua assistência${a.pedido_ref ? ` do pedido #${a.pedido_ref}` : ''}. Estamos trabalhando para resolver o mais rápido possível. Qualquer novidade, entramos em contato. Obrigado pela paciência! 🙏` },
+  { label: 'Desculpas', icon: '😔', gerar: (a) => `Olá ${a.cliente?.split(' ')[0] || 'cliente'}, pedimos desculpas pelo inconveniente com o seu produto${a.pedido_ref ? ` (pedido #${a.pedido_ref})` : ''}. Estamos tomando as providências necessárias para resolver a situação o quanto antes. Agradecemos sua compreensão!` },
+]
+
+const TEMPLATES_EMAIL = [
+  { label: 'Cobrança fábrica', icon: '📧', assunto: (a) => `Cobrança de retorno - Assistência cliente ${a.cliente}`, gerar: (a) => `Prezados,\n\nEstamos aguardando retorno sobre a assistência técnica do cliente ${a.cliente}${a.pedido_ref ? `, pedido #${a.pedido_ref}` : ''}.\n\nA solicitação foi aberta há ${Math.floor((new Date() - new Date(a.data_abertura)) / 86400000)} dias e ainda não recebemos posicionamento.\n\nSolicitamos urgência na resolução deste caso.\n\nAtenciosamente,\nEquipe ${a.loja || 'Versa Log'}` },
+  { label: 'Defeito fábrica', icon: '⚠️', assunto: (a) => `Defeito de fabricação - ${a.cliente} - Pedido #${a.pedido_ref || '—'}`, gerar: (a) => `Prezados,\n\nIdentificamos defeito de fabricação no(s) produto(s) do cliente ${a.cliente}, referente ao pedido #${a.pedido_ref || '—'}.\n\nSolicitamos análise e providências para troca/reparo dos itens afetados.\n\nAguardamos retorno.\n\nAtenciosamente,\nEquipe ${a.loja || 'Versa Log'}` },
+  { label: 'Medida errada', icon: '📐', assunto: (a) => `Produto com medida incorreta - ${a.cliente}`, gerar: (a) => `Prezados,\n\nO produto entregue ao cliente ${a.cliente} (pedido #${a.pedido_ref || '—'}) apresenta medidas incorretas em relação ao pedido realizado.\n\nSolicitamos verificação e envio do produto correto com urgência.\n\nAtenciosamente,\nEquipe ${a.loja || 'Versa Log'}` },
+]
+
+function AssistenciaMensagensAba({ assistenciaId, assistencia: a, perfil }) {
+  const [interacoes, setInteracoes] = useState([])
+  const [loadingI, setLoadingI] = useState(true)
+  const [showTpl, setShowTpl] = useState(false)
+  const [tipo, setTipo] = useState('wpp')
+  const [texto, setTexto] = useState('')
+  const [assunto, setAssunto] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [copiado, setCopiado] = useState('')
+
+  useEffect(() => {
+    supabase.from('assistencia_interacoes').select('*').eq('assistencia_id', assistenciaId).order('created_at', { ascending: false })
+      .then(({ data }) => { setInteracoes(data || []); setLoadingI(false) })
+  }, [assistenciaId])
+
+  const salvar = async (t, dest, subj, cont) => {
+    setSaving(true)
+    const { data } = await supabase.from('assistencia_interacoes').insert({ assistencia_id: assistenciaId, tipo: t, destinatario: dest, assunto: subj, conteudo: cont, usuario_nome: perfil?.full_name || '', created_at: new Date().toISOString() }).select().single()
+    if (data) setInteracoes(prev => [data, ...prev])
+    setSaving(false); setTexto(''); setAssunto(''); setShowTpl(false)
+  }
+
+  const copiar = (t, k) => { navigator.clipboard.writeText(t); setCopiado(k); setTimeout(() => setCopiado(''), 2000) }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <Btn variant={tipo === 'wpp' && showTpl ? 'primary' : 'secondary'} size="sm" onClick={() => { setTipo('wpp'); setShowTpl(true) }}>💬 WhatsApp</Btn>
+        <Btn variant={tipo === 'email' && showTpl ? 'primary' : 'secondary'} size="sm" onClick={() => { setTipo('email'); setShowTpl(true) }}>📧 Email Fábrica</Btn>
+      </div>
+
+      {showTpl && (
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>{tipo === 'wpp' ? '💬 Templates WhatsApp (cliente)' : '📧 Templates Email (fábrica)'}</div>
+          {(tipo === 'wpp' ? TEMPLATES_WPP : TEMPLATES_EMAIL).map((tpl, i) => {
+            const txt = tpl.gerar(a); const subj = tpl.assunto ? tpl.assunto(a) : ''; const k = `${tipo}_${i}`
+            return (
+              <div key={i} style={{ background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                <div style={{ fontWeight: 500, fontSize: 12, marginBottom: 6 }}>{tpl.icon} {tpl.label}</div>
+                {subj && <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>Assunto: {subj}</div>}
+                <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 8, whiteSpace: 'pre-line' }}>{txt}</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Btn variant="secondary" size="sm" onClick={() => copiar(txt, k)}>{copiado === k ? '✓ Copiado!' : '📋 Copiar'}</Btn>
+                  <Btn size="sm" loading={saving} onClick={() => salvar(tipo, tipo === 'wpp' ? 'cliente' : 'fabrica', subj, txt)}>Salvar registro</Btn>
+                </div>
+              </div>
+            )
+          })}
+          <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>Mensagem manual:</div>
+            {tipo === 'email' && <div className="fg" style={{ marginBottom: 8 }}><input className="fi" placeholder="Assunto" value={assunto} onChange={e => setAssunto(e.target.value)} /></div>}
+            <div className="fg" style={{ marginBottom: 8 }}><textarea className="fi" rows={3} placeholder="Mensagem..." value={texto} onChange={e => setTexto(e.target.value)} /></div>
+            <Btn size="sm" disabled={!texto.trim()} loading={saving} onClick={() => salvar(tipo, tipo === 'wpp' ? 'cliente' : 'fabrica', assunto, texto)}>Salvar</Btn>
+          </div>
+          <Btn variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => setShowTpl(false)}>Fechar</Btn>
+        </div>
+      )}
+
+      {loadingI ? <Spinner /> : interacoes.length === 0 ? <Empty icon="💬" text="Nenhuma mensagem registrada" /> :
+        interacoes.map(i => (
+          <div key={i.id} style={{ background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: i.tipo === 'wpp' ? '#25d366' : 'var(--accent)' }}>{i.tipo === 'wpp' ? '💬 WhatsApp' : '📧 Email'}</span>
+                <span style={{ fontSize: 11, color: 'var(--t3)' }}>→ {i.destinatario}</span>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--t3)' }}>{new Date(i.created_at).toLocaleDateString('pt-BR')} · {i.usuario_nome}</span>
+            </div>
+            {i.assunto && <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>Assunto: {i.assunto}</div>}
+            <div style={{ fontSize: 12, color: 'var(--t2)', whiteSpace: 'pre-line' }}>{i.conteudo}</div>
+          </div>
+        ))
+      }
+    </div>
+  )
+}
+
+function AssistenciaTarefasAba({ assistenciaId, perfil }) {
+  const [tarefas, setTarefas] = useState([])
+  const [loadingT, setLoadingT] = useState(true)
+  const [showNova, setShowNova] = useState(false)
+  const [showConcluir, setShowConcluir] = useState(null)
+
+  const carregar = () => {
+    setLoadingT(true)
+    supabase.from('assistencia_tarefas').select('*').eq('assistencia_id', assistenciaId).order('created_at', { ascending: false })
+      .then(({ data }) => { setTarefas(data || []); setLoadingT(false) })
+  }
+
+  useEffect(() => { carregar() }, [assistenciaId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const criar = async (dados) => {
+    await supabase.from('assistencia_tarefas').insert({ ...dados, assistencia_id: assistenciaId, status: 'pendente', criado_automaticamente: false, usuario_nome: perfil?.full_name || '', created_at: new Date().toISOString() })
+    carregar(); setShowNova(false)
+  }
+
+  const concluir = async (tarId, obs) => {
+    await supabase.from('assistencia_tarefas').update({ status: 'concluída', observacao_conclusao: obs, concluido_em: new Date().toISOString() }).eq('id', tarId)
+    carregar(); setShowConcluir(null)
+  }
+
+  const pendentes = tarefas.filter(t => t.status === 'pendente')
+  const concluidas = tarefas.filter(t => t.status === 'concluída')
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--t2)' }}>{pendentes.length} pendente(s)</div>
+        <Btn size="sm" onClick={() => setShowNova(true)}><Ic n="plus" s={12} /> Nova Tarefa</Btn>
+      </div>
+      {loadingT ? <Spinner /> : (
+        <>
+          {pendentes.length === 0 && concluidas.length === 0 && <Empty icon="✅" text="Nenhuma tarefa" />}
+          {pendentes.map(t => (
+            <div key={t.id} style={{ background: t.criado_automaticamente ? 'rgba(245,158,11,0.05)' : 'var(--bg1)', border: `1px solid ${t.criado_automaticamente ? 'rgba(245,158,11,0.3)' : 'var(--border)'}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <div style={{ fontWeight: 500, fontSize: 13 }}>
+                  {t.criado_automaticamente && <span style={{ fontSize: 10, color: 'var(--amber)', marginRight: 6 }}>⚡ AUTO</span>}
+                  {t.titulo}
+                </div>
+                <Btn size="sm" variant="secondary" onClick={() => setShowConcluir(t)}>Concluir</Btn>
+              </div>
+              {t.descricao && <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 4 }}>{t.descricao}</div>}
+              {t.prazo && <div style={{ fontSize: 11, color: 'var(--amber)' }}>⏱ Prazo: {new Date(t.prazo + 'T12:00').toLocaleDateString('pt-BR')}</div>}
+            </div>
+          ))}
+          {concluidas.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 8 }}>Concluídas ({concluidas.length})</div>
+              {concluidas.map(t => (
+                <div key={t.id} style={{ opacity: 0.55, background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 6 }}>
+                  <div style={{ fontSize: 12, textDecoration: 'line-through' }}>✓ {t.titulo}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {showNova && (
+        <Modal title="Nova Tarefa" onClose={() => setShowNova(false)} footer={null}>
+          <NovaTarefaForm onSave={criar} onCancel={() => setShowNova(false)} />
+        </Modal>
+      )}
+      {showConcluir && (
+        <Modal title="Concluir Tarefa" onClose={() => setShowConcluir(null)} footer={null}>
+          <ConcluirTarefaForm tarefa={showConcluir} onSave={(obs) => concluir(showConcluir.id, obs)} onCancel={() => setShowConcluir(null)} />
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function NovaTarefaForm({ onSave, onCancel }) {
+  const [form, setForm] = useState({ titulo: '', descricao: '', tipo: 'follow_up', prazo: '' })
+  const [saving, setSaving] = useState(false)
+  const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
+  return (
+    <>
+      <div className="fg"><label className="fl">Título *</label><input className="fi" value={form.titulo} onChange={up('titulo')} /></div>
+      <div className="fg">
+        <label className="fl">Tipo</label>
+        <select className="fi" value={form.tipo} onChange={up('tipo')}>
+          {['follow_up', 'visita', 'contato_fabrica', 'agendamento', 'outro'].map(t => <option key={t}>{t}</option>)}
+        </select>
+      </div>
+      <div className="fg"><label className="fl">Prazo</label><input className="fi" type="date" value={form.prazo} onChange={up('prazo')} /></div>
+      <div className="fg"><label className="fl">Descrição</label><textarea className="fi" rows={2} value={form.descricao} onChange={up('descricao')} /></div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+        <Btn variant="ghost" onClick={onCancel}>Cancelar</Btn>
+        <Btn disabled={!form.titulo.trim()} loading={saving} onClick={async () => { setSaving(true); await onSave(form); setSaving(false) }}>Salvar</Btn>
+      </div>
+    </>
+  )
+}
+
+function ConcluirTarefaForm({ tarefa, onSave, onCancel }) {
+  const [obs, setObs] = useState('')
+  const [saving, setSaving] = useState(false)
+  return (
+    <>
+      <div style={{ fontWeight: 500, marginBottom: 8 }}>{tarefa.titulo}</div>
+      <div className="fg"><label className="fl">Observação da conclusão</label><textarea className="fi" rows={3} value={obs} onChange={e => setObs(e.target.value)} placeholder="O que foi feito..." /></div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+        <Btn variant="ghost" onClick={onCancel}>Cancelar</Btn>
+        <Btn style={{ background: 'var(--green)' }} loading={saving} onClick={async () => { setSaving(true); await onSave(obs); setSaving(false) }}>✓ Concluir</Btn>
+      </div>
+    </>
+  )
+}
+
+function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
+  const [rows, setRows] = useState([])
+  const [preview, setPreview] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const handleFile = (e) => {
+    const file = e.target.files[0]; if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const wb = XLSX.read(ev.target.result, { type: 'binary' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const raw = XLSX.utils.sheet_to_json(ws, { defval: '' })
+      const norm = raw.map(r => ({
+        cliente: r['Cliente'] || r['cliente'] || r['CLIENTE'] || '',
+        pedido_ref: String(r['Pedido'] || r['pedido_ref'] || r['Nº Pedido'] || r['PEDIDO'] || ''),
+        loja: r['Loja'] || r['loja'] || r['LOJA'] || '',
+        tipo_problema: r['Problema'] || r['tipo_problema'] || r['Categoria'] || '',
+        status: r['Status'] || r['status'] || r['STATUS'] || '',
+        data_abertura: r['Data'] || r['data_abertura'] || '',
+        responsavel_nome: r['Responsável'] || r['responsavel_nome'] || '',
+        observacoes: r['Observações'] || r['observacoes'] || r['Obs'] || '',
+      })).filter(r => r.cliente)
+      setRows(norm); setPreview(true)
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  const novas = rows.filter(r => !existentes.find(e => e.pedido_ref === r.pedido_ref && e.cliente === r.cliente))
+  const atualizadas = rows.filter(r => existentes.find(e => e.pedido_ref === r.pedido_ref && e.cliente === r.cliente))
+
+  return (
+    <Modal
+      title="Importar Excel — Assistências"
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+          {preview && rows.length > 0 && <Btn loading={saving} onClick={async () => { setSaving(true); await onImport(rows); setSaving(false) }}>Importar {rows.length} registros</Btn>}
+        </>
+      }
+    >
+      {!preview ? (
+        <div>
+          <Alert type="warning" style={{ marginBottom: 16 }}>Colunas esperadas: <b>Cliente, Pedido, Loja, Problema, Status, Data, Responsável</b></Alert>
+          <div className="upload-zone" style={{ padding: 32, textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
+            <div style={{ marginBottom: 12 }}>Selecione o arquivo .xlsx ou .xls</div>
+            <input type="file" accept=".xlsx,.xls" onChange={handleFile} />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className="stats" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 16 }}>
+            {[{ label: 'Total', val: rows.length, color: 'var(--accent)' }, { label: 'Novas', val: novas.length, color: 'var(--green)' }, { label: 'Atualizar', val: atualizadas.length, color: 'var(--amber)' }].map(s => (
+              <div className="stat" key={s.label}><div className="stat-val" style={{ color: s.color }}>{s.val}</div><div className="stat-lbl">{s.label}</div></div>
+            ))}
+          </div>
+          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            {rows.slice(0, 30).map((r, i) => {
+              const exist = existentes.find(e => e.pedido_ref === r.pedido_ref && e.cliente === r.cliente)
+              return (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                  <div><span style={{ fontWeight: 500 }}>{r.cliente}</span>{r.pedido_ref && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>#{r.pedido_ref}</span>}{r.loja && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>{r.loja}</span>}</div>
+                  <span style={{ color: exist ? 'var(--amber)' : 'var(--green)', fontSize: 11 }}>{exist ? '↻ Atualizar' : '+ Nova'}</span>
+                </div>
+              )
+            })}
+            {rows.length > 30 && <div style={{ fontSize: 12, color: 'var(--t3)', paddingTop: 8 }}>...e mais {rows.length - 30} registros</div>}
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 function NovaAssistenciaModal({ onClose, onSave, prefill }) {
   const { perfil } = useAuth()
   const [step, setStep] = useState(0)
-  const [dados, setDados] = useState({ solicitante: perfil?.full_name || '', telefone: prefill?.telefone || '', numero_pedido: prefill?.numero_pedido || '', cliente: prefill?.cliente || '' })
+  const [dados, setDados] = useState({ solicitante: perfil?.full_name || '', telefone: prefill?.telefone || '', numero_pedido: prefill?.numero_pedido || '', cliente: prefill?.cliente || '', loja: prefill?.loja || '' })
   const [itens, setItens] = useState([{ id: 1, produto: '', fornecedor: '', motivo: '', descricao: '' }])
   const { run, loading } = useAction()
 
@@ -1343,6 +1716,7 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
       cliente: dados.cliente,
       telefone: dados.telefone,
       pedido_ref: dados.numero_pedido,
+      loja: dados.loja,
       data_abertura: new Date().toISOString().split('T')[0],
       prazo: prazo.toISOString().split('T')[0],
       status: 'Aberto',
@@ -1381,8 +1755,12 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
             <div className="fg"><label className="fl">Telefone</label><input className="fi" value={dados.telefone} onChange={upDados('telefone')} /></div>
           </div>
           <div className="grid2">
-            <div className="fg"><label className="fl">Nº Pedido</label><input className="fi" value={dados.numero_pedido} onChange={upDados('numero_pedido')} /></div>
             <div className="fg"><label className="fl">Cliente *</label><input className="fi" value={dados.cliente} onChange={upDados('cliente')} /></div>
+            <div className="fg"><label className="fl">Loja</label><input className="fi" value={dados.loja} onChange={upDados('loja')} placeholder="Ex: Loja Centro" /></div>
+          </div>
+          <div className="grid2">
+            <div className="fg"><label className="fl">Nº Pedido</label><input className="fi" value={dados.numero_pedido} onChange={upDados('numero_pedido')} /></div>
+            <div className="fg"><label className="fl">Prazo padrão</label><input className="fi" value="30 dias" disabled /></div>
           </div>
         </>
       )}
@@ -1585,6 +1963,295 @@ function NovaConferenciaModal({ onClose, onSave }) {
             </select>
           </div>
           <div className="fg"><label className="fl">Descrição</label><textarea className="fi" rows={2} value={form.descricao_reprovacao} onChange={up('descricao_reprovacao')} /></div>
+        </>
+      )}
+    </Modal>
+  )
+}
+
+// ============================================================
+// ROTEIRO DIGITAL
+// ============================================================
+function Roteiro() {
+  const { isGestor } = useAuth()
+  const [roteiros, setRoteiros] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showNovo, setShowNovo] = useState(false)
+  const [selectedId, setSelectedId] = useState(null)
+
+  const carregar = () => {
+    setLoading(true)
+    supabase.from('roteiros').select('*, roteiro_itens(*)').order('data', { ascending: false })
+      .then(({ data }) => { setRoteiros(data || []); setLoading(false) })
+  }
+
+  useEffect(() => { carregar() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const criar = async (dados) => {
+    const { itens, ...roteiro } = dados
+    const { data: novo } = await supabase.from('roteiros').insert({ ...roteiro, status: 'planejado', created_at: new Date().toISOString() }).select().single()
+    if (novo && itens?.length) {
+      await supabase.from('roteiro_itens').insert(itens.map((item, i) => ({ ...item, roteiro_id: novo.id, ordem: i + 1, concluido: false })))
+    }
+    carregar(); setShowNovo(false)
+  }
+
+  if (selectedId) return <RoteiroDetalhe id={selectedId} onBack={() => { setSelectedId(null); carregar() }} />
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <div>
+          <h1>Roteiro Diário</h1>
+          <div className="ph-sub">{roteiros.length} roteiro(s)</div>
+        </div>
+        {isGestor && <Btn size="sm" onClick={() => setShowNovo(true)}><Ic n="plus" s={13} /> Novo Roteiro</Btn>}
+      </div>
+
+      {loading ? <Spinner /> : roteiros.length === 0 ? <Empty icon="🗺️" text="Nenhum roteiro cadastrado" /> :
+        roteiros.map(r => (
+          <div key={r.id} className="li" onClick={() => setSelectedId(r.id)}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>🗺️</div>
+            <div className="li-main">
+              <div className="li-title">Roteiro {r.data ? new Date(r.data + 'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
+              <div className="li-sub">{r.motorista_nome || '—'}{r.montador_nome ? ` · ${r.montador_nome}` : ''}</div>
+              <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>{(r.roteiro_itens || []).length} parada(s)</div>
+            </div>
+            <Badge status={r.status === 'planejado' ? 'Pendente' : r.status === 'em_andamento' ? 'Em Rota' : 'Entregue'} />
+            <Ic n="chev" s={13} style={{ color: 'var(--t3)' }} />
+          </div>
+        ))
+      }
+
+      {showNovo && <NovoRoteiroModal onClose={() => setShowNovo(false)} onSave={criar} />}
+    </div>
+  )
+}
+
+function RoteiroDetalhe({ id, onBack }) {
+  const { isGestor } = useAuth()
+  const [roteiro, setRoteiro] = useState(null)
+  const [itens, setItens] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const carregar = () => {
+    supabase.from('roteiros').select('*').eq('id', id).single().then(({ data: r }) => {
+      setRoteiro(r)
+      supabase.from('roteiro_itens').select('*').eq('roteiro_id', id).order('ordem')
+        .then(({ data: items }) => { setItens(items || []); setLoading(false) })
+    })
+  }
+
+  useEffect(() => { carregar() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const registrarHora = async (campo) => {
+    const hora = new Date().toTimeString().slice(0, 5)
+    setSaving(true)
+    const novoStatus = campo === 'hora_saida' ? 'em_andamento' : 'concluído'
+    await supabase.from('roteiros').update({ [campo]: hora, status: novoStatus }).eq('id', id)
+    setRoteiro(prev => ({ ...prev, [campo]: hora, status: novoStatus }))
+    setSaving(false)
+  }
+
+  const baixarParada = async (itemId) => {
+    const hora = new Date().toTimeString().slice(0, 5)
+    setSaving(true)
+    await supabase.from('roteiro_itens').update({ concluido: true, hora_conclusao: hora }).eq('id', itemId)
+    setItens(prev => prev.map(it => it.id === itemId ? { ...it, concluido: true, hora_conclusao: hora } : it))
+    setSaving(false)
+  }
+
+  const moverItem = async (idx, dir) => {
+    const arr = [...itens]; const swap = idx + dir
+    if (swap < 0 || swap >= arr.length) return
+    ;[arr[idx], arr[swap]] = [arr[swap], arr[idx]]
+    setItens(arr)
+    await supabase.from('roteiro_itens').update({ ordem: swap + 1 }).eq('id', arr[swap].id)
+    await supabase.from('roteiro_itens').update({ ordem: idx + 1 }).eq('id', arr[idx].id)
+  }
+
+  if (loading) return <div className="page"><Spinner /></div>
+  if (!roteiro) return <div className="page"><Empty text="Roteiro não encontrado" /></div>
+
+  const concluidos = itens.filter(it => it.concluido).length
+
+  return (
+    <div className="page">
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
+        <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
+        <Btn variant="secondary" size="sm" onClick={() => gerarPDFRoteiro(roteiro, itens)}><Ic n="pdf" s={13} /> Imprimir</Btn>
+      </div>
+
+      <h1 style={{ fontSize: 18, marginBottom: 4 }}>
+        Roteiro — {roteiro.data ? new Date(roteiro.data + 'T12:00').toLocaleDateString('pt-BR') : '—'}
+      </h1>
+      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 16 }}>
+        🚗 {roteiro.motorista_nome || '—'}{roteiro.montador_nome ? ` · 🔧 ${roteiro.montador_nome}` : ''}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="grid2" style={{ gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>SAÍDA</div>
+            {roteiro.hora_saida ? (
+              <div style={{ fontWeight: 700, fontSize: 22, color: 'var(--green)' }}>{roteiro.hora_saida}</div>
+            ) : (
+              <Btn size="sm" style={{ background: 'var(--green)', color: '#fff' }} loading={saving} onClick={() => registrarHora('hora_saida')}>Registrar Saída</Btn>
+            )}
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>TÉRMINO</div>
+            {roteiro.hora_termino ? (
+              <div style={{ fontWeight: 700, fontSize: 22, color: 'var(--accent)' }}>{roteiro.hora_termino}</div>
+            ) : (
+              <Btn size="sm" variant="secondary" disabled={!roteiro.hora_saida} loading={saving} onClick={() => registrarHora('hora_termino')}>Registrar Término</Btn>
+            )}
+          </div>
+        </div>
+        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--t3)' }}>{concluidos}/{itens.length} paradas concluídas</div>
+      </div>
+
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>Paradas ({itens.length})</div>
+      {itens.map((item, idx) => (
+        <div key={item.id} style={{ background: item.concluido ? 'rgba(34,197,94,0.05)' : 'var(--bg1)', border: `1px solid ${item.concluido ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`, borderRadius: 12, padding: 14, marginBottom: 10, opacity: item.concluido ? 0.75 : 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: item.concluido ? 'var(--green)' : 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, color: item.concluido ? '#fff' : 'var(--t2)', marginTop: 2 }}>
+                {item.concluido ? '✓' : idx + 1}
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{item.cliente}</div>
+                <div style={{ fontSize: 12, color: 'var(--t2)' }}>{item.loja ? `${item.loja} · ` : ''}{item.pedido_ref ? `#${item.pedido_ref} · ` : ''}{item.bairro}</div>
+                <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>{item.status_servico}</div>
+                {item.concluido && item.hora_conclusao && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 2 }}>✓ Concluído às {item.hora_conclusao}</div>}
+              </div>
+            </div>
+            {!item.concluido && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0 }}>
+                {isGestor && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button className="btn btn-g btn-ico btn-sm" onClick={() => moverItem(idx, -1)} disabled={idx === 0}>↑</button>
+                    <button className="btn btn-g btn-ico btn-sm" onClick={() => moverItem(idx, 1)} disabled={idx === itens.length - 1}>↓</button>
+                  </div>
+                )}
+                <Btn size="sm" loading={saving} onClick={() => baixarParada(item.id)}>✓ Baixa</Btn>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function gerarPDFRoteiro(roteiro, itens) {
+  const data = roteiro.data ? new Date(roteiro.data + 'T12:00').toLocaleDateString('pt-BR') : '—'
+  const rows = itens.map((item, i) => `<tr><td style="text-align:center">${i + 1}</td><td>${item.loja || ''}</td><td>${item.pedido_ref || ''}</td><td>${item.cliente || ''}</td><td>${item.bairro || ''}</td><td>${item.status_servico || ''}</td><td style="text-align:center">${item.concluido ? '✓' : ''}</td></tr>`).join('')
+  const w = window.open('', '_blank')
+  w.document.write(`<html><head><title>Roteiro ${data}</title><style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px}.header{background:#fbbf24;padding:10px 14px;font-weight:bold;font-size:15px;text-align:center;letter-spacing:.05em}.info{display:flex;gap:32px;padding:8px 14px;border:1px solid #ccc;border-top:none;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:6px}th{background:#fbbf24;padding:6px 8px;text-align:left;border:1px solid #ccc;font-size:11px;font-weight:bold}td{padding:5px 8px;border:1px solid #ccc}tr:nth-child(even){background:#f9f9f9}</style></head><body>
+  <div class="header">ROTEIRO DIÁRIO</div>
+  <div class="info"><span><b>DATA:</b> ${data}</span><span><b>SAÍDA:</b> ${roteiro.hora_saida || '__:__'}</span><span><b>TÉRMINO:</b> ${roteiro.hora_termino || '__:__'}</span></div>
+  <div class="info"><span><b>MOTORISTA:</b> ${roteiro.motorista_nome || '—'}</span><span><b>MONTADOR:</b> ${roteiro.montador_nome || '—'}</span></div>
+  <table><thead><tr><th>QTD</th><th>LOJA</th><th>PEDIDO</th><th>CLIENTE</th><th>BAIRRO</th><th>SERVIÇO</th><th>STATUS</th></tr></thead><tbody>${rows}</tbody></table>
+  <script>window.onload=()=>{window.print()}</script></body></html>`)
+  w.document.close()
+}
+
+function NovoRoteiroModal({ onClose, onSave }) {
+  const { data: assistencias } = useData(() => assistenciasService.list(), [])
+  const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], motorista_nome: '', montador_nome: '' })
+  const [itens, setItens] = useState([])
+  const [step, setStep] = useState(0)
+  const { run, loading } = useAction()
+
+  const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
+  const TIPOS = ['Coleta', 'Vistoria', 'Retoque', 'Visita Técnica', 'Entrega e Instalação']
+
+  const addAssistencia = (a) => {
+    if (itens.find(it => it.assistencia_id === a.id)) return
+    setItens(prev => [...prev, { assistencia_id: a.id, cliente: a.cliente, pedido_ref: a.pedido_ref || '', loja: a.loja || '', bairro: '', status_servico: 'Visita Técnica' }])
+  }
+
+  const upItem = (idx, k, v) => setItens(prev => prev.map((it, i) => i === idx ? { ...it, [k]: v } : it))
+  const remItem = (idx) => setItens(prev => prev.filter((_, i) => i !== idx))
+  const mover = (idx, dir) => {
+    const arr = [...itens]; const swap = idx + dir
+    if (swap < 0 || swap >= arr.length) return
+    ;[arr[idx], arr[swap]] = [arr[swap], arr[idx]]; setItens(arr)
+  }
+
+  const abertas = (assistencias || []).filter(a => !['Concluído', 'Cancelado'].includes(a.status))
+
+  return (
+    <Modal
+      title="Novo Roteiro"
+      subtitle={`Etapa ${step + 1} de 2 — ${['Dados gerais', 'Paradas'][step]}`}
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          {step > 0 && <Btn variant="secondary" onClick={() => setStep(0)}>← Voltar</Btn>}
+          <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+          {step === 0 && <Btn disabled={!form.data || !form.motorista_nome} onClick={() => setStep(1)}>Continuar →</Btn>}
+          {step === 1 && <Btn disabled={itens.length === 0} loading={loading} onClick={() => run(() => onSave({ ...form, itens }))}>✓ Criar Roteiro</Btn>}
+        </>
+      }
+    >
+      {step === 0 && (
+        <>
+          <div className="fg"><label className="fl">Data *</label><input className="fi" type="date" value={form.data} onChange={up('data')} /></div>
+          <div className="grid2">
+            <div className="fg"><label className="fl">Motorista *</label><input className="fi" value={form.motorista_nome} onChange={up('motorista_nome')} /></div>
+            <div className="fg"><label className="fl">Montador</label><input className="fi" value={form.montador_nome} onChange={up('montador_nome')} /></div>
+          </div>
+        </>
+      )}
+      {step === 1 && (
+        <>
+          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>Selecionar assistências abertas:</div>
+          <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8, marginBottom: 16 }}>
+            {abertas.length === 0 ? <div style={{ fontSize: 12, color: 'var(--t3)', padding: 8 }}>Nenhuma assistência aberta</div> :
+              abertas.map(a => {
+                const adicionada = !!itens.find(it => it.assistencia_id === a.id)
+                return (
+                  <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 4px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 12 }}>
+                      <span style={{ fontWeight: 500 }}>{a.cliente}</span>
+                      {a.pedido_ref && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>#{a.pedido_ref}</span>}
+                      {a.loja && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>{a.loja}</span>}
+                    </div>
+                    <Btn size="sm" variant={adicionada ? 'secondary' : 'primary'} onClick={() => addAssistencia(a)} disabled={adicionada}>{adicionada ? '✓' : '+'}</Btn>
+                  </div>
+                )
+              })}
+          </div>
+          {itens.length > 0 && (
+            <div>
+              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>Paradas selecionadas ({itens.length}):</div>
+              {itens.map((item, idx) => (
+                <div key={idx} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>#{idx + 1} {item.cliente}</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-g btn-ico btn-sm" onClick={() => mover(idx, -1)} disabled={idx === 0}>↑</button>
+                      <button className="btn btn-g btn-ico btn-sm" onClick={() => mover(idx, 1)} disabled={idx === itens.length - 1}>↓</button>
+                      <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => remItem(idx)}><Ic n="trash" s={11} /></button>
+                    </div>
+                  </div>
+                  <div className="grid2" style={{ gap: 6 }}>
+                    <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Bairro</label><input className="fi" value={item.bairro} onChange={e => upItem(idx, 'bairro', e.target.value)} placeholder="Bairro" /></div>
+                    <div className="fg" style={{ marginBottom: 0 }}>
+                      <label className="fl">Tipo de Serviço</label>
+                      <select className="fi" value={item.status_servico} onChange={e => upItem(idx, 'status_servico', e.target.value)}>
+                        {TIPOS.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </Modal>
@@ -2393,6 +3060,7 @@ function AppContent() {
     separacao: <Separacao />,
     agenda: <Agenda />,
     assistencia: <Assistencia />,
+    roteiro: <Roteiro />,
     conferencia: <Conferencia />,
     equipe: <Equipe />,
     ranking: <Ranking />,
