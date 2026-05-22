@@ -2092,6 +2092,8 @@ function RelatorioAssistencias({ onBack }) {
     const w = window.open('', '_blank')
     if (!w) { alert('Permita popups para gerar o PDF.'); return }
     const fmtData = (d) => d ? new Date(d + 'T12:00').toLocaleDateString('pt-BR') : '—'
+    const agora = new Date()
+    const dataRel = `${String(agora.getDate()).padStart(2,'0')}/${String(agora.getMonth()+1).padStart(2,'0')}/${String(agora.getFullYear()).slice(2)}`
     const barraHTML = (d, max) => {
       const pct = Math.max((d.qtd / max) * 100, 2)
       return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
@@ -2120,8 +2122,8 @@ function RelatorioAssistencias({ onBack }) {
       <style>*{box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;padding:32px;color:#1e293b;max-width:900px;margin:0 auto}@media print{body{padding:16px}}</style>
       </head><body>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:12px;border-bottom:3px solid #6366f1">
-        <div><h1 style="margin:0 0 2px;font-size:20px;color:#1e293b">Versa Log — Relatório de Assistências</h1>
-        <div style="font-size:12px;color:#64748b">Período: ${periodo} · Gerado em ${new Date().toLocaleString('pt-BR')}</div></div>
+        <div><h1 style="margin:0 0 2px;font-size:20px;color:#1e293b;text-transform:uppercase;letter-spacing:1px;font-weight:700">CONTROLE DE ASSISTÊNCIAS ${dataRel}</h1>
+        <div style="font-size:12px;color:#64748b">Período: ${periodo} · Gerado em ${agora.toLocaleString('pt-BR')}</div></div>
       </div>
       <div style="display:flex;gap:16px;margin-bottom:24px">
         <div style="background:#fef2f2;padding:12px 18px;border-radius:8px;text-align:center;flex:1"><div style="font-size:26px;font-weight:700;color:#ef4444">${criticas.length}</div><div style="font-size:10px;color:#64748b;margin-top:2px">CRÍTICAS +30d</div></div>
