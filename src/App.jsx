@@ -1256,59 +1256,91 @@ function Assistencia() {
     setShowNew(false)
   }
 
-  const handleImport = async (rows) => {
-    let criadas = 0, atualizadas = 0, erros = 0
-    for (const row of rows) {
+  const handleImport = async (rows, onProgress) => {
+    const BATCH = 20
+    let done = 0, criadas = 0, atualizadas = 0, erros = 0
+    const total = rows.length
+
+    // Separa em novas vs existentes
+    const paraAtualizar = rows.filter(r => r.pedido_ref && lista.find(a => a.pedido_ref === r.pedido_ref && a.cliente === r.cliente))
+    const paraCriar = rows.filter(r => !r.pedido_ref || !lista.find(a => a.pedido_ref === r.pedido_ref && a.cliente === r.cliente))
+
+    // Atualiza existentes (sequencial, normalmente poucos)
+    for (const row of paraAtualizar) {
+      const existing = lista.find(a => a.pedido_ref === row.pedido_ref && a.cliente === row.cliente)
       try {
-        const dataAbertura = row.data_abertura || hoje.toISOString().split('T')[0]
-        const existing = lista.find(a =>
-          a.pedido_ref && row.pedido_ref && a.pedido_ref === row.pedido_ref && a.cliente === row.cliente
-        )
-        if (existing) {
-          await assistenciasService.update(existing.id, {
-            loja: row.loja || existing.loja,
-            categoria: row.categoria || existing.categoria,
-          })
-          atualizadas++
-        } else {
-          const nova = await assistenciasService.create({
-            cliente: row.cliente,
-            pedido_ref: row.pedido_ref || null,
-            loja: row.loja || null,
-            categoria: row.categoria || null,
-            tipo_problema: row.categoria || row.produto || 'Outros',
-            observacoes: row.descricao || null,
-            data_abertura: dataAbertura,
-            status: 'Aberto',
-            origem: 'excel',
-            created_by: perfil?.id,
-          })
-          if (row.produto) {
-            await assistenciasService.createItem({
-              assistencia_id: nova.id,
-              produto: row.produto,
-              fornecedor: row.fornecedor || null,
-              motivo: row.categoria || 'Outros',
-              descricao: row.descricao || null,
-              status: 'Aberto',
-              prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-            })
-          }
-          const dias = diasAberto(dataAbertura)
-          if (dias >= 7) {
-            await supabase.from('assistencia_tarefas').insert({ assistencia_id: nova.id, titulo: 'Verificar assistência importada atrasada', descricao: `Importada com ${dias} dias sem atualização`, tipo: 'follow_up', status: 'pendente', criado_automaticamente: true, prazo: hoje.toISOString().split('T')[0] })
-          }
-          criadas++
-        }
-      } catch {
+        await assistenciasService.update(existing.id, {
+          loja: row.loja || existing.loja,
+          categoria: row.categoria || existing.categoria,
+        })
+        atualizadas++
+      } catch (e) {
+        console.error('[Import] Erro ao atualizar', existing.id, e)
         erros++
       }
+      done++
+      onProgress?.(done, total)
     }
+
+    // Cria novas em batches de 20 — uma chamada Supabase por batch
+    for (let i = 0; i < paraCriar.length; i += BATCH) {
+      const batch = paraCriar.slice(i, i + BATCH)
+      const payload = batch.map(row => ({
+        cliente: row.cliente,
+        pedido_ref: row.pedido_ref || null,
+        loja: row.loja || null,
+        categoria: row.categoria || null,
+        tipo_problema: row.categoria || row.produto || 'Outros',
+        observacoes: row.descricao || null,
+        data_abertura: row.data_abertura || hoje.toISOString().split('T')[0],
+        status: 'Aberto',
+        origem: 'excel',
+      }))
+
+      try {
+        const { data: inseridos, error } = await supabase
+          .from('assistencias')
+          .insert(payload)
+          .select('id, cliente, pedido_ref')
+
+        if (error) {
+          console.error(`[Import] Erro no batch ${Math.floor(i / BATCH) + 1}:`, error.message, error.details, error.hint)
+          erros += batch.length
+        } else {
+          // Monta os itens de produto de todos do batch de uma vez
+          const itemsPayload = []
+          for (const rec of inseridos || []) {
+            const row = batch.find(r => r.cliente === rec.cliente && (r.pedido_ref || '') === (rec.pedido_ref || ''))
+            if (row?.produto) {
+              itemsPayload.push({
+                assistencia_id: rec.id,
+                produto: row.produto,
+                fornecedor: row.fornecedor || null,
+                motivo: row.categoria || 'Outros',
+                descricao: row.descricao || null,
+                status: 'Aberto',
+                prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+              })
+            }
+          }
+          if (itemsPayload.length) {
+            const { error: ie } = await supabase.from('assistencia_itens').insert(itemsPayload)
+            if (ie) console.error(`[Import] Erro ao inserir itens batch ${Math.floor(i / BATCH) + 1}:`, ie.message)
+          }
+          criadas += inseridos?.length || 0
+        }
+      } catch (e) {
+        console.error(`[Import] Exceção no batch ${Math.floor(i / BATCH) + 1}:`, e)
+        erros += batch.length
+      }
+
+      done += batch.length
+      onProgress?.(Math.min(done, total), total)
+    }
+
     await reload()
     setShowImport(false)
-    if (erros > 0) {
-      alert(`Importação concluída: ${criadas} criadas, ${atualizadas} atualizadas, ${erros} com erro.`)
-    }
+    alert(`Importação: ${criadas} criadas, ${atualizadas} atualizadas${erros ? `, ${erros} com erro (abra F12 → Console para detalhes)` : ''}.`)
   }
 
   if (selectedId) return <AssistenciaDetalhe id={selectedId} onBack={() => { setSelectedId(null); reload() }} />
@@ -1660,6 +1692,7 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
   const [rows, setRows] = useState([])
   const [preview, setPreview] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [progress, setProgress] = useState({ done: 0, total: 0 })
 
   const handleFile = (e) => {
     const file = e.target.files[0]; if (!file) return
@@ -1718,7 +1751,7 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
       footer={
         <>
           <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-          {preview && rows.length > 0 && <Btn loading={saving} onClick={async () => { setSaving(true); try { await onImport(rows) } catch { alert('Erro na importação. Verifique o console.') } setSaving(false) }}>Importar {rows.length} registros</Btn>}
+          {preview && rows.length > 0 && <Btn loading={saving} onClick={async () => { setSaving(true); setProgress({ done: 0, total: rows.length }); try { await onImport(rows, (done, total) => setProgress({ done, total })) } catch (e) { console.error('[Import] Erro geral:', e); alert('Erro na importação. Abra F12 → Console para detalhes.') } setSaving(false) }}>{saving && progress.total > 0 ? `Salvando ${progress.done}/${progress.total}...` : `Importar ${rows.length} registros`}</Btn>}
         </>
       }
     >
