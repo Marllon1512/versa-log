@@ -1747,18 +1747,17 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
       }
 
       const norm = dataRows.map(r => ({
-        pedido_ref:    String(r[1] ?? '').trim(),   // col B (índice 1)
-        produto:       String(r[2] ?? '').trim(),   // col C (índice 2)
-        qtd:           String(r[3] ?? '').trim(),   // col D (índice 3)
-        // col E (índice 4) = Unid. → ignorado
-        fornecedor:    String(r[5] ?? '').trim(),   // col F (índice 5)
-        // col G (índice 6) → ignorado (campo extra confirmado no diagnóstico)
-        cliente:       String(r[7] ?? '').trim(),   // col H (índice 7) ← corrigido
-        loja:          String(r[8] ?? '').trim(),   // col I (índice 8) ← corrigido
-        data_venda:    parseDate(r[9]),             // col J (índice 9) ← corrigido
-        data_abertura: parseDate(r[10]),            // col K (índice 10) ← corrigido
-        categoria:     String(r[11] ?? '').trim(),  // col L (índice 11) ← corrigido
-        descricao:     String(r[12] ?? '').trim(),  // col M (índice 12) ← corrigido
+        pedido_ref:    String(r[2] ?? '').trim(),   // índice 2 = Pedido
+        produto:       String(r[3] ?? '').trim(),   // índice 3 = Produto
+        qtd:           String(r[4] ?? '').trim(),   // índice 4 = Quant.
+        // índice 5 = Unid. → ignorado
+        fornecedor:    String(r[6] ?? '').trim(),   // índice 6 = Fornecedor
+        cliente:       String(r[7] ?? '').trim(),   // índice 7 = Cliente
+        loja:          String(r[8] ?? '').trim(),   // índice 8 = Loja
+        data_venda:    parseDate(r[9]),             // índice 9 = Data venda
+        data_abertura: parseDate(r[10]),            // índice 10 = Data assist.
+        categoria:     String(r[11] ?? '').trim(),  // índice 11 = Categoria
+        descricao:     String(r[12] ?? '').trim(),  // índice 12 = Descrição
       })).filter(r => r.cliente !== '')
 
       setRows(norm); setPreview(true)
