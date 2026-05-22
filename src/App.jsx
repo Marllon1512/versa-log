@@ -1988,17 +1988,35 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
 // ============================================================
 const CHART_PAL = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#a78bfa','#06b6d4','#84cc16']
 
+// Remove prefixo [XX] dos valores do banco
+const stripPrefix = (s) => String(s || '').replace(/^\[\d+\]\s*/, '').trim()
+
+// Agrupamento dinâmico com strip do prefixo — sem listas hardcoded
+const buildDynamic = (items, getKey) => {
+  const counts = {}
+  for (const item of items) {
+    const raw = getKey(item)
+    if (!raw) continue
+    const key = stripPrefix(raw) || raw
+    counts[key] = (counts[key] || 0) + 1
+  }
+  const total = Object.values(counts).reduce((s, v) => s + v, 0)
+  return Object.entries(counts)
+    .map(([name, qtd]) => ({ name, qtd, pct: total ? Math.round(qtd / total * 100) : 0 }))
+    .sort((a, b) => b.qtd - a.qtd)
+}
+
 function GraficoBarras({ dados }) {
-  if (!dados?.length) return <div style={{ color: 'var(--t3)', fontSize: 12, padding: 8 }}>Sem dados para o período</div>
+  if (!dados?.length) return <div style={{ color: 'var(--t3)', fontSize: 12, padding: 8 }}>Sem dados</div>
   const max = Math.max(...dados.map(d => d.qtd), 1)
   return (
     <div style={{ width: '100%' }}>
       {dados.map((d, i) => (
         <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-          <div style={{ width: 140, fontSize: 11, color: 'var(--t2)', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.name}>{d.name}</div>
+          <div style={{ width: 150, fontSize: 11, color: 'var(--t2)', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.name}>{d.name}</div>
           <div style={{ flex: 1, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', height: 22 }}>
-            <div style={{ width: `${(d.qtd / max) * 100}%`, minWidth: d.qtd > 0 ? 28 : 0, background: CHART_PAL[i % CHART_PAL.length], height: '100%', borderRadius: 4, display: 'flex', alignItems: 'center', paddingLeft: 6, fontSize: 11, color: '#fff', fontWeight: 600 }}>
-              {d.qtd > 0 ? d.qtd : ''}
+            <div style={{ width: `${Math.max((d.qtd / max) * 100, d.qtd > 0 ? 4 : 0)}%`, background: CHART_PAL[i % CHART_PAL.length], height: '100%', borderRadius: 4, display: 'flex', alignItems: 'center', paddingLeft: 6, fontSize: 11, color: '#fff', fontWeight: 600, transition: 'width 0.4s ease' }}>
+              {d.qtd}
             </div>
           </div>
           <div style={{ width: 36, fontSize: 11, color: 'var(--t3)', textAlign: 'right', flexShrink: 0 }}>{d.pct}%</div>
@@ -2008,11 +2026,15 @@ function GraficoBarras({ dados }) {
   )
 }
 
-function TabelaRelatorio({ dados, colunas = ['Descrição', 'Qtd', '%'] }) {
+function TabelaRelatorio({ dados }) {
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
       <thead>
-        <tr>{colunas.map(c => <th key={c} style={{ textAlign: c === 'Qtd' || c === '%' ? 'right' : 'left', padding: '4px 8px', color: 'var(--t3)', fontWeight: 500, borderBottom: '1px solid var(--border)' }}>{c}</th>)}</tr>
+        <tr>
+          <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--t3)', fontWeight: 500, borderBottom: '1px solid var(--border)' }}>Descrição</th>
+          <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--t3)', fontWeight: 500, borderBottom: '1px solid var(--border)' }}>Qtd</th>
+          <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--t3)', fontWeight: 500, borderBottom: '1px solid var(--border)' }}>%</th>
+        </tr>
       </thead>
       <tbody>
         {dados.map((d, i) => (
@@ -2042,10 +2064,7 @@ function RelatorioAssistencias({ onBack }) {
   const hoje = new Date()
   const diasAberto = (d) => !d ? 0 : Math.floor((hoje - new Date(d)) / 86400000)
 
-  const LOJAS = ['Templum Comércio', 'Movelaria Olga', 'Santa Comércio', 'Alpendre Mobiliário', 'Arca Garden', 'Templum Minas', 'Ferião']
-  const CATEGORIAS = ['Defeito de Fábrica', 'Danificado na Entrega', 'Medida Errada', 'Danificado pela Vipex', 'Acabamento Divergente', 'Retoques e Instalações', 'Mau Uso', 'Danificado no Depósito', 'Tecido Divergente', 'Danificado na Loja']
-  const FABRICAS = ['Dettagli', 'Clarisa Estofados', 'Onna', 'Alum', 'Mar. Artesanato', 'Linea Top', 'Navarro', 'Corbelli', 'San German', 'Demais Fornecedores']
-
+  // Filtra pelo valor bruto do banco (com prefixo) para compatibilidade
   const lista = (assistencias || []).filter(a => {
     const okInicio = !dataInicio || (a.data_abertura >= dataInicio)
     const okFim = !dataFim || (a.data_abertura <= dataFim)
@@ -2057,50 +2076,60 @@ function RelatorioAssistencias({ onBack }) {
   const criticas = ativas.filter(a => diasAberto(a.data_abertura) >= 30)
   const urgentes = ativas.filter(a => { const d = diasAberto(a.data_abertura); return d >= 20 && d < 30 })
 
-  const buildData = (items, keys, getKey, outros = false) => {
-    const counts = Object.fromEntries(keys.map(k => [k, 0]))
-    for (const item of items) {
-      const k = getKey(item)
-      if (counts[k] !== undefined) counts[k]++
-      else if (outros) counts['Demais Fornecedores'] = (counts['Demais Fornecedores'] || 0) + 1
-    }
-    const total = Object.values(counts).reduce((s, v) => s + v, 0)
-    return keys
-      .map(k => ({ name: k, qtd: counts[k] || 0, pct: total ? Math.round((counts[k] || 0) / total * 100) : 0 }))
-      .filter(d => d.qtd > 0)
-      .sort((a, b) => b.qtd - a.qtd)
-  }
-
-  const dataCategorias = buildData(lista, CATEGORIAS, a => a.categoria || '')
-  const dataLojas = buildData(lista, LOJAS, a => a.loja || '')
+  const dataCategorias = buildDynamic(lista, a => a.categoria)
+  const dataLojas      = buildDynamic(lista, a => a.loja)
 
   const listaIds = new Set(lista.map(a => a.id))
   const itensFiltrados = (todosItens || []).filter(it => listaIds.has(it.assistencia_id))
-  const dataFabricas = buildData(itensFiltrados, FABRICAS, it => FABRICAS.includes(it.fornecedor) ? it.fornecedor : 'Demais Fornecedores', true)
+  const dataFabricas = buildDynamic(itensFiltrados, it => it.fornecedor)
+
+  // Dropdown de lojas populado dinamicamente a partir dos dados reais
+  const lojasDisponiveis = [...new Set((assistencias || []).map(a => a.loja).filter(Boolean))].sort()
 
   const gerarPDF = () => {
     const w = window.open('', '_blank')
     if (!w) { alert('Permita popups para gerar o PDF.'); return }
-    const secao = (titulo, dados) => `
-      <h3 style="margin:24px 0 8px;font-size:14px;color:#334155;border-bottom:2px solid #6366f1;padding-bottom:4px">${titulo}</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="background:#f1f5f9"><th style="text-align:left;padding:6px 8px">Descrição</th><th style="text-align:right;padding:6px 8px">Qtd</th><th style="text-align:right;padding:6px 8px">%</th></tr></thead>
-        <tbody>${dados.map(d => `<tr style="border-bottom:1px solid #e2e8f0"><td style="padding:5px 8px">${d.name}</td><td style="padding:5px 8px;text-align:right;font-weight:600">${d.qtd}</td><td style="padding:5px 8px;text-align:right;color:#64748b">${d.pct}%</td></tr>`).join('')}</tbody>
-      </table>`
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório de Assistências</title>
-      <style>body{font-family:sans-serif;padding:32px;color:#1e293b;max-width:800px;margin:0 auto}h1{font-size:20px;margin:0 0 4px}h2{font-size:18px;color:#6366f1;margin:0 0 16px}</style></head><body>
-      <h1>Versa Log — Relatório de Assistências</h1>
-      <h2>Período: ${dataInicio || 'Início'} até ${dataFim || 'Hoje'}${lojaFil ? ` · Loja: ${lojaFil}` : ''}</h2>
-      <div style="display:flex;gap:24px;margin-bottom:24px">
-        <div style="background:#fef2f2;padding:12px 20px;border-radius:8px;text-align:center"><div style="font-size:28px;font-weight:700;color:#ef4444">${criticas.length}</div><div style="font-size:11px;color:#64748b">Críticas +30d</div></div>
-        <div style="background:#fffbeb;padding:12px 20px;border-radius:8px;text-align:center"><div style="font-size:28px;font-weight:700;color:#f59e0b">${urgentes.length}</div><div style="font-size:11px;color:#64748b">Urgentes +20d</div></div>
-        <div style="background:#eff6ff;padding:12px 20px;border-radius:8px;text-align:center"><div style="font-size:28px;font-weight:700;color:#6366f1">${ativas.length}</div><div style="font-size:11px;color:#64748b">Abertas</div></div>
-        <div style="background:#f0fdf4;padding:12px 20px;border-radius:8px;text-align:center"><div style="font-size:28px;font-weight:700;color:#10b981">${lista.length}</div><div style="font-size:11px;color:#64748b">Total filtrado</div></div>
+    const fmtData = (d) => d ? new Date(d + 'T12:00').toLocaleDateString('pt-BR') : '—'
+    const barraHTML = (d, max) => {
+      const pct = Math.max((d.qtd / max) * 100, 2)
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+        <div style="width:160px;font-size:11px;color:#475569;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.name}">${d.name}</div>
+        <div style="flex:1;background:#e2e8f0;border-radius:3px;height:18px;overflow:hidden">
+          <div style="width:${pct}%;background:#6366f1;height:100%;border-radius:3px;display:flex;align-items:center;padding-left:5px;font-size:10px;color:#fff;font-weight:700">${d.qtd}</div>
+        </div>
+        <div style="width:32px;font-size:10px;color:#94a3b8;text-align:right">${d.pct}%</div>
+      </div>`
+    }
+    const secao = (titulo, dados) => {
+      const max = Math.max(...dados.map(d => d.qtd), 1)
+      return `<div style="margin-bottom:28px">
+        <h3 style="margin:0 0 10px;font-size:13px;color:#1e293b;border-bottom:2px solid #6366f1;padding-bottom:5px;text-transform:uppercase;letter-spacing:.5px">${titulo}</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <table style="border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:#f8fafc"><th style="text-align:left;padding:5px 8px;color:#64748b;font-weight:500;border-bottom:1px solid #e2e8f0">Descrição</th><th style="text-align:right;padding:5px 8px;color:#64748b;font-weight:500;border-bottom:1px solid #e2e8f0">Qtd</th><th style="text-align:right;padding:5px 8px;color:#64748b;font-weight:500;border-bottom:1px solid #e2e8f0">%</th></tr></thead>
+            <tbody>${dados.map(d => `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:4px 8px">${d.name}</td><td style="padding:4px 8px;text-align:right;font-weight:700;color:#6366f1">${d.qtd}</td><td style="padding:4px 8px;text-align:right;color:#94a3b8">${d.pct}%</td></tr>`).join('')}</tbody>
+          </table>
+          <div style="padding-top:4px">${dados.map(d => barraHTML(d, max)).join('')}</div>
+        </div>
+      </div>`
+    }
+    const periodo = `${fmtData(dataInicio)} até ${fmtData(dataFim)}${lojaFil ? ` · Loja: ${stripPrefix(lojaFil)}` : ''}`
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Assistências</title>
+      <style>*{box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;padding:32px;color:#1e293b;max-width:900px;margin:0 auto}@media print{body{padding:16px}}</style>
+      </head><body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:12px;border-bottom:3px solid #6366f1">
+        <div><h1 style="margin:0 0 2px;font-size:20px;color:#1e293b">Versa Log — Relatório de Assistências</h1>
+        <div style="font-size:12px;color:#64748b">Período: ${periodo} · Gerado em ${new Date().toLocaleString('pt-BR')}</div></div>
+      </div>
+      <div style="display:flex;gap:16px;margin-bottom:24px">
+        <div style="background:#fef2f2;padding:12px 18px;border-radius:8px;text-align:center;flex:1"><div style="font-size:26px;font-weight:700;color:#ef4444">${criticas.length}</div><div style="font-size:10px;color:#64748b;margin-top:2px">CRÍTICAS +30d</div></div>
+        <div style="background:#fffbeb;padding:12px 18px;border-radius:8px;text-align:center;flex:1"><div style="font-size:26px;font-weight:700;color:#f59e0b">${urgentes.length}</div><div style="font-size:10px;color:#64748b;margin-top:2px">URGENTES +20d</div></div>
+        <div style="background:#eff6ff;padding:12px 18px;border-radius:8px;text-align:center;flex:1"><div style="font-size:26px;font-weight:700;color:#6366f1">${ativas.length}</div><div style="font-size:10px;color:#64748b;margin-top:2px">ABERTAS</div></div>
+        <div style="background:#f0fdf4;padding:12px 18px;border-radius:8px;text-align:center;flex:1"><div style="font-size:26px;font-weight:700;color:#10b981">${lista.length}</div><div style="font-size:10px;color:#64748b;margin-top:2px">TOTAL</div></div>
       </div>
       ${secao('Por Categoria', dataCategorias)}
       ${secao('Por Loja', dataLojas)}
-      ${secao('Por Fabricante', dataFabricas)}
-      <p style="margin-top:32px;font-size:10px;color:#94a3b8">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+      ${secao('Por Fabricante / Fornecedor', dataFabricas)}
       <script>window.print()</script></body></html>`)
     w.document.close()
   }
@@ -2109,11 +2138,13 @@ function RelatorioAssistencias({ onBack }) {
 
   const SecaoRelatorio = ({ titulo, dados }) => (
     <div className="card" style={{ marginBottom: 16 }}>
-      <div style={{ fontWeight: 600, marginBottom: 14, fontSize: 14 }}>{titulo}</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <TabelaRelatorio dados={dados} />
-        <GraficoBarras dados={dados} />
-      </div>
+      <div style={{ fontWeight: 600, marginBottom: 14, fontSize: 14 }}>{titulo} <span style={{ fontWeight: 400, color: 'var(--t3)', fontSize: 12 }}>({dados.length} tipos · {dados.reduce((s, d) => s + d.qtd, 0)} registros)</span></div>
+      {dados.length === 0
+        ? <div style={{ color: 'var(--t3)', fontSize: 12 }}>Sem dados para o filtro atual</div>
+        : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 20, alignItems: 'start' }}>
+            <TabelaRelatorio dados={dados} />
+            <GraficoBarras dados={dados} />
+          </div>}
     </div>
   )
 
@@ -2124,7 +2155,7 @@ function RelatorioAssistencias({ onBack }) {
           <button className="btn btn-g btn-ico btn-sm" onClick={onBack}><Ic n="back" /></button>
           <div>
             <h1>Relatório de Assistências</h1>
-            <div className="ph-sub">{lista.length} assistências no período</div>
+            <div className="ph-sub">{lista.length} assistências{lojaFil ? ` · ${stripPrefix(lojaFil)}` : ''}</div>
           </div>
         </div>
         <Btn size="sm" onClick={gerarPDF}><Ic n="pdf" s={13} /> Exportar PDF</Btn>
@@ -2139,7 +2170,7 @@ function RelatorioAssistencias({ onBack }) {
           <div className="fg"><label className="fl">Loja</label>
             <select className="fi" value={lojaFil} onChange={e => setLojaFil(e.target.value)}>
               <option value="">Todas as lojas</option>
-              {LOJAS.map(l => <option key={l} value={l}>{l}</option>)}
+              {lojasDisponiveis.map(l => <option key={l} value={l}>{stripPrefix(l)}</option>)}
             </select>
           </div>
         </div>
@@ -2148,10 +2179,10 @@ function RelatorioAssistencias({ onBack }) {
       {/* Resumo */}
       <div className="stats" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 16 }}>
         {[
-          { label: 'Críticas +30d', val: criticas.length, color: 'var(--red)', bg: 'var(--rdim)' },
-          { label: 'Urgentes +20d', val: urgentes.length, color: 'var(--amber)', bg: 'var(--adim2)' },
-          { label: 'Abertas', val: ativas.length, color: 'var(--accent)', bg: 'var(--adim)' },
-          { label: 'Total', val: lista.length, color: 'var(--green)', bg: 'var(--gdim)' },
+          { label: 'Críticas +30d', val: criticas.length, color: 'var(--red)' },
+          { label: 'Urgentes +20d', val: urgentes.length, color: 'var(--amber)' },
+          { label: 'Abertas', val: ativas.length, color: 'var(--accent)' },
+          { label: 'Total', val: lista.length, color: 'var(--green)' },
         ].map(s => (
           <div className="stat" key={s.label}>
             <div className="stat-val" style={{ color: s.color }}>{s.val}</div>
