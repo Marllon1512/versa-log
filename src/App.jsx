@@ -1705,6 +1705,7 @@ function ConcluirTarefaForm({ tarefa, onSave, onCancel }) {
 
 function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
   const [rows, setRows] = useState([])
+  const [rawDebug, setRawDebug] = useState(null)  // linhas brutas para diagnóstico
   const [preview, setPreview] = useState(false)
   const [saving, setSaving] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
@@ -1715,11 +1716,19 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
     reader.onload = (ev) => {
       const wb = XLSX.read(ev.target.result, { type: 'binary' })
       const ws = wb.Sheets[wb.SheetNames[0]]
-      // header:1 retorna array de arrays; cabeçalho na linha 5 (índice 4), dados a partir da linha 6 (índice 5)
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+      // Diagnóstico: mostra cabeçalho (linha 5) + primeiras 3 linhas de dados
+      setRawDebug({
+        cabecalho: raw[4] || [],   // linha 5 (índice 4)
+        linha1: raw[5] || [],      // linha 6 (índice 5)
+        linha2: raw[6] || [],      // linha 7
+        linha3: raw[7] || [],      // linha 8
+        totalLinhas: raw.length,
+      })
+
       const dataRows = raw.slice(5)
 
-      // Converte datas: serial do Excel (número) ou string dd/mm/yyyy → yyyy-mm-dd
       const parseDate = (v) => {
         if (!v) return ''
         if (typeof v === 'number') {
@@ -1738,16 +1747,16 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
       }
 
       const norm = dataRows.map(r => ({
-        pedido_ref:    String(r[1] ?? '').trim(),   // col 2
-        produto:       String(r[2] ?? '').trim(),   // col 3
-        qtd:           String(r[3] ?? '').trim(),   // col 4 (só exibição no preview)
-        fornecedor:    String(r[5] ?? '').trim(),   // col 6
-        cliente:       String(r[6] ?? '').trim(),   // col 7
-        loja:          String(r[7] ?? '').trim(),   // col 8
-        data_venda:    parseDate(r[8]),             // col 9
-        data_abertura: parseDate(r[9]),             // col 10 = data_assist
-        categoria:     String(r[10] ?? '').trim(),  // col 11
-        descricao:     String(r[11] ?? '').trim(),  // col 12
+        pedido_ref:    String(r[1] ?? '').trim(),   // col B (índice 1)
+        produto:       String(r[2] ?? '').trim(),   // col C (índice 2)
+        qtd:           String(r[3] ?? '').trim(),   // col D (índice 3)
+        fornecedor:    String(r[5] ?? '').trim(),   // col F (índice 5)
+        cliente:       String(r[6] ?? '').trim(),   // col G (índice 6)
+        loja:          String(r[7] ?? '').trim(),   // col H (índice 7)
+        data_venda:    parseDate(r[8]),             // col I (índice 8)
+        data_abertura: parseDate(r[9]),             // col J (índice 9)
+        categoria:     String(r[10] ?? '').trim(),  // col K (índice 10)
+        descricao:     String(r[11] ?? '').trim(),  // col L (índice 11)
       })).filter(r => r.cliente !== '')
 
       setRows(norm); setPreview(true)
@@ -1781,6 +1790,40 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
         </div>
       ) : (
         <div>
+          {/* ── Diagnóstico de mapeamento ── */}
+          {rawDebug && (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 11, overflowX: 'auto' }}>
+              <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--accent)' }}>Diagnóstico — valores brutos do Excel (confirme se o mapeamento está correto)</div>
+              <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 10 }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '2px 6px', color: 'var(--t3)', textAlign: 'left', minWidth: 28 }}>Col</th>
+                    <th style={{ padding: '2px 6px', color: 'var(--amber)', textAlign: 'left' }}>Cabeçalho (L5)</th>
+                    <th style={{ padding: '2px 6px', color: 'var(--green)', textAlign: 'left' }}>Linha 6</th>
+                    <th style={{ padding: '2px 6px', color: 'var(--t2)', textAlign: 'left' }}>Linha 7</th>
+                    <th style={{ padding: '2px 6px', color: 'var(--t3)', textAlign: 'left', fontStyle: 'italic' }}>Campo salvo como</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rawDebug.cabecalho.slice(0, 14).map((cab, idx) => {
+                    const MAPA = { 1: 'pedido_ref', 2: 'produto', 3: 'qtd', 5: 'fornecedor', 6: 'cliente ⭐', 7: 'loja', 8: 'data_venda', 9: 'data_abertura', 10: 'categoria', 11: 'descricao' }
+                    const campo = MAPA[idx] || '—'
+                    const destaque = campo.includes('cliente') || campo.includes('pedido')
+                    return (
+                      <tr key={idx} style={{ background: destaque ? 'rgba(99,102,241,0.08)' : 'transparent' }}>
+                        <td style={{ padding: '2px 6px', color: 'var(--t3)', fontWeight: 600 }}>{String.fromCharCode(65 + idx)}</td>
+                        <td style={{ padding: '2px 6px', color: 'var(--amber)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(cab || '').slice(0, 30)}</td>
+                        <td style={{ padding: '2px 6px', color: 'var(--green)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(rawDebug.linha1[idx] ?? '').slice(0, 30)}</td>
+                        <td style={{ padding: '2px 6px', color: 'var(--t2)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(rawDebug.linha2[idx] ?? '').slice(0, 30)}</td>
+                        <td style={{ padding: '2px 6px', color: destaque ? 'var(--accent)' : 'var(--t3)', fontStyle: 'italic' }}>{campo}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div style={{ marginTop: 6, color: 'var(--t3)' }}>Total de linhas no arquivo: {rawDebug.totalLinhas} · Dados a partir da linha 6 (índice 5)</div>
+            </div>
+          )}
           <div className="stats" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 16 }}>
             {[{ label: 'Total', val: rows.length, color: 'var(--accent)' }, { label: 'Novas', val: novas.length, color: 'var(--green)' }, { label: 'Atualizar', val: atualizadas.length, color: 'var(--amber)' }].map(s => (
               <div className="stat" key={s.label}><div className="stat-val" style={{ color: s.color }}>{s.val}</div><div className="stat-lbl">{s.label}</div></div>
