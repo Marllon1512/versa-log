@@ -1750,13 +1750,15 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
         pedido_ref:    String(r[1] ?? '').trim(),   // col B (índice 1)
         produto:       String(r[2] ?? '').trim(),   // col C (índice 2)
         qtd:           String(r[3] ?? '').trim(),   // col D (índice 3)
+        // col E (índice 4) = Unid. → ignorado
         fornecedor:    String(r[5] ?? '').trim(),   // col F (índice 5)
-        cliente:       String(r[6] ?? '').trim(),   // col G (índice 6)
-        loja:          String(r[7] ?? '').trim(),   // col H (índice 7)
-        data_venda:    parseDate(r[8]),             // col I (índice 8)
-        data_abertura: parseDate(r[9]),             // col J (índice 9)
-        categoria:     String(r[10] ?? '').trim(),  // col K (índice 10)
-        descricao:     String(r[11] ?? '').trim(),  // col L (índice 11)
+        // col G (índice 6) → ignorado (campo extra confirmado no diagnóstico)
+        cliente:       String(r[7] ?? '').trim(),   // col H (índice 7) ← corrigido
+        loja:          String(r[8] ?? '').trim(),   // col I (índice 8) ← corrigido
+        data_venda:    parseDate(r[9]),             // col J (índice 9) ← corrigido
+        data_abertura: parseDate(r[10]),            // col K (índice 10) ← corrigido
+        categoria:     String(r[11] ?? '').trim(),  // col L (índice 11) ← corrigido
+        descricao:     String(r[12] ?? '').trim(),  // col M (índice 12) ← corrigido
       })).filter(r => r.cliente !== '')
 
       setRows(norm); setPreview(true)
