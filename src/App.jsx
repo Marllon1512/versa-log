@@ -1282,9 +1282,13 @@ function Assistencia() {
       onProgress?.(done, total)
     }
 
-    // Log de diagnóstico: verifica se o usuário está autenticado antes do insert
+    // ── Diagnóstico completo antes do insert ─────────────────
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    console.log('[Import] Auth state:', authUser ? `autenticado como ${authUser.email}` : 'NÃO autenticado (anon) — verifique RLS')
+    console.log('══════════════════════════════════════════')
+    console.log('[Import] Auth state:', authUser ? `✅ autenticado como ${authUser.email}` : '❌ NÃO autenticado (role=anon)')
+    console.log('[Import] Total para criar:', paraCriar.length, '| para atualizar:', paraAtualizar.length)
+    console.log('[Import] Primeiro registro que será inserido:', JSON.stringify(paraCriar[0] ?? null, null, 2))
+    console.log('══════════════════════════════════════════')
 
     // Cria novas em batches de 20 — uma chamada Supabase por batch
     for (let i = 0; i < paraCriar.length; i += BATCH) {
@@ -1301,6 +1305,10 @@ function Assistencia() {
         origem: 'excel',
       }))
 
+      if (i === 0) {
+        console.log('[Import] Payload do batch 1 (primeiros 2 registros):', JSON.stringify(payload.slice(0, 2), null, 2))
+      }
+
       try {
         const { data: inseridos, error } = await supabase
           .from('assistencias')
@@ -1308,7 +1316,12 @@ function Assistencia() {
           .select('id, cliente, pedido_ref')
 
         if (error) {
-          console.error(`[Import] Erro no batch ${Math.floor(i / BATCH) + 1}:`, error.message, error.details, error.hint)
+          console.error(`[Import] ❌ Erro batch ${Math.floor(i / BATCH) + 1} — assistencias:`)
+          console.error('  code:', error.code)
+          console.error('  message:', error.message)
+          console.error('  details:', error.details)
+          console.error('  hint:', error.hint)
+          console.error('  objeto completo:', error)
           erros += batch.length
         } else {
           // Monta os itens de produto de todos do batch de uma vez
@@ -1329,12 +1342,17 @@ function Assistencia() {
           }
           if (itemsPayload.length) {
             const { error: ie } = await supabase.from('assistencia_itens').insert(itemsPayload)
-            if (ie) console.error(`[Import] Erro ao inserir itens batch ${Math.floor(i / BATCH) + 1}:`, ie.message)
+            if (ie) {
+              console.error(`[Import] ❌ Erro batch ${Math.floor(i / BATCH) + 1} — assistencia_itens:`)
+              console.error('  code:', ie.code, '| message:', ie.message)
+              console.error('  details:', ie.details, '| hint:', ie.hint)
+            }
           }
           criadas += inseridos?.length || 0
+          console.log(`[Import] ✅ Batch ${Math.floor(i / BATCH) + 1}: ${inseridos?.length || 0} assistencias criadas`)
         }
       } catch (e) {
-        console.error(`[Import] Exceção no batch ${Math.floor(i / BATCH) + 1}:`, e)
+        console.error(`[Import] ❌ Exceção no batch ${Math.floor(i / BATCH) + 1}:`, e)
         erros += batch.length
       }
 
