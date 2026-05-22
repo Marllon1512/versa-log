@@ -171,7 +171,8 @@ export const conferenciasService = {
 // ── Ponto ─────────────────────────────────────────────────
 export const pontoService = {
   async listHoje(usuarioId) {
-    const hoje = new Date().toISOString().split('T')[0]
+    const n = new Date()
+    const hoje = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`
     const { data, error } = await supabase
       .from('pontos')
       .select('*')
@@ -198,7 +199,8 @@ export const pontoService = {
     return data || []
   },
   async listAllHoje() {
-    const hoje = new Date().toISOString().split('T')[0]
+    const n = new Date()
+    const hoje = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`
     const { data, error } = await supabase
       .from('pontos')
       .select('*')

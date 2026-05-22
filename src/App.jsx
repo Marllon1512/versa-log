@@ -3266,13 +3266,21 @@ function Ponto() {
 
   const registrar = (tipo) => {
     run(async () => {
-      await pontoService.registrar({
-        usuario_id: perfil?.id,
-        usuario_nome: perfil?.full_name,
-        tipo,
-        data_hora: new Date().toISOString(),
-        data: new Date().toISOString().split('T')[0],
-      })
+      const now = new Date()
+      const dataLocal = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+      try {
+        await pontoService.registrar({
+          usuario_id: perfil?.id,
+          usuario_nome: perfil?.full_name,
+          tipo,
+          data_hora: now.toISOString(),
+          data: dataLocal,
+        })
+      } catch (e) {
+        console.error('[Ponto] Erro ao registrar:', e?.code, e?.message, e?.details, e?.hint)
+        alert(`Erro ao registrar ponto: ${e?.message || 'desconhecido'}. Veja F12 → Console.`)
+        return
+      }
       await reload()
       if (isGestor) await reloadTodos()
     })
@@ -3290,6 +3298,8 @@ function Ponto() {
         lastEntrada = null
       }
     }
+    // Ainda trabalhando (sem saída): conta até agora
+    if (lastEntrada) totalMs += new Date() - lastEntrada
     if (totalMs === 0) return null
     return (totalMs / 3600000).toFixed(1)
   }
