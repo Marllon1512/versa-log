@@ -1405,6 +1405,9 @@ function AssistenciaCard({ assistencia: a, onClick }) {
   const ativo = !['Concluído', 'Cancelado'].includes(a.status)
   const cor = ativo ? (dias >= 30 ? '#ef4444' : dias >= 20 ? '#f59e0b' : dias >= 10 ? '#3b82f6' : 'var(--t3)') : 'var(--t3)'
   const bg = ativo ? (dias >= 30 ? 'rgba(239,68,68,0.06)' : dias >= 20 ? 'rgba(245,158,11,0.06)' : dias >= 10 ? 'rgba(59,130,246,0.06)' : 'transparent') : 'transparent'
+  const fornecedores = [...new Set((a.assistencia_itens || [])
+    .map(i => i.fornecedor ? String(i.fornecedor).replace(/^\[\d+\]\s*/, '').trim() : null)
+    .filter(Boolean))]
   return (
     <div className="li" style={{ borderLeft: `3px solid ${cor}`, background: bg }} onClick={onClick}>
       <div className="li-main">
@@ -1413,6 +1416,11 @@ function AssistenciaCard({ assistencia: a, onClick }) {
           {a.pedido_ref && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'var(--adim)', borderRadius: 4, padding: '1px 6px' }}>#{a.pedido_ref}</span>}
           {a.loja && <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 400 }}>{a.loja}</span>}
         </div>
+        {fornecedores.length > 0 && (
+          <div style={{ fontSize: 11, color: 'var(--t2)', marginTop: 2 }}>
+            {fornecedores.slice(0, 2).join(' · ')}{fornecedores.length > 2 ? ` +${fornecedores.length - 2}` : ''}
+          </div>
+        )}
         <div className="li-sub">{a.tipo_problema || 'Sem categoria'}{a.categoria ? ` · ${a.categoria}` : ''}</div>
         {ativo && <div style={{ fontSize: 11, color: cor, marginTop: 2 }}>⏱ {dias} dias aberto</div>}
       </div>

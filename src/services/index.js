@@ -100,7 +100,7 @@ export const assistenciasService = {
   async list() {
     const { data, error } = await supabase
       .from('assistencias')
-      .select('*')
+      .select('*, assistencia_itens(id, fornecedor)')
       .order('created_at', { ascending: false })
     if (error) throw error
     return data || []
