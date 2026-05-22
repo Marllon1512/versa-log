@@ -1282,6 +1282,10 @@ function Assistencia() {
       onProgress?.(done, total)
     }
 
+    // Log de diagnóstico: verifica se o usuário está autenticado antes do insert
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    console.log('[Import] Auth state:', authUser ? `autenticado como ${authUser.email}` : 'NÃO autenticado (anon) — verifique RLS')
+
     // Cria novas em batches de 20 — uma chamada Supabase por batch
     for (let i = 0; i < paraCriar.length; i += BATCH) {
       const batch = paraCriar.slice(i, i + BATCH)
