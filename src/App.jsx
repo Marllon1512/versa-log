@@ -1259,12 +1259,37 @@ function Assistencia() {
     for (const row of rows) {
       const existing = lista.find(a => a.pedido_ref === row.pedido_ref && a.cliente === row.cliente)
       if (existing) {
-        await assistenciasService.update(existing.id, { status: row.status || existing.status, loja: row.loja || existing.loja })
+        await assistenciasService.update(existing.id, {
+          loja: row.loja || existing.loja,
+          categoria: row.categoria || existing.categoria,
+        })
       } else {
-        const nova = await assistenciasService.create({ ...row, data_abertura: row.data_abertura || hoje.toISOString().split('T')[0], status: row.status || 'Aberto', origem: 'excel', created_by: perfil?.id })
+        const nova = await assistenciasService.create({
+          cliente: row.cliente,
+          pedido_ref: row.pedido_ref,
+          loja: row.loja,
+          categoria: row.categoria,
+          tipo_problema: row.categoria || row.produto || 'Outros',
+          observacoes: row.descricao,
+          data_abertura: row.data_abertura || hoje.toISOString().split('T')[0],
+          status: 'Aberto',
+          origem: 'excel',
+          created_by: perfil?.id,
+        })
+        if (row.produto) {
+          await assistenciasService.createItem({
+            assistencia_id: nova.id,
+            produto: row.produto,
+            fornecedor: row.fornecedor,
+            motivo: row.categoria || 'Outros',
+            descricao: row.descricao,
+            status: 'Aberto',
+            prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+          })
+        }
         const dias = diasAberto(row.data_abertura)
         if (dias >= 7) {
-          await supabase.from('assistencia_tarefas').insert({ assistencia_id: nova.id, titulo: 'Verificar assistência importada atrasada', descricao: `Importada com ${dias} dias de abertura sem atualização`, tipo: 'follow_up', status: 'pendente', criado_automaticamente: true, prazo: hoje.toISOString().split('T')[0] })
+          await supabase.from('assistencia_tarefas').insert({ assistencia_id: nova.id, titulo: 'Verificar assistência importada atrasada', descricao: `Importada com ${dias} dias sem atualização`, tipo: 'follow_up', status: 'pendente', criado_automaticamente: true, prazo: hoje.toISOString().split('T')[0] })
         }
       }
     }
@@ -1628,17 +1653,41 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
     reader.onload = (ev) => {
       const wb = XLSX.read(ev.target.result, { type: 'binary' })
       const ws = wb.Sheets[wb.SheetNames[0]]
-      const raw = XLSX.utils.sheet_to_json(ws, { defval: '' })
-      const norm = raw.map(r => ({
-        cliente: r['Cliente'] || r['cliente'] || r['CLIENTE'] || '',
-        pedido_ref: String(r['Pedido'] || r['pedido_ref'] || r['Nº Pedido'] || r['PEDIDO'] || ''),
-        loja: r['Loja'] || r['loja'] || r['LOJA'] || '',
-        tipo_problema: r['Problema'] || r['tipo_problema'] || r['Categoria'] || '',
-        status: r['Status'] || r['status'] || r['STATUS'] || '',
-        data_abertura: r['Data'] || r['data_abertura'] || '',
-        responsavel_nome: r['Responsável'] || r['responsavel_nome'] || '',
-        observacoes: r['Observações'] || r['observacoes'] || r['Obs'] || '',
-      })).filter(r => r.cliente)
+      // header:1 retorna array de arrays; cabeçalho na linha 5 (índice 4), dados a partir da linha 6 (índice 5)
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+      const dataRows = raw.slice(5)
+
+      // Converte datas: serial do Excel (número) ou string dd/mm/yyyy → yyyy-mm-dd
+      const parseDate = (v) => {
+        if (!v) return ''
+        if (typeof v === 'number') {
+          const d = new Date(Math.round((v - 25569) * 86400 * 1000))
+          return d.toISOString().split('T')[0]
+        }
+        const s = String(v).trim()
+        if (s.includes('/')) {
+          const parts = s.split('/')
+          if (parts.length === 3) {
+            const [d, m, y] = parts
+            return `${y.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+          }
+        }
+        return s.slice(0, 10)
+      }
+
+      const norm = dataRows.map(r => ({
+        pedido_ref:    String(r[1] ?? '').trim(),   // col 2
+        produto:       String(r[2] ?? '').trim(),   // col 3
+        qtd:           String(r[3] ?? '').trim(),   // col 4 (só exibição no preview)
+        fornecedor:    String(r[5] ?? '').trim(),   // col 6
+        cliente:       String(r[6] ?? '').trim(),   // col 7
+        loja:          String(r[7] ?? '').trim(),   // col 8
+        data_venda:    parseDate(r[8]),             // col 9
+        data_abertura: parseDate(r[9]),             // col 10 = data_assist
+        categoria:     String(r[10] ?? '').trim(),  // col 11
+        descricao:     String(r[11] ?? '').trim(),  // col 12
+      })).filter(r => r.cliente !== '')
+
       setRows(norm); setPreview(true)
     }
     reader.readAsBinaryString(file)
@@ -1661,7 +1710,7 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
     >
       {!preview ? (
         <div>
-          <Alert type="warning" style={{ marginBottom: 16 }}>Colunas esperadas: <b>Cliente, Pedido, Loja, Problema, Status, Data, Responsável</b></Alert>
+          <Alert type="warning" style={{ marginBottom: 16 }}>Cabeçalho na <b>linha 5</b>, dados a partir da <b>linha 6</b>. Colunas: C2=Pedido · C3=Produto · C4=Qtd · C6=Fornecedor · C7=Cliente · C8=Loja · C9=Data venda · C10=Data assist. · C11=Categoria · C12=Descrição</Alert>
           <div className="upload-zone" style={{ padding: 32, textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
             <div style={{ marginBottom: 12 }}>Selecione o arquivo .xlsx ou .xls</div>
@@ -1679,9 +1728,15 @@ function ImportarExcelAssistenciaModal({ onClose, onImport, existentes }) {
             {rows.slice(0, 30).map((r, i) => {
               const exist = existentes.find(e => e.pedido_ref === r.pedido_ref && e.cliente === r.cliente)
               return (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                  <div><span style={{ fontWeight: 500 }}>{r.cliente}</span>{r.pedido_ref && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>#{r.pedido_ref}</span>}{r.loja && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>{r.loja}</span>}</div>
-                  <span style={{ color: exist ? 'var(--amber)' : 'var(--green)', fontSize: 11 }}>{exist ? '↻ Atualizar' : '+ Nova'}</span>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                  <div>
+                    <span style={{ fontWeight: 500 }}>{r.cliente}</span>
+                    {r.pedido_ref && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>#{r.pedido_ref}</span>}
+                    {r.loja && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>{r.loja}</span>}
+                    {r.produto && <div style={{ color: 'var(--t3)', fontSize: 11 }}>{r.produto}{r.qtd ? ` · qtd: ${r.qtd}` : ''}{r.categoria ? ` · ${r.categoria}` : ''}</div>}
+                    {r.data_abertura && <div style={{ color: 'var(--t3)', fontSize: 11 }}>Assist: {r.data_abertura}</div>}
+                  </div>
+                  <span style={{ color: exist ? 'var(--amber)' : 'var(--green)', fontSize: 11, flexShrink: 0, marginLeft: 8 }}>{exist ? '↻ Atualizar' : '+ Nova'}</span>
                 </div>
               )
             })}
