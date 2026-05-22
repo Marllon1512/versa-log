@@ -1229,6 +1229,7 @@ function Assistencia() {
   const [showNew, setShowNew] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
+  const [showRelatorio, setShowRelatorio] = useState(false)
   const { data: assistencias, loading, reload } = useData(() => assistenciasService.list(), [])
 
   const hoje = new Date()
@@ -1259,117 +1260,100 @@ function Assistencia() {
   const handleImport = async (rows, onProgress) => {
     const BATCH = 20
     let done = 0, criadas = 0, atualizadas = 0, erros = 0
-    const total = rows.length
 
-    // Separa em novas vs existentes
-    const paraAtualizar = rows.filter(r => r.pedido_ref && lista.find(a => a.pedido_ref === r.pedido_ref && a.cliente === r.cliente))
-    const paraCriar = rows.filter(r => !r.pedido_ref || !lista.find(a => a.pedido_ref === r.pedido_ref && a.cliente === r.cliente))
+    // Agrupa por pedido_ref+cliente → 1 assistência por grupo (evita duplicatas internas ao import)
+    const gruposMap = new Map()
+    for (const row of rows) {
+      const key = `${row.pedido_ref || ''}||${row.cliente}`
+      if (!gruposMap.has(key)) gruposMap.set(key, { principal: row, itens: [] })
+      gruposMap.get(key).itens.push(row)
+    }
+    const grupos = Array.from(gruposMap.values())
+    const total = grupos.length
 
-    // Atualiza existentes (sequencial, normalmente poucos)
-    for (const row of paraAtualizar) {
-      const existing = lista.find(a => a.pedido_ref === row.pedido_ref && a.cliente === row.cliente)
+    const paraAtualizar = grupos.filter(g => g.principal.pedido_ref && lista.find(a => a.pedido_ref === g.principal.pedido_ref && a.cliente === g.principal.cliente))
+    const paraCriar = grupos.filter(g => !g.principal.pedido_ref || !lista.find(a => a.pedido_ref === g.principal.pedido_ref && a.cliente === g.principal.cliente))
+
+    // Atualiza existentes + adiciona itens novos
+    for (const { principal, itens } of paraAtualizar) {
+      const existing = lista.find(a => a.pedido_ref === principal.pedido_ref && a.cliente === principal.cliente)
       try {
         await assistenciasService.update(existing.id, {
-          loja: row.loja || existing.loja,
-          categoria: row.categoria || existing.categoria,
+          loja: principal.loja || existing.loja,
+          categoria: principal.categoria || existing.categoria,
         })
+        const itemsNovas = itens.filter(r => (r.produto || r.descricao || r.categoria))
+        for (const row of itemsNovas) {
+          await supabase.from('assistencia_itens').insert({
+            assistencia_id: existing.id,
+            produto: (row.produto || row.categoria || row.descricao || 'Item importado').trim(),
+            fornecedor: row.fornecedor || null, motivo: row.categoria || 'Outros',
+            descricao: row.descricao || null, status: 'Aberto',
+            prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+          })
+        }
         atualizadas++
-      } catch (e) {
-        console.error('[Import] Erro ao atualizar', existing.id, e)
-        erros++
-      }
+      } catch (e) { console.error('[Import] Erro atualizar', existing?.id, e); erros++ }
       done++
       onProgress?.(done, total)
     }
 
-    // ── Diagnóstico completo antes do insert ─────────────────
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    console.log('══════════════════════════════════════════')
-    console.log('[Import] Auth state:', authUser ? `✅ autenticado como ${authUser.email}` : '❌ NÃO autenticado (role=anon)')
-    console.log('[Import] Total para criar:', paraCriar.length, '| para atualizar:', paraAtualizar.length)
-    console.log('[Import] Primeiro registro que será inserido:', JSON.stringify(paraCriar[0] ?? null, null, 2))
-    console.log('══════════════════════════════════════════')
-
-    // Cria novas em batches de 20 — uma chamada Supabase por batch
+    // Cria novos em batches de 20
     for (let i = 0; i < paraCriar.length; i += BATCH) {
-      const batch = paraCriar.slice(i, i + BATCH)
-      const payload = batch.map(row => ({
-        cliente: row.cliente,
-        pedido_ref: row.pedido_ref || null,
-        loja: row.loja || null,
-        categoria: row.categoria || null,
-        tipo_problema: row.categoria || row.produto || 'Outros',
-        observacoes: row.descricao || null,
-        data_abertura: row.data_abertura || hoje.toISOString().split('T')[0],
+      const lote = paraCriar.slice(i, i + BATCH)
+      const payload = lote.map(({ principal }) => ({
+        cliente: principal.cliente,
+        pedido_ref: principal.pedido_ref || null,
+        loja: principal.loja || null,
+        categoria: principal.categoria || null,
+        tipo_problema: principal.categoria || principal.produto || 'Outros',
+        observacoes: principal.descricao || null,
+        data_abertura: principal.data_abertura || hoje.toISOString().split('T')[0],
         status: 'Aberto',
         origem: 'excel',
       }))
 
-      if (i === 0) {
-        console.log('[Import] Payload do batch 1 (primeiros 2 registros):', JSON.stringify(payload.slice(0, 2), null, 2))
-      }
-
       try {
         const { data: inseridos, error } = await supabase
-          .from('assistencias')
-          .insert(payload)
-          .select('id, cliente, pedido_ref')
+          .from('assistencias').insert(payload).select('id, cliente, pedido_ref')
 
         if (error) {
-          console.error(`[Import] ❌ Erro batch ${Math.floor(i / BATCH) + 1} — assistencias:`)
-          console.error('  code:', error.code)
-          console.error('  message:', error.message)
-          console.error('  details:', error.details)
-          console.error('  hint:', error.hint)
-          console.error('  objeto completo:', error)
-          erros += batch.length
+          console.error(`[Import] ❌ Batch ${Math.floor(i / BATCH) + 1}:`, error.code, error.message, error.details)
+          erros += lote.length
         } else {
-          // Usa índice posicional (PostgreSQL garante mesma ordem do INSERT)
-          // Não usa batch.find para evitar colisão quando cliente+pedido_ref se repete
+          // Para cada assistência criada, insere TODOS os produtos do grupo (posição garante match)
           const itemsPayload = []
-          for (let j = 0; j < (inseridos || []).length; j++) {
-            const rec = inseridos[j]
-            const row = batch[j]
-            // Cria item mesmo se produto vazio — usa categoria ou descrição como fallback
-            const nomeProduto = (row.produto || row.categoria || row.descricao || '').trim() || 'Item importado'
-            itemsPayload.push({
-              assistencia_id: rec.id,
-              produto: nomeProduto,
-              fornecedor: row.fornecedor || null,
-              motivo: row.categoria || 'Outros',
-              descricao: row.descricao || null,
-              status: 'Aberto',
-              prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-            })
-          }
-          if (itemsPayload.length) {
-            console.log(`[Import] Inserindo ${itemsPayload.length} itens — primeiro:`, JSON.stringify(itemsPayload[0]))
-            const { error: ie } = await supabase.from('assistencia_itens').insert(itemsPayload)
-            if (ie) {
-              console.error(`[Import] ❌ Erro batch ${Math.floor(i / BATCH) + 1} — assistencia_itens:`)
-              console.error('  code:', ie.code, '| message:', ie.message)
-              console.error('  details:', ie.details, '| hint:', ie.hint)
-            } else {
-              console.log(`[Import] ✅ Batch ${Math.floor(i / BATCH) + 1}: ${inseridos.length} assistencias + ${itemsPayload.length} itens`)
+          for (let j = 0; j < inseridos.length; j++) {
+            for (const row of lote[j].itens) {
+              itemsPayload.push({
+                assistencia_id: inseridos[j].id,
+                produto: (row.produto || row.categoria || row.descricao || 'Item importado').trim(),
+                fornecedor: row.fornecedor || null, motivo: row.categoria || 'Outros',
+                descricao: row.descricao || null, status: 'Aberto',
+                prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+              })
             }
           }
-          criadas += inseridos?.length || 0
+          if (itemsPayload.length) {
+            const { error: ie } = await supabase.from('assistencia_itens').insert(itemsPayload)
+            if (ie) console.error(`[Import] ❌ Itens batch ${Math.floor(i / BATCH) + 1}:`, ie.code, ie.message)
+            else console.log(`[Import] ✅ Batch ${Math.floor(i / BATCH) + 1}: ${inseridos.length} assist + ${itemsPayload.length} itens`)
+          }
+          criadas += inseridos.length
         }
-      } catch (e) {
-        console.error(`[Import] ❌ Exceção no batch ${Math.floor(i / BATCH) + 1}:`, e)
-        erros += batch.length
-      }
+      } catch (e) { console.error(`[Import] ❌ Exceção batch ${Math.floor(i / BATCH) + 1}:`, e); erros += lote.length }
 
-      done += batch.length
+      done += lote.length
       onProgress?.(Math.min(done, total), total)
     }
 
     await reload()
     setShowImport(false)
-    alert(`Importação: ${criadas} criadas, ${atualizadas} atualizadas${erros ? `, ${erros} com erro (abra F12 → Console para detalhes)` : ''}.`)
+    alert(`Importação: ${criadas} assistências criadas${atualizadas > 0 ? `, ${atualizadas} atualizadas` : ''}${erros > 0 ? `, ${erros} com erro (F12)` : ''}.`)
   }
 
   if (selectedId) return <AssistenciaDetalhe id={selectedId} onBack={() => { setSelectedId(null); reload() }} />
+  if (showRelatorio) return <RelatorioAssistencias onBack={() => setShowRelatorio(false)} />
 
   return (
     <div className="page">
@@ -1379,6 +1363,7 @@ function Assistencia() {
           <div className="ph-sub">{ativas.length} em andamento</div>
         </div>
         <div className="row" style={{ gap: 6 }}>
+          <Btn variant="ghost" size="sm" onClick={() => setShowRelatorio(true)}><Ic n="bar" s={13} /> Relatório</Btn>
           <Btn variant="secondary" size="sm" onClick={() => setShowImport(true)}><Ic n="save" s={13} /> Excel</Btn>
           <Btn size="sm" onClick={() => setShowNew(true)}><Ic n="plus" s={13} /> Nova</Btn>
         </div>
@@ -1951,6 +1936,190 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
         </>
       )}
     </Modal>
+  )
+}
+
+// ============================================================
+// RELATÓRIO DE ASSISTÊNCIAS
+// ============================================================
+const CHART_PAL = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#a78bfa','#06b6d4','#84cc16']
+
+function GraficoBarras({ dados }) {
+  if (!dados?.length) return <div style={{ color: 'var(--t3)', fontSize: 12, padding: 8 }}>Sem dados para o período</div>
+  const max = Math.max(...dados.map(d => d.qtd), 1)
+  return (
+    <div style={{ width: '100%' }}>
+      {dados.map((d, i) => (
+        <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+          <div style={{ width: 140, fontSize: 11, color: 'var(--t2)', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.name}>{d.name}</div>
+          <div style={{ flex: 1, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', height: 22 }}>
+            <div style={{ width: `${(d.qtd / max) * 100}%`, minWidth: d.qtd > 0 ? 28 : 0, background: CHART_PAL[i % CHART_PAL.length], height: '100%', borderRadius: 4, display: 'flex', alignItems: 'center', paddingLeft: 6, fontSize: 11, color: '#fff', fontWeight: 600 }}>
+              {d.qtd > 0 ? d.qtd : ''}
+            </div>
+          </div>
+          <div style={{ width: 36, fontSize: 11, color: 'var(--t3)', textAlign: 'right', flexShrink: 0 }}>{d.pct}%</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TabelaRelatorio({ dados, colunas = ['Descrição', 'Qtd', '%'] }) {
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <thead>
+        <tr>{colunas.map(c => <th key={c} style={{ textAlign: c === 'Qtd' || c === '%' ? 'right' : 'left', padding: '4px 8px', color: 'var(--t3)', fontWeight: 500, borderBottom: '1px solid var(--border)' }}>{c}</th>)}</tr>
+      </thead>
+      <tbody>
+        {dados.map((d, i) => (
+          <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+            <td style={{ padding: '5px 8px', color: 'var(--t1)' }}>{d.name}</td>
+            <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 600, color: 'var(--accent)' }}>{d.qtd}</td>
+            <td style={{ padding: '5px 8px', textAlign: 'right', color: 'var(--t3)' }}>{d.pct}%</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function RelatorioAssistencias({ onBack }) {
+  const [dataInicio, setDataInicio] = useState('')
+  const [dataFim, setDataFim] = useState('')
+  const [lojaFil, setLojaFil] = useState('')
+
+  const { data: assistencias, loading } = useData(() => assistenciasService.list(), [])
+  const { data: todosItens } = useData(async () => {
+    const { data, error } = await supabase.from('assistencia_itens').select('assistencia_id, fornecedor')
+    if (error) throw error
+    return data || []
+  }, [])
+
+  const hoje = new Date()
+  const diasAberto = (d) => !d ? 0 : Math.floor((hoje - new Date(d)) / 86400000)
+
+  const LOJAS = ['Templum Comércio', 'Movelaria Olga', 'Santa Comércio', 'Alpendre Mobiliário', 'Arca Garden', 'Templum Minas', 'Ferião']
+  const CATEGORIAS = ['Defeito de Fábrica', 'Danificado na Entrega', 'Medida Errada', 'Danificado pela Vipex', 'Acabamento Divergente', 'Retoques e Instalações', 'Mau Uso', 'Danificado no Depósito', 'Tecido Divergente', 'Danificado na Loja']
+  const FABRICAS = ['Dettagli', 'Clarisa Estofados', 'Onna', 'Alum', 'Mar. Artesanato', 'Linea Top', 'Navarro', 'Corbelli', 'San German', 'Demais Fornecedores']
+
+  const lista = (assistencias || []).filter(a => {
+    const okInicio = !dataInicio || (a.data_abertura >= dataInicio)
+    const okFim = !dataFim || (a.data_abertura <= dataFim)
+    const okLoja = !lojaFil || a.loja === lojaFil
+    return okInicio && okFim && okLoja
+  })
+
+  const ativas = lista.filter(a => !['Concluído', 'Cancelado'].includes(a.status))
+  const criticas = ativas.filter(a => diasAberto(a.data_abertura) >= 30)
+  const urgentes = ativas.filter(a => { const d = diasAberto(a.data_abertura); return d >= 20 && d < 30 })
+
+  const buildData = (items, keys, getKey, outros = false) => {
+    const counts = Object.fromEntries(keys.map(k => [k, 0]))
+    for (const item of items) {
+      const k = getKey(item)
+      if (counts[k] !== undefined) counts[k]++
+      else if (outros) counts['Demais Fornecedores'] = (counts['Demais Fornecedores'] || 0) + 1
+    }
+    const total = Object.values(counts).reduce((s, v) => s + v, 0)
+    return keys
+      .map(k => ({ name: k, qtd: counts[k] || 0, pct: total ? Math.round((counts[k] || 0) / total * 100) : 0 }))
+      .filter(d => d.qtd > 0)
+      .sort((a, b) => b.qtd - a.qtd)
+  }
+
+  const dataCategorias = buildData(lista, CATEGORIAS, a => a.categoria || '')
+  const dataLojas = buildData(lista, LOJAS, a => a.loja || '')
+
+  const listaIds = new Set(lista.map(a => a.id))
+  const itensFiltrados = (todosItens || []).filter(it => listaIds.has(it.assistencia_id))
+  const dataFabricas = buildData(itensFiltrados, FABRICAS, it => FABRICAS.includes(it.fornecedor) ? it.fornecedor : 'Demais Fornecedores', true)
+
+  const gerarPDF = () => {
+    const w = window.open('', '_blank')
+    if (!w) { alert('Permita popups para gerar o PDF.'); return }
+    const secao = (titulo, dados) => `
+      <h3 style="margin:24px 0 8px;font-size:14px;color:#334155;border-bottom:2px solid #6366f1;padding-bottom:4px">${titulo}</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f1f5f9"><th style="text-align:left;padding:6px 8px">Descrição</th><th style="text-align:right;padding:6px 8px">Qtd</th><th style="text-align:right;padding:6px 8px">%</th></tr></thead>
+        <tbody>${dados.map(d => `<tr style="border-bottom:1px solid #e2e8f0"><td style="padding:5px 8px">${d.name}</td><td style="padding:5px 8px;text-align:right;font-weight:600">${d.qtd}</td><td style="padding:5px 8px;text-align:right;color:#64748b">${d.pct}%</td></tr>`).join('')}</tbody>
+      </table>`
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório de Assistências</title>
+      <style>body{font-family:sans-serif;padding:32px;color:#1e293b;max-width:800px;margin:0 auto}h1{font-size:20px;margin:0 0 4px}h2{font-size:18px;color:#6366f1;margin:0 0 16px}</style></head><body>
+      <h1>Versa Log — Relatório de Assistências</h1>
+      <h2>Período: ${dataInicio || 'Início'} até ${dataFim || 'Hoje'}${lojaFil ? ` · Loja: ${lojaFil}` : ''}</h2>
+      <div style="display:flex;gap:24px;margin-bottom:24px">
+        <div style="background:#fef2f2;padding:12px 20px;border-radius:8px;text-align:center"><div style="font-size:28px;font-weight:700;color:#ef4444">${criticas.length}</div><div style="font-size:11px;color:#64748b">Críticas +30d</div></div>
+        <div style="background:#fffbeb;padding:12px 20px;border-radius:8px;text-align:center"><div style="font-size:28px;font-weight:700;color:#f59e0b">${urgentes.length}</div><div style="font-size:11px;color:#64748b">Urgentes +20d</div></div>
+        <div style="background:#eff6ff;padding:12px 20px;border-radius:8px;text-align:center"><div style="font-size:28px;font-weight:700;color:#6366f1">${ativas.length}</div><div style="font-size:11px;color:#64748b">Abertas</div></div>
+        <div style="background:#f0fdf4;padding:12px 20px;border-radius:8px;text-align:center"><div style="font-size:28px;font-weight:700;color:#10b981">${lista.length}</div><div style="font-size:11px;color:#64748b">Total filtrado</div></div>
+      </div>
+      ${secao('Por Categoria', dataCategorias)}
+      ${secao('Por Loja', dataLojas)}
+      ${secao('Por Fabricante', dataFabricas)}
+      <p style="margin-top:32px;font-size:10px;color:#94a3b8">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+      <script>window.print()</script></body></html>`)
+    w.document.close()
+  }
+
+  if (loading) return <div className="page"><Spinner /></div>
+
+  const SecaoRelatorio = ({ titulo, dados }) => (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ fontWeight: 600, marginBottom: 14, fontSize: 14 }}>{titulo}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <TabelaRelatorio dados={dados} />
+        <GraficoBarras dados={dados} />
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="btn btn-g btn-ico btn-sm" onClick={onBack}><Ic n="back" /></button>
+          <div>
+            <h1>Relatório de Assistências</h1>
+            <div className="ph-sub">{lista.length} assistências no período</div>
+          </div>
+        </div>
+        <Btn size="sm" onClick={gerarPDF}><Ic n="pdf" s={13} /> Exportar PDF</Btn>
+      </div>
+
+      {/* Filtros */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Filtros</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div className="fg"><label className="fl">Data início</label><input className="fi" type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} /></div>
+          <div className="fg"><label className="fl">Data fim</label><input className="fi" type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} /></div>
+          <div className="fg"><label className="fl">Loja</label>
+            <select className="fi" value={lojaFil} onChange={e => setLojaFil(e.target.value)}>
+              <option value="">Todas as lojas</option>
+              {LOJAS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Resumo */}
+      <div className="stats" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 16 }}>
+        {[
+          { label: 'Críticas +30d', val: criticas.length, color: 'var(--red)', bg: 'var(--rdim)' },
+          { label: 'Urgentes +20d', val: urgentes.length, color: 'var(--amber)', bg: 'var(--adim2)' },
+          { label: 'Abertas', val: ativas.length, color: 'var(--accent)', bg: 'var(--adim)' },
+          { label: 'Total', val: lista.length, color: 'var(--green)', bg: 'var(--gdim)' },
+        ].map(s => (
+          <div className="stat" key={s.label}>
+            <div className="stat-val" style={{ color: s.color }}>{s.val}</div>
+            <div className="stat-lbl">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <SecaoRelatorio titulo="Por Categoria" dados={dataCategorias} />
+      <SecaoRelatorio titulo="Por Loja" dados={dataLojas} />
+      <SecaoRelatorio titulo="Por Fabricante / Fornecedor" dados={dataFabricas} />
+    </div>
   )
 }
 
