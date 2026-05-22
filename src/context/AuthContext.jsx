@@ -19,27 +19,27 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    // Restaura sessão local imediatamente para não bloquear o loading
+    // Sessão local → carrega instantâneo, sem esperar rede
     try {
       const saved = sessionStorage.getItem('versa_perfil')
-      if (saved) setPerfil(JSON.parse(saved))
+      if (saved) {
+        setPerfil(JSON.parse(saved))
+        setLoading(false)
+        return
+      }
     } catch {}
 
-    // Sempre tenta restaurar o JWT do Supabase Auth (mesmo com sessão local)
-    // Isso garante que o cliente Supabase tenha o token correto para RLS
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user)
-        loadPerfil(session.user).finally(() => setLoading(false))
-      } else {
-        // Sem sessão Supabase — usa perfil local se existir
-        setLoading(false)
-      }
-    }).catch(() => setLoading(false))
+    // Sem sessão local → aguarda Supabase Auth
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setUser(session?.user ?? null)
+        loadPerfil(session?.user ?? null).finally(() => setLoading(false))
+      })
+      .catch(() => setLoading(false))
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      if (session?.user) loadPerfil(session.user)
+      loadPerfil(session?.user ?? null)
     })
     return () => subscription.unsubscribe()
   }, [])
