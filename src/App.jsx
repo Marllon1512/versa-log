@@ -216,10 +216,11 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
   const { run, loading: saving } = useAction()
   const [produtos, setProdutos] = useState([])
   const [sucesso, setSucesso] = useState('')
+  const [uploadingIds, setUploadingIds] = useState(new Set())
 
   useEffect(() => {
     if (pedido?.produtos) {
-      setProdutos(pedido.produtos.map(p => ({ ...p, _volumes: p.volumes || '', _local: p.local_separacao || '', _peso: p.nivel_peso || '', _foto: p.foto_separacao || null })))
+      setProdutos(pedido.produtos.map(p => ({ ...p, _volumes: p.volumes || '', _local: p.local_separacao || '', _peso: p.nivel_peso || '', _foto: p.foto_separacao || null, _fotoPreview: null })))
     }
   }, [pedido?.id])
 
@@ -227,14 +228,32 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
     setProdutos(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p))
   }
 
+  const uploadFoto = async (prodId, file) => {
+    updateProd(prodId, '_fotoPreview', URL.createObjectURL(file))
+    setUploadingIds(prev => new Set(prev).add(prodId))
+    try {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${pedidoId}/${prodId}_${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('separacao').upload(path, file, { upsert: true, contentType: file.type })
+      if (error) throw error
+      const { data } = supabase.storage.from('separacao').getPublicUrl(path)
+      updateProd(prodId, '_foto', data.publicUrl)
+    } catch (e) {
+      toast.error('Erro ao enviar foto: ' + e.message)
+      updateProd(prodId, '_fotoPreview', null)
+    } finally {
+      setUploadingIds(prev => { const s = new Set(prev); s.delete(prodId); return s })
+    }
+  }
+
   const marcarSeparado = async (prod) => {
-    if (!prod._local) { alert('Informe o local do produto antes de marcar como separado.'); return }
     await run(async () => {
       await produtosService.update(prod.id, {
         status_produto: 'Separado',
         volumes: prod._volumes ? parseInt(prod._volumes) : null,
         local_separacao: prod._local,
         nivel_peso: prod._peso,
+        foto_separacao: prod._foto || null,
       })
       // Atualiza local
       setProdutos(prev => prev.map(p => p.id === prod.id ? { ...p, status_produto: 'Separado' } : p))
@@ -321,12 +340,30 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
 
               <div className="fg" style={{ marginBottom: 12 }}>
                 <label className="fl">Foto da separação *</label>
-                <div className="upload-zone" style={{ padding: 16 }} onClick={() => updateProd(pr.id, '_foto', `foto_${Date.now()}`)}>
-                  {pr._foto ? (
+                <input
+                  id={`foto-input-${pr.id}`}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files[0]; if (f) uploadFoto(pr.id, f) }}
+                />
+                <div
+                  className="upload-zone"
+                  style={{ padding: 16, cursor: 'pointer' }}
+                  onClick={() => document.getElementById(`foto-input-${pr.id}`)?.click()}
+                >
+                  {uploadingIds.has(pr.id) ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                      <span style={{ fontSize: 20 }}>📷</span>
-                      <span style={{ fontSize: 13, color: 'var(--green)' }}>✓ Foto registrada</span>
+                      <Spinner />
+                      <span style={{ fontSize: 13 }}>Enviando foto...</span>
                     </div>
+                  ) : (pr._fotoPreview || pr._foto) ? (
+                    <img
+                      src={pr._fotoPreview || pr._foto}
+                      alt="foto separação"
+                      style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 8, objectFit: 'cover', display: 'block', margin: '0 auto' }}
+                    />
                   ) : (
                     <>
                       <div style={{ fontSize: 24, marginBottom: 4 }}>📷</div>
@@ -338,7 +375,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
 
               <Btn
                 style={{ width: '100%', justifyContent: 'center', padding: 12, background: sucesso === pr.id ? 'var(--green)' : undefined }}
-                disabled={!pr._local || saving}
+                disabled={!pr._local || !pr._foto || saving}
                 loading={saving}
                 onClick={() => marcarSeparado(pr)}
               >
@@ -1292,8 +1329,8 @@ async function parseFichaPDF(file) {
 
     console.log('=== ZONA PRODUTOS === total:', zonaProdutos.length)
 
-    // Agrupar itens por linha Y (tolerância ±3px — colunas PDF são precisas), ordenar por X
-    function agruparPorLinha(items, tolerancia = 3) {
+    // Agrupar itens por linha Y (tolerância ±6px — cobre pequenas variações de renderização), ordenar por X
+    function agruparPorLinha(items, tolerancia = 6) {
       const linhas = [], usados = new Set()
       const sorted = [...items].sort((a, b) => b.y - a.y)
       for (const item of sorted) {
