@@ -1176,32 +1176,70 @@ async function parseFichaPDF(file) {
       }
     }
 
-    const enderecoCompleto = [rua, bairro].filter(Boolean).join(', ').replace(/,\s*,/g,',').trim()
+    // ── DADOS ADICIONAIS: endereço de entrega e observação ──
+    const idxAdicInicio = allItems.findIndex(i => /DADOS\s*ADICIONAIS/i.test(i.text))
+    const dadosAdic = idxAdicInicio >= 0 ? allItems.slice(idxAdicInicio) : []
+
+    let enderecoEntrega = ''
+    const idxEndEnt = dadosAdic.findIndex(i => /ENDERE[ÇC]O\s*DE\s*ENTREGA/i.test(i.text))
+    if (idxEndEnt >= 0) {
+      const STOP = ['OBSERVA','BAIRRO','MUNIC','ESTADO','CEP','FONE','CNPJ','CPF','ASSIN']
+      const partes = []
+      for (let j = idxEndEnt + 1; j < Math.min(idxEndEnt + 20, dadosAdic.length); j++) {
+        const t = dadosAdic[j].text
+        if (STOP.some(s => t.toUpperCase().startsWith(s))) break
+        partes.push(t)
+      }
+      enderecoEntrega = partes.join(' ').replace(/^Documento\s*/i, '').trim()
+    }
+
+    // Observação do cliente
+    let observacoes = ''
+    const idxObs = allItems.findIndex(i => /OBSERVA[ÇC][ÃA]O\s*DO\s*CLIENTE/i.test(i.text))
+    if (idxObs >= 0) {
+      for (let j = idxObs + 1; j < Math.min(idxObs + 6, allItems.length); j++) {
+        const t = allItems[j].text
+        if (/OBSERVA|ENDERE|DADOS|ASSIN/i.test(t)) break
+        if (t.length > 1) { observacoes = t; break }
+      }
+    }
+
+    const enderecoCompleto = enderecoEntrega || [rua, bairro].filter(Boolean).join(', ').replace(/,\s*,/g, ',').trim()
 
     // ── Produtos: zona DADOS DOS PRODUTOS → DADOS ADICIONAIS ──
     const idxInicio = allItems.findIndex(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.text))
-    const idxFim    = allItems.findIndex(i => /DADOS\s*ADICIONAIS/i.test(i.text))
-    const zonaProdutos = idxInicio >= 0
-      ? allItems.slice(idxInicio + 1, idxFim >= 0 ? idxFim : undefined)
-      : []
+    const idxFim    = idxAdicInicio >= 0 ? idxAdicInicio : allItems.length
+    const zonaProdutos = idxInicio >= 0 ? allItems.slice(idxInicio + 1, idxFim) : []
+
+    // Agrupar itens por linha Y (tolerância ±15px), ordenar por X dentro de cada linha
+    function agruparPorLinha(items, tolerancia = 15) {
+      const linhas = [], usados = new Set()
+      const sorted = [...items].sort((a, b) => b.y - a.y)
+      for (const item of sorted) {
+        if (usados.has(item)) continue
+        const linha = items.filter(i => !usados.has(i) && Math.abs(i.y - item.y) <= tolerancia).sort((a, b) => a.x - b.x)
+        linha.forEach(i => usados.add(i))
+        if (linha.length > 0) linhas.push(linha)
+      }
+      return linhas
+    }
 
     const CABECALHOS = new Set(['PRODUTO','ACABAMENTO','MEDIDA','TECIDO','LOCAL','VOLUME','QTDE.','QTDE','VALOR','TOTAL'])
-    const itensProduto = zonaProdutos.filter(i =>
-      i.x < 200 &&
-      !CABECALHOS.has(i.text.toUpperCase()) &&
-      !i.text.includes('R$') &&
-      !i.text.toLowerCase().includes('http') &&
-      i.text.length > 2
-    )
-
-    const produtos = itensProduto.map(prod => {
-      const qtdItem = zonaProdutos.find(i =>
-        i.x >= 450 && i.x <= 540 &&
-        Math.abs(i.y - prod.y) < 15 &&
-        /^\d+$/.test(i.text)
-      )
-      return { nome_produto: prod.text, quantidade: qtdItem ? parseInt(qtdItem.text) : 1, acabamento: '', medida: '', observacao: '' }
-    })
+    const produtos = agruparPorLinha(zonaProdutos)
+      .filter(linha => {
+        const p = linha[0]?.text || ''
+        return !CABECALHOS.has(p.toUpperCase()) && !p.includes('R$') && !p.toLowerCase().includes('http') && p.length > 1
+      })
+      .map(linha => {
+        // QTDE = coluna mais à direita com valor inteiro
+        const qtdItem = [...linha].reverse().find(i => /^\d+$/.test(i.text))
+        const qtd = qtdItem ? parseInt(qtdItem.text) : 1
+        // Nome = todas as colunas exceto QTDE e preços, juntas com " - "
+        const partes = linha.filter(i => i !== qtdItem && !i.text.includes('R$') && i.text.length > 1).map(i => i.text)
+        const nome = partes.join(' - ').replace(/\s*-\s*$/, '').trim()
+        return { nome_produto: nome, quantidade: qtd, acabamento: '', medida: '', observacao: '' }
+      })
+      .filter(p => p.nome_produto.length > 2)
 
     // ── Validações ──
     const _warnings = []
@@ -1213,12 +1251,12 @@ async function parseFichaPDF(file) {
 
     return {
       numero_pedido,
-      cliente: cliente || file.name.replace(/\.pdf$/i,''),
+      cliente: cliente || file.name.replace(/\.pdf$/i, ''),
       loja, local_separacao: loja,
       endereco: enderecoCompleto,
       cidade, cep, telefone, email,
       data_entrega: data_entrega || new Date().toISOString().split('T')[0],
-      status: 'Pendente', prioridade: 'Normal', observacoes: '',
+      status: 'Pendente', prioridade: 'Normal', observacoes,
       produtos,
       selected: !(!numero_pedido && !cliente),
       erro: (!numero_pedido && !cliente) ? 'Dados insuficientes no PDF' : null,
