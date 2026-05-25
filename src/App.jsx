@@ -1353,9 +1353,12 @@ async function parseFichaPDF(file) {
     for (const linha of linhasDados) {
       if (linha.length === 0) continue
       const colProduto = linha.filter(i => i.x < 130).map(i => i.text).join(' ').trim()
-      const linhaY = linha[0].y
+      // Usar Y médio da linha como referência (mais robusto que linha[0].y)
+      const linhaY = Math.round(linha.reduce((s, i) => s + i.y, 0) / linha.length)
       const colQtde = linha.find(i => i.x >= 430 && i.x <= 460 && /^\d+$/.test(i.text))
-        ?? zonaProdutos.find(i => i.x >= 430 && i.x <= 460 && /^\d+$/.test(i.text) && Math.abs(i.y - linhaY) <= 10)
+        ?? zonaProdutos
+          .filter(i => i.x >= 430 && i.x <= 460 && /^\d+$/.test(i.text) && Math.abs(i.y - linhaY) <= 8)
+          .sort((a, b) => Math.abs(a.y - linhaY) - Math.abs(b.y - linhaY))[0]
       if (!colProduto || colProduto.length < 2) continue
       if (colProduto.includes('R$') || colProduto.toLowerCase().includes('http')) continue
       const CABECALHOS = ['PRODUTO','ACABAMENTO','MEDIDA','TECIDO','LOCAL','VOLUME','QTDE.','QTDE','VALOR','TOTAL']
