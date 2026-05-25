@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx vite *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(curl -s https://kwccjkqltllypbmaisio.supabase.co/rest/v1/pedidos?limit=1 -H 'apikey: sb_publishable_DOstaNgELEBpS9D-Fe4KqQ_UURE_1dN' -H 'Authorization: Bearer sb_publishable_DOstaNgELEBpS9D-Fe4KqQ_UURE_1dN')",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(json.dumps\\(list\\(data[0].keys\\(\\)\\) if data else [], indent=2\\)\\)\")",
+      "Bash(curl -s https://kwccjkqltllypbmaisio.supabase.co/rest/v1/produtos?limit=1 -H 'apikey: sb_publishable_DOstaNgELEBpS9D-Fe4KqQ_UURE_1dN' -H 'Authorization: Bearer sb_publishable_DOstaNgELEBpS9D-Fe4KqQ_UURE_1dN')",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(json.dumps\\(list\\(data[0].keys\\(\\)\\) if data else 'TABLE EMPTY OR NOT FOUND', indent=2\\)\\)\")",
+      "Bash(curl *)",
+      "Bash(python -c ' *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

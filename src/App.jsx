@@ -1155,22 +1155,33 @@ async function parseFichaPDF(file) {
     const buf = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
 
-    // Coletar itens de TODAS as páginas com posição X,Y
-    // Offset Y por página para que itens de páginas diferentes não se misturem
+    // Coletar itens de TODAS as páginas; detectar zona de produtos por página
+    // antes de aplicar offset — assim marcadores e produtos usam o mesmo Y local
     const allItems = []
+    const zonaProdutos = []
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum)
       const content = await page.getTextContent()
+      const yOffset = (pageNum - 1) * 1000
       const pageItems = content.items
         .map(i => ({
           text: i.str.trim(),
           x: Math.round(i.transform[4]),
-          y: Math.round(i.transform[5]) + (pageNum - 1) * 1000,
+          y: Math.round(i.transform[5]),
         }))
         .filter(i => i.text.length > 0)
-      allItems.push(...pageItems)
+      // Zona de produtos desta página (Y sem offset para comparação correta)
+      const pgDP = pageItems.find(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.text))
+      const pgDA = pageItems.find(i => /DADOS\s*ADICIONAIS/i.test(i.text))
+      const yP = pgDP ? pgDP.y : -1
+      const yA = pgDA ? pgDA.y : 0
+      if (yP > 0) {
+        pageItems
+          .filter(i => i.y < yP && i.y > yA && i.text.length > 0)
+          .forEach(i => zonaProdutos.push({ text: i.text, x: i.x, y: i.y + yOffset }))
+      }
+      pageItems.forEach(i => allItems.push({ text: i.text, x: i.x, y: i.y + yOffset }))
     }
-    // Ordenar: top-to-bottom (Y desc), left-to-right (X asc)
     allItems.sort((a, b) => b.y - a.y || a.x - b.x)
     console.log('TOTAL ITEMS:', allItems.length)
     allItems.slice(0, 30).forEach(i => console.log(i.x, i.y, i.text))
@@ -1265,34 +1276,24 @@ async function parseFichaPDF(file) {
       enderecoEntrega = linhasEnd.join(', ')
     }
 
-    // Observação do cliente
+    // Observação do cliente (ignora texto de rodapé)
+    const RODAPE = ['gorjeta','entregadores','cobrança','cobran','sr(a) cliente','não dê','nao de']
     let observacoes = ''
     const idxObs = allItems.findIndex(i => /OBSERVA[ÇC][ÃA]O\s*DO\s*CLIENTE/i.test(i.text))
     if (idxObs >= 0) {
       for (let j = idxObs + 1; j < Math.min(idxObs + 6, allItems.length); j++) {
         const t = allItems[j].text
         if (/OBSERVA|ENDERE|DADOS|ASSIN/i.test(t)) break
-        if (t.length > 1) { observacoes = t; break }
+        if (t.length > 1 && !RODAPE.some(r => t.toLowerCase().includes(r))) { observacoes = t; break }
       }
     }
 
     const enderecoCompleto = enderecoEntrega || [rua, bairro].filter(Boolean).join(', ').replace(/,\s*,/g, ',').trim()
 
-    // ── Produtos: zona DADOS DOS PRODUTOS → DADOS ADICIONAIS (por Y) ──
-    // allItems está ordenado por Y decrescente: y alto = topo da página
-    // DADOS ADICIONAIS fica acima de DADOS DOS PRODUTOS → y(Adicionais) > y(Produtos)
-    const itemDadosProdutos   = allItems.find(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.text))
-    const itemDadosAdicionais = allItems.find(i => /DADOS\s*ADICIONAIS/i.test(i.text))
-    const yProdutos   = itemDadosProdutos   ? itemDadosProdutos.y   : -1
-    const yAdicionais = itemDadosAdicionais ? itemDadosAdicionais.y : 0
-    const zonaProdutos = yProdutos > 0
-      ? allItems.filter(i => i.y < yProdutos && i.y > yAdicionais && i.text.length > 0)
-      : []
-    console.log('=== ZONA PRODUTOS ===', 'yProdutos:', yProdutos, 'yAdicionais:', yAdicionais, 'total:', zonaProdutos.length)
-    zonaProdutos.forEach(i => console.log('x:' + Math.round(i.x), 'y:' + Math.round(i.y), '"' + i.text + '"'))
+    console.log('=== ZONA PRODUTOS === total:', zonaProdutos.length)
 
-    // Agrupar itens por linha Y (tolerância ±25px), ordenar por X dentro de cada linha
-    function agruparPorLinha(items, tolerancia = 25) {
+    // Agrupar itens por linha Y (tolerância ±3px — colunas PDF são precisas), ordenar por X
+    function agruparPorLinha(items, tolerancia = 3) {
       const linhas = [], usados = new Set()
       const sorted = [...items].sort((a, b) => b.y - a.y)
       for (const item of sorted) {
@@ -1304,22 +1305,30 @@ async function parseFichaPDF(file) {
       return linhas
     }
 
-    const CABECALHOS = new Set(['PRODUTO','ACABAMENTO','MEDIDA','TECIDO','LOCAL','VOLUME','QTDE.','QTDE','VALOR','TOTAL'])
-    const produtos = agruparPorLinha(zonaProdutos)
-      .filter(linha => {
-        const p = linha[0]?.text || ''
-        return !CABECALHOS.has(p.toUpperCase()) && !p.includes('R$') && !p.toLowerCase().includes('http') && p.length > 1
-      })
-      .map(linha => {
-        // QTDE = coluna mais à direita com valor inteiro
-        const qtdItem = [...linha].reverse().find(i => /^\d+$/.test(i.text))
-        const qtd = qtdItem ? parseInt(qtdItem.text) : 1
-        // Nome = todas as colunas exceto QTDE e preços, juntas com " - "
-        const partes = linha.filter(i => i !== qtdItem && !i.text.includes('R$') && i.text.length > 1).map(i => i.text)
-        const nome = partes.join(' - ').replace(/\s*-\s*$/, '').trim()
-        return { nome_produto: nome, quantidade: qtd, acabamento: '', medida: '', observacao: '' }
-      })
-      .filter(p => p.nome_produto.length > 2)
+    // Colunas fixas por X (medido com pdfplumber):
+    // PRODUTO: x < 130 | ACABAMENTO+MEDIDA: x < 320 | QTDE: x 430-460
+    const linhasProdutos = agruparPorLinha(zonaProdutos)
+    const idxCabecalho = linhasProdutos.findIndex(l =>
+      l.some(i => i.text.toUpperCase() === 'PRODUTO') && l.some(i => i.text.toUpperCase() === 'ACABAMENTO')
+    )
+    const linhasDados = idxCabecalho >= 0 ? linhasProdutos.slice(idxCabecalho + 1) : linhasProdutos
+    const produtos = []
+    for (const linha of linhasDados) {
+      if (linha.length === 0) continue
+      const colProduto = linha.filter(i => i.x < 130).map(i => i.text).join(' ').trim()
+      const colQtde = linha.find(i => i.x >= 430 && i.x <= 460 && /^\d+$/.test(i.text))
+      if (!colProduto || colProduto.length < 2) continue
+      if (colProduto.includes('R$') || colProduto.toLowerCase().includes('http')) continue
+      const CABECALHOS = ['PRODUTO','ACABAMENTO','MEDIDA','TECIDO','LOCAL','VOLUME','QTDE.','QTDE','VALOR','TOTAL']
+      const nomeParts = linha
+        .filter(i => i.x < 320 && !i.text.includes('R$') && !CABECALHOS.includes(i.text.toUpperCase()))
+        .sort((a, b) => a.x - b.x)
+        .map(i => i.text)
+        .filter(t => t.length > 0)
+      const nome = nomeParts.join(' - ').trim()
+      const qtd = colQtde ? parseInt(colQtde.text) : 1
+      if (nome.length > 2) produtos.push({ nome_produto: nome, quantidade: qtd, acabamento: '', medida: '', observacao: '' })
+    }
 
     // ── Validações ──
     const _warnings = []
