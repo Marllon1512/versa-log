@@ -1088,25 +1088,30 @@ async function parseFichaPDF(file) {
     const buf = await file.arrayBuffer()
     const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
 
-    // Extrair todo o texto como string única, quebrando linha quando Y muda
-    let fullText = ''
-    for (let p = 1; p <= doc.numPages; p++) {
-      const page = await doc.getPage(p)
-      const content = await page.getTextContent()
-      let prevY = null
-      for (const item of content.items) {
-        if (!item.str?.trim()) continue
-        const y = Math.round(item.transform[5])
-        if (prevY !== null && Math.abs(prevY - y) > 3) fullText += '\n'
-        else if (prevY !== null) fullText += ' '
-        fullText += item.str.trim()
-        prevY = y
+    // Coletar todos os itens com posição X/Y
+    const allItems = []
+    for (let pg = 1; pg <= doc.numPages; pg++) {
+      const page = await doc.getPage(pg)
+      const { items } = await page.getTextContent()
+      for (const it of items) {
+        if (!it.str?.trim()) continue
+        allItems.push({ str: it.str.trim(), x: it.transform[4], y: it.transform[5], pg })
       }
-      fullText += '\n'
     }
 
-    const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean)
+    // Ordenar: página asc, Y desc (topo → base da página)
+    allItems.sort((a, b) => a.pg !== b.pg ? a.pg - b.pg : b.y - a.y)
+
+    // Texto completo para extração dos campos do cabeçalho (regex)
+    let fullText = '', prevY = null, prevPg = null
+    for (const it of allItems) {
+      const sameLine = prevPg === it.pg && prevY !== null && Math.abs(prevY - it.y) <= 3
+      fullText += (sameLine ? ' ' : '\n') + it.str
+      prevY = it.y; prevPg = it.pg
+    }
+
     const lf = (rx) => { const m = fullText.match(rx); return m ? m[1].trim() : '' }
+    const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean)
 
     const numero_pedido =
       lf(/Documento\s*N[°ºo\.]*\s*:?\s*([0-9]+)/i) ||
@@ -1139,33 +1144,65 @@ async function parseFichaPDF(file) {
     }
 
     const endereco = lf(/ENDERE[ÇC]O\s*:?\s*([^\n]+)/i)
-    const bairro = lf(/BAIRRO\s*:?\s*([^\n]+)/i)
-    const cidade = lf(/MUNIC[IÍ]PIO\s*:?\s*([^\n]+)/i) || lf(/CIDADE\s*:?\s*([^\n]+)/i) || 'Belo Horizonte'
+    const bairro   = lf(/BAIRRO\s*:?\s*([^\n]+)/i)
+    const cidade   = lf(/MUNIC[IÍ]PIO\s*:?\s*([^\n]+)/i) || lf(/CIDADE\s*:?\s*([^\n]+)/i) || 'Belo Horizonte'
     const enderecoCompleto = [endereco, bairro].filter(Boolean).join(', ')
 
-    // ── Extrair produtos SOMENTE da seção DADOS DOS PRODUTOS ──
+    // ── Produtos via posição X/Y ──────────────────────────────
+    // Agrupar itens em linhas (tolerância Y = 4px)
+    const rowMap = []
+    for (const it of allItems) {
+      const row = rowMap.find(r => r.pg === it.pg && Math.abs(r.y - it.y) <= 4)
+      if (row) row.items.push(it)
+      else rowMap.push({ pg: it.pg, y: it.y, items: [it] })
+    }
+    rowMap.sort((a, b) => a.pg !== b.pg ? a.pg - b.pg : b.y - a.y)
+
+    // Encontrar linha de cabeçalho da tabela (tem "PRODUTO" e "ACABAMENTO" no mesmo Y)
+    const headerRow = rowMap.find(r =>
+      r.items.some(i => /^PRODUTO$/i.test(i.str)) &&
+      r.items.some(i => /^ACABAMENTO$/i.test(i.str))
+    )
+
+    // Encontrar linhas dos marcadores de seção
+    const dadosProdRow = rowMap.find(r => r.items.some(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.str)))
+    const dadosAdicRow = rowMap.find(r => r.items.some(i => /DADOS\s*ADICIONAIS/i.test(i.str)))
+
+    // Limites X da coluna PRODUTO (dinâmico pelo cabeçalho; fallback 220)
+    let prodMaxX = 220
+    let qtdeMinX = 450, qtdeMaxX = 570
+    if (headerRow) {
+      const hi = headerRow.items.sort((a, b) => a.x - b.x)
+      const pItem = hi.find(i => /^PRODUTO$/i.test(i.str))
+      const aItem = hi.find(i => /^ACABAMENTO$/i.test(i.str))
+      const qItem = hi.find(i => /^QTDE/i.test(i.str))
+      if (pItem && aItem) prodMaxX = aItem.x - 2
+      if (qItem) { qtdeMinX = qItem.x - 5; qtdeMaxX = qItem.x + 80 }
+    }
+
     const produtos = []
-    const ftUp = fullText.toUpperCase()
-    const iStart = ftUp.indexOf('DADOS DOS PRODUTOS')
-    const iEnd   = ftUp.indexOf('DADOS ADICIONAIS')
-    if (iStart >= 0) {
-      const secao = fullText.slice(iStart + 'DADOS DOS PRODUTOS'.length, iEnd >= 0 ? iEnd : undefined)
-      const HEADER = /^(PRODUTO|ACABAMENTO|MEDIDA|TECIDO|LOCAL|VOLUME|QTDE\.?|VALOR|TOTAL)$/i
-      const secLines = secao.split('\n').map(l => l.trim()).filter(Boolean)
-      for (let i = 0; i < secLines.length; i++) {
-        const ln = secLines[i]
-        if (HEADER.test(ln))              continue  // cabeçalho de coluna
-        if (/R\$/.test(ln))               continue  // linha de preço
-        if (/^[\d.,\s]+$/.test(ln))       continue  // apenas números
-        if (/^\d/.test(ln))               continue  // começa com dígito (ex: "3.50x1.10...")
-        if (ln.length < 3)                continue
-        // Quantidade: inteiro isolado entre esta linha e a próxima linha com R$
-        let qty = 1
-        for (let j = i + 1; j < Math.min(i + 8, secLines.length); j++) {
-          if (/R\$/.test(secLines[j])) break
-          if (/^(\d+)$/.test(secLines[j].trim())) { qty = parseInt(secLines[j]); break }
-        }
-        produtos.push({ nome_produto: ln, acabamento: '', medida: '', quantidade: qty, observacao: '' })
+    if (dadosProdRow) {
+      // Função auxiliar: "g está depois de referência" (leitura top-to-bottom)
+      const after  = (g, ref) => g.pg > ref.pg || (g.pg === ref.pg && g.y < ref.y)
+      const before = (g, ref) => g.pg < ref.pg || (g.pg === ref.pg && g.y > ref.y)
+
+      const sectionRows = rowMap.filter(r =>
+        after(r, dadosProdRow) &&
+        (!dadosAdicRow || before(r, dadosAdicRow)) &&
+        (!headerRow || !(r.pg === headerRow.pg && Math.abs(r.y - headerRow.y) <= 4))
+      )
+
+      for (const r of sectionRows) {
+        // Apenas itens dentro da coluna PRODUTO
+        const prodItems = r.items.filter(i => i.x <= prodMaxX).sort((a, b) => a.x - b.x)
+        const qtdeItems = r.items.filter(i => i.x >= qtdeMinX && i.x <= qtdeMaxX)
+        if (!prodItems.length) continue
+        const nome = prodItems.map(i => i.str).join(' ').trim()
+        if (!nome || nome.length < 2) continue
+        if (/^[\d.,\s]+$/.test(nome)) continue          // só números
+        if (/R\$|https?:|www\./i.test(nome)) continue   // preço ou URL
+        const qty = qtdeItems.length ? (parseInt(qtdeItems[0].str) || 1) : 1
+        produtos.push({ nome_produto: nome, acabamento: '', medida: '', quantidade: qty, observacao: '' })
       }
     }
 
