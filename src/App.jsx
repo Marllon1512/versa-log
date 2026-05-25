@@ -1208,12 +1208,18 @@ async function parseFichaPDF(file) {
 
     const enderecoCompleto = enderecoEntrega || [rua, bairro].filter(Boolean).join(', ').replace(/,\s*,/g, ',').trim()
 
-    // ── Produtos: zona DADOS DOS PRODUTOS → DADOS ADICIONAIS ──
-    const idxInicio = allItems.findIndex(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.text))
-    const idxFim    = idxAdicInicio >= 0 ? idxAdicInicio : allItems.length
-    const zonaProdutos = idxInicio >= 0 ? allItems.slice(idxInicio + 1, idxFim) : []
-    console.log('=== ZONA PRODUTOS ===', 'idxInicio:', idxInicio, 'idxFim:', idxFim, 'total:', zonaProdutos.length)
-    zonaProdutos.forEach(i => console.log('x:' + i.x, 'y:' + i.y, '"' + i.text + '"'))
+    // ── Produtos: zona DADOS DOS PRODUTOS → DADOS ADICIONAIS (por Y) ──
+    // allItems está ordenado por Y decrescente: y alto = topo da página
+    // DADOS ADICIONAIS fica acima de DADOS DOS PRODUTOS → y(Adicionais) > y(Produtos)
+    const itemDadosProdutos   = allItems.find(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.text))
+    const itemDadosAdicionais = allItems.find(i => /DADOS\s*ADICIONAIS/i.test(i.text))
+    const yProdutos   = itemDadosProdutos   ? itemDadosProdutos.y   : -1
+    const yAdicionais = itemDadosAdicionais ? itemDadosAdicionais.y : 0
+    const zonaProdutos = yProdutos > 0
+      ? allItems.filter(i => i.y < yProdutos && i.y > yAdicionais && i.text.length > 0)
+      : []
+    console.log('=== ZONA PRODUTOS ===', 'yProdutos:', yProdutos, 'yAdicionais:', yAdicionais, 'total:', zonaProdutos.length)
+    zonaProdutos.forEach(i => console.log('x:' + Math.round(i.x), 'y:' + Math.round(i.y), '"' + i.text + '"'))
 
     // Agrupar itens por linha Y (tolerância ±15px), ordenar por X dentro de cada linha
     function agruparPorLinha(items, tolerancia = 15) {
