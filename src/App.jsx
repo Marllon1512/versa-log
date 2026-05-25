@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from './lib/supabase'
+import { toast, Toaster } from './lib/toast'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 import { pedidosService } from './services/pedidos'
@@ -441,25 +442,40 @@ function Pedidos() {
   })
 
   const handleCreate = async (dados) => {
-    const { produtos, ...pedidoData } = dados
-    const novo = await pedidosService.create({ ...pedidoData, created_by: perfil?.id })
-    if (produtos?.length) {
-      await produtosService.createMany(produtos.map(p => ({ ...p, pedido_id: novo.id, status_produto: 'Pendente' })))
+    try {
+      const { produtos, ...pedidoData } = dados
+      const novo = await pedidosService.create({ ...pedidoData, created_by: perfil?.id })
+      if (produtos?.length) {
+        await produtosService.createMany(produtos.map(p => ({ ...p, pedido_id: novo.id, status_produto: 'Pendente' })))
+      }
+      await reload()
+      setShowNew(false)
+      toast.success('Pedido criado com sucesso!')
+    } catch (e) {
+      console.error('[Pedidos] handleCreate:', e)
+      toast.error('Erro ao criar pedido: ' + (e.message || e.details || 'desconhecido'))
     }
-    await reload()
-    setShowNew(false)
   }
 
   const handleImport = async (lista) => {
+    let ok = 0, erros = 0
     for (const item of lista) {
-      const { produtos, selected: _s, erro: _e, _confidence: _c, _filename: _f, ...pedido } = item
-      const novo = await pedidosService.create(pedido)
-      if (produtos?.length) {
-        await produtosService.createMany(produtos.map(pr => ({ ...pr, pedido_id: novo.id, status_produto: 'Pendente' })))
+      try {
+        const { produtos, selected: _s, erro: _e, _confidence: _c, _filename: _f, ...pedido } = item
+        const novo = await pedidosService.create(pedido)
+        if (produtos?.length) {
+          await produtosService.createMany(produtos.map(pr => ({ ...pr, pedido_id: novo.id, status_produto: 'Pendente' })))
+        }
+        ok++
+      } catch (e) {
+        console.error('[Pedidos] handleImport item:', e)
+        erros++
       }
     }
     await reload()
     setShowImport(false)
+    if (erros === 0) toast.success(`${ok} pedido(s) importado(s) com sucesso!`)
+    else toast.error(`${ok} importado(s), ${erros} com erro. Veja o console (F12).`)
   }
 
   if (selected) {
@@ -590,57 +606,61 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   const avancar = async () => {
     if (!proximoStatus) return
     if (pedido.status === 'Pronto para Rota' && !canRota) {
-      alert('Defina um entregador antes de enviar para rota.')
+      toast.error('Defina um entregador antes de enviar para rota.')
       return
     }
-    await runAction(async () => {
-      await pedidosService.update(pedidoId, { status: proximoStatus })
-      await pedidosService.addHistorico(pedidoId, 'Status alterado', `Status alterado para ${proximoStatus}`, perfil)
-      reload()
-      reloadHist()
-    })
+    try {
+      await runAction(async () => {
+        await pedidosService.update(pedidoId, { status: proximoStatus })
+        await pedidosService.addHistorico(pedidoId, 'Status alterado', `Status alterado para ${proximoStatus}`, perfil)
+        reload(); reloadHist()
+      })
+      toast.success(`Status: ${proximoStatus}`)
+    } catch (e) { console.error('[Pedido] avancar:', e); toast.error('Erro: ' + e.message) }
   }
 
   const handleTroca = async (entId, entNome, motivo) => {
     const anterior = pedido?.entregador_nome || 'nenhum'
-    await runAction(async () => {
-      await pedidosService.update(pedidoId, { entregador_id: entId, entregador_nome: entNome })
-      await pedidosService.addHistorico(pedidoId, 'Status alterado',
-        `Entregador alterado de ${anterior} para ${entNome}. Motivo: ${motivo || 'Não informado'}`, perfil)
-      reload()
-      reloadHist()
-      setShowTroca(false)
-    })
+    try {
+      await runAction(async () => {
+        await pedidosService.update(pedidoId, { entregador_id: entId, entregador_nome: entNome })
+        await pedidosService.addHistorico(pedidoId, 'Status alterado',
+          `Entregador alterado de ${anterior} para ${entNome}. Motivo: ${motivo || 'Não informado'}`, perfil)
+        reload(); reloadHist(); setShowTroca(false)
+      })
+      toast.success('Entregador atualizado!')
+    } catch (e) { console.error('[Pedido] handleTroca:', e); toast.error('Erro: ' + e.message) }
   }
 
   const handleEdit = async (dados) => {
-    await runAction(async () => {
-      await pedidosService.update(pedidoId, dados)
-      reload()
-      setShowEdit(false)
-    })
+    try {
+      await runAction(async () => { await pedidosService.update(pedidoId, dados); reload(); setShowEdit(false) })
+      toast.success('Pedido atualizado!')
+    } catch (e) { console.error('[Pedido] handleEdit:', e); toast.error('Erro ao salvar: ' + e.message) }
   }
 
   const handleRemarcar = async ({ novaData, motivo }) => {
-    await runAction(async () => {
-      await pedidosService.update(pedidoId, { status: 'Remarcado', data_entrega: novaData })
-      await pedidosService.addHistorico(pedidoId, 'Remarcado',
-        `Entrega remarcada para ${new Date(novaData + 'T12:00').toLocaleDateString('pt-BR')}. Motivo: ${motivo || 'Não informado'}`, perfil)
-      reload()
-      reloadHist()
-      setShowRemarcar(false)
-    })
+    try {
+      await runAction(async () => {
+        await pedidosService.update(pedidoId, { status: 'Remarcado', data_entrega: novaData })
+        await pedidosService.addHistorico(pedidoId, 'Remarcado',
+          `Entrega remarcada para ${new Date(novaData + 'T12:00').toLocaleDateString('pt-BR')}. Motivo: ${motivo || 'Não informado'}`, perfil)
+        reload(); reloadHist(); setShowRemarcar(false)
+      })
+      toast.success('Entrega remarcada!')
+    } catch (e) { console.error('[Pedido] handleRemarcar:', e); toast.error('Erro: ' + e.message) }
   }
 
   const handleCancelar = async (motivo) => {
-    await runAction(async () => {
-      await pedidosService.update(pedidoId, { status: 'Cancelado' })
-      await pedidosService.addHistorico(pedidoId, 'Cancelado',
-        `Pedido cancelado. Motivo: ${motivo || 'Não informado'}`, perfil)
-      reload()
-      reloadHist()
-      setShowCancelar(false)
-    })
+    try {
+      await runAction(async () => {
+        await pedidosService.update(pedidoId, { status: 'Cancelado' })
+        await pedidosService.addHistorico(pedidoId, 'Cancelado',
+          `Pedido cancelado. Motivo: ${motivo || 'Não informado'}`, perfil)
+        reload(); reloadHist(); setShowCancelar(false)
+      })
+      toast.success('Pedido cancelado.')
+    } catch (e) { console.error('[Pedido] handleCancelar:', e); toast.error('Erro: ' + e.message) }
   }
 
   if (loading) return <div className="page"><Spinner /></div>
@@ -859,7 +879,11 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
 
   const handleSave = async () => {
     if (!validate()) return
-    await run(() => onSave({ ...form, produtos: produtos.filter(p => p.nome_produto.trim()) }))
+    try {
+      await run(() => onSave({ ...form, produtos: produtos.filter(p => p.nome_produto.trim()) }))
+    } catch {
+      // error shown via toast in parent handleCreate
+    }
   }
 
   return (
@@ -1140,17 +1164,23 @@ function ImportarLoteModal({ onClose, onImport }) {
   const { run, loading } = useAction()
 
   const processar = async () => {
-    await run(async () => {
-      const result = []
-      for (let i = 0; i < files.length; i++) {
-        setProg(Math.round(((i + 1) / files.length) * 100))
-        const parsed = await parseFichaPDF(files[i])
-        parsed._filename = files[i].name
-        result.push(parsed)
-      }
-      setItems(result)
-      setStep(1)
-    })
+    try {
+      await run(async () => {
+        const result = []
+        for (let i = 0; i < files.length; i++) {
+          setProg(Math.round(((i + 1) / files.length) * 100))
+          const parsed = await parseFichaPDF(files[i])
+          parsed._filename = files[i].name
+          result.push(parsed)
+        }
+        setItems(result)
+        setStep(1)
+        toast.info(`${result.length} ficha(s) processada(s). Revise e confirme.`)
+      })
+    } catch (e) {
+      console.error('[ImportarLote] processar:', e)
+      toast.error('Erro ao processar PDFs: ' + (e.message || 'desconhecido'))
+    }
   }
 
   const toggle = (i) => setItems(prev => prev.map((p, idx) => idx === i ? { ...p, selected: !p.selected } : p))
@@ -1158,10 +1188,15 @@ function ImportarLoteModal({ onClose, onImport }) {
   const selecionados = items.filter(p => p.selected && !p.erro)
 
   const confirmar = async () => {
-    await run(async () => {
-      await onImport(selecionados)
-      setStep(2)
-    })
+    try {
+      await run(async () => {
+        await onImport(selecionados)
+        setStep(2)
+      })
+    } catch (e) {
+      console.error('[ImportarLote] confirmar:', e)
+      toast.error('Erro na importação: ' + (e.message || 'desconhecido'))
+    }
   }
 
   const isPassado = (d) => d && new Date(d + 'T12:00') < new Date(new Date().toDateString())
@@ -1358,13 +1393,19 @@ function Assistencia() {
   })
 
   const handleCreate = async (dados) => {
-    const { itens, ...assistencia } = dados
-    const nova = await assistenciasService.create(assistencia)
-    if (itens?.length) {
-      for (const item of itens) await assistenciasService.createItem({ ...item, assistencia_id: nova.id })
+    try {
+      const { itens, ...assistencia } = dados
+      const nova = await assistenciasService.create(assistencia)
+      if (itens?.length) {
+        for (const item of itens) await assistenciasService.createItem({ ...item, assistencia_id: nova.id })
+      }
+      await reload()
+      setShowNew(false)
+      toast.success('Assistência criada com sucesso!')
+    } catch (e) {
+      console.error('[Assistencia] handleCreate:', e)
+      toast.error('Erro ao criar assistência: ' + (e.message || e.details || 'desconhecido'))
     }
-    await reload()
-    setShowNew(false)
   }
 
   const handleImport = async (rows, onProgress) => {
@@ -1577,8 +1618,14 @@ function AssistenciaDetalhe({ id, onBack }) {
   }, [a?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateStatus = async (status) => {
-    await run(() => assistenciasService.update(id, { status }))
-    reload()
+    try {
+      await run(() => assistenciasService.update(id, { status }))
+      reload()
+      toast.success(`Status atualizado: ${status}`)
+    } catch (e) {
+      console.error('[AssistenciaDetalhe] updateStatus:', e)
+      toast.error('Erro ao atualizar status: ' + e.message)
+    }
   }
 
   if (loading) return <div className="page"><Spinner /></div>
@@ -2007,23 +2054,27 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
   const canNext0 = dados.cliente.trim() && dados.solicitante.trim()
   const canNext1 = itens.every(i => i.produto.trim() && i.motivo && i.descricao.trim())
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const prazo = new Date()
     prazo.setDate(prazo.getDate() + 30)
-    run(() => onSave({
-      cliente: dados.cliente,
-      telefone: dados.telefone,
-      pedido_ref: dados.numero_pedido,
-      loja: dados.loja,
-      data_abertura: new Date().toISOString().split('T')[0],
-      prazo: prazo.toISOString().split('T')[0],
-      status: 'Aberto',
-      tipo_problema: itens[0]?.motivo || 'Outros',
-      observacoes: itens[0]?.descricao || '',
-      responsavel_nome: dados.solicitante,
-      origem: 'app',
-      itens: itens.map(({ id: _, ...rest }) => ({ ...rest, status: 'Aberto', prazo: prazo.toISOString().split('T')[0] })),
-    }))
+    try {
+      await run(() => onSave({
+        cliente: dados.cliente,
+        telefone: dados.telefone,
+        pedido_ref: dados.numero_pedido,
+        loja: dados.loja,
+        data_abertura: new Date().toISOString().split('T')[0],
+        prazo: prazo.toISOString().split('T')[0],
+        status: 'Aberto',
+        tipo_problema: itens[0]?.motivo || 'Outros',
+        observacoes: itens[0]?.descricao || '',
+        responsavel_nome: dados.solicitante,
+        origem: 'app',
+        itens: itens.map(({ id: _, ...rest }) => ({ ...rest, status: 'Aberto', prazo: prazo.toISOString().split('T')[0] })),
+      }))
+    } catch {
+      // error handled by parent handleCreate via toast
+    }
   }
 
   const steps = ['Dados gerais', 'Produtos', 'Confirmar']
@@ -2347,14 +2398,34 @@ function Conferencia() {
   const { data: items, loading, reload } = useData(() => conferenciasService.list(), [])
 
   const handleCreate = async (dados) => {
-    await conferenciasService.create({ ...dados, conferente_nome: perfil?.full_name, data_hora: new Date().toISOString() })
-    await reload()
-    setShowNew(false)
+    try {
+      await conferenciasService.create({ ...dados, conferente_nome: perfil?.full_name, data_hora: new Date().toISOString() })
+      await reload()
+      setShowNew(false)
+      toast.success('Conferência salva com sucesso!')
+    } catch (e) {
+      console.error('[Conferencia] handleCreate:', e)
+      toast.error('Erro ao salvar conferência: ' + (e.message || e.details || 'desconhecido'))
+    }
   }
 
-  const handleEncaminhar = (c) => {
-    const url = `${window.location.origin}${window.location.pathname}#/solicitar`
-    alert(`Abra uma Nova Assistência preenchendo com:\nCliente: ${c.produto}\nPedido: ${c.numero_pedido}\nFornecedor: ${c.fornecedor}\nMotivo: ${c.motivo_reprovacao || 'Avaria'}`)
+  const handleEncaminhar = async (c) => {
+    try {
+      await assistenciasService.create({
+        cliente: c.numero_pedido ? `Pedido #${c.numero_pedido}` : 'Cliente da conferência',
+        pedido_ref: c.numero_pedido || null,
+        tipo_problema: c.motivo_reprovacao || 'Avaria',
+        observacoes: [c.produto, c.fornecedor && `Fornecedor: ${c.fornecedor}`, c.descricao_reprovacao].filter(Boolean).join(' | '),
+        data_abertura: new Date().toISOString().split('T')[0],
+        prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        status: 'Aberto',
+        origem: 'conferencia',
+      })
+      toast.success('Assistência aberta com sucesso!')
+    } catch (e) {
+      console.error('[Conferencia] handleEncaminhar:', e)
+      toast.error('Erro ao criar assistência: ' + e.message)
+    }
   }
 
   if (selectedId) return <ConferenciaDetalhe id={selectedId} onBack={() => { setSelectedId(null); reload() }} onEncaminharAssistencia={handleEncaminhar} />
@@ -2527,6 +2598,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
     }
     try {
       await onSave({ ...form, fotos: fotoUrls })
+      toast.success('Conferência salva!')
     } catch (e) {
       setSaveErr(e.message || 'Erro ao salvar. Tente novamente.')
       throw e
@@ -2606,12 +2678,20 @@ function Roteiro() {
   useEffect(() => { carregar() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const criar = async (dados) => {
-    const { itens, ...roteiro } = dados
-    const { data: novo } = await supabase.from('roteiros').insert({ ...roteiro, tipo: tipoTab, status: 'planejado', created_at: new Date().toISOString() }).select().single()
-    if (novo && itens?.length) {
-      await supabase.from('roteiro_itens').insert(itens.map((item, i) => ({ ...item, roteiro_id: novo.id, ordem: i + 1, concluido: false })))
+    try {
+      const { itens, ...roteiro } = dados
+      const { data: novo, error } = await supabase.from('roteiros').insert({ ...roteiro, tipo: tipoTab, status: 'planejado', created_at: new Date().toISOString() }).select().single()
+      if (error) throw error
+      if (novo && itens?.length) {
+        const { error: eiErr } = await supabase.from('roteiro_itens').insert(itens.map((item, i) => ({ ...item, roteiro_id: novo.id, ordem: i + 1, concluido: false })))
+        if (eiErr) throw eiErr
+      }
+      carregar(); setShowNovo(false)
+      toast.success('Roteiro criado com sucesso!')
+    } catch (e) {
+      console.error('[Roteiro] criar:', e)
+      toast.error('Erro ao criar roteiro: ' + (e.message || 'desconhecido'))
     }
-    carregar(); setShowNovo(false)
   }
 
   if (selectedId) return <RoteiroDetalhe id={selectedId} onBack={() => { setSelectedId(null); carregar() }} />
@@ -2675,17 +2755,25 @@ function RoteiroDetalhe({ id, onBack }) {
   const registrarHora = async (campo) => {
     const hora = new Date().toTimeString().slice(0, 5)
     setSaving(true)
-    const novoStatus = campo === 'hora_saida' ? 'em_andamento' : 'concluído'
-    await supabase.from('roteiros').update({ [campo]: hora, status: novoStatus }).eq('id', id)
-    setRoteiro(prev => ({ ...prev, [campo]: hora, status: novoStatus }))
+    try {
+      const novoStatus = campo === 'hora_saida' ? 'em_andamento' : 'concluído'
+      const { error } = await supabase.from('roteiros').update({ [campo]: hora, status: novoStatus }).eq('id', id)
+      if (error) throw error
+      setRoteiro(prev => ({ ...prev, [campo]: hora, status: novoStatus }))
+      toast.success(campo === 'hora_saida' ? `Saída registrada: ${hora}` : `Término registrado: ${hora}`)
+    } catch (e) { console.error('[Roteiro] registrarHora:', e); toast.error('Erro: ' + e.message) }
     setSaving(false)
   }
 
   const baixarParada = async (itemId) => {
     const hora = new Date().toTimeString().slice(0, 5)
     setSaving(true)
-    await supabase.from('roteiro_itens').update({ concluido: true, hora_conclusao: hora }).eq('id', itemId)
-    setItens(prev => prev.map(it => it.id === itemId ? { ...it, concluido: true, hora_conclusao: hora } : it))
+    try {
+      const { error } = await supabase.from('roteiro_itens').update({ concluido: true, hora_conclusao: hora }).eq('id', itemId)
+      if (error) throw error
+      setItens(prev => prev.map(it => it.id === itemId ? { ...it, concluido: true, hora_conclusao: hora } : it))
+      toast.success('Parada concluída!')
+    } catch (e) { console.error('[Roteiro] baixarParada:', e); toast.error('Erro: ' + e.message) }
     setSaving(false)
   }
 
@@ -2914,21 +3002,39 @@ function Equipe() {
   const { data: usuarios, reload: reloadU } = useData(() => usuariosService.list(), [])
 
   const handleEquipe = async (dados) => {
-    await equipesService.create(dados)
-    await reloadEq()
-    setShowNewEquipe(false)
+    try {
+      await equipesService.create(dados)
+      await reloadEq()
+      setShowNewEquipe(false)
+      toast.success('Equipe criada!')
+    } catch (e) {
+      console.error('[Equipe] handleEquipe:', e)
+      toast.error('Erro ao criar equipe: ' + (e.message || 'desconhecido'))
+    }
   }
 
   const handleUser = async (dados) => {
-    await usuariosService.create(dados)
-    await reloadU()
-    setShowNewUser(false)
+    try {
+      await usuariosService.create(dados)
+      await reloadU()
+      setShowNewUser(false)
+      toast.success('Usuário criado com sucesso!')
+    } catch (e) {
+      console.error('[Equipe] handleUser:', e)
+      toast.error('Erro ao criar usuário: ' + (e.message || e.details || 'desconhecido'))
+    }
   }
 
   const handleEditUser = async (id, dados) => {
-    await usuariosService.update(id, dados)
-    await reloadU()
-    setEditUser(null)
+    try {
+      await usuariosService.update(id, dados)
+      await reloadU()
+      setEditUser(null)
+      toast.success('Usuário atualizado!')
+    } catch (e) {
+      console.error('[Equipe] handleEditUser:', e)
+      toast.error('Erro ao atualizar usuário: ' + (e.message || e.details || 'desconhecido'))
+    }
   }
 
   return (
@@ -3094,12 +3200,16 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
   const handleSave = async () => {
-    const updates = { full_name: form.full_name.trim(), role: form.role, telefone: form.telefone }
-    if (form.nova_senha.length >= 4) {
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(form.nova_senha))
-      updates.senha_hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+    try {
+      const updates = { full_name: form.full_name.trim(), role: form.role, telefone: form.telefone }
+      if (form.nova_senha.length >= 4) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(form.nova_senha))
+        updates.senha_hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+      }
+      await run(() => onSave(updates))
+    } catch {
+      // error shown via toast in parent handleEditUser
     }
-    await onSave(updates)
   }
 
   return (
@@ -3109,7 +3219,7 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
       footer={
         <>
           <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-          <Btn disabled={!form.full_name.trim()} loading={loading} onClick={() => run(handleSave)}><Ic n="save" s={13} /> Salvar</Btn>
+          <Btn disabled={!form.full_name.trim()} loading={loading} onClick={handleSave}><Ic n="save" s={13} /> Salvar</Btn>
         </>
       }
     >
@@ -3612,13 +3722,13 @@ function Ponto() {
           data_hora: now.toISOString(),
           data: dataLocal,
         })
+        await reload()
+        if (isGestor) await reloadTodos()
+        toast.success(`${tipo} registrado(a)!`)
       } catch (e) {
         console.error('[Ponto] Erro ao registrar:', e?.code, e?.message, e?.details, e?.hint)
-        alert(`Erro ao registrar ponto: ${e?.message || 'desconhecido'}. Veja F12 → Console.`)
-        return
+        toast.error(`Erro ao registrar ${tipo}: ${e?.message || 'desconhecido'}`)
       }
-      await reload()
-      if (isGestor) await reloadTodos()
     })
   }
 
@@ -3854,7 +3964,8 @@ function SolicitarAssistenciaPublica() {
       }
       setEnviado(true)
     } catch (e) {
-      alert('Erro ao enviar. Tente novamente.')
+      console.error('[Solicitar] handleEnviar:', e)
+      toast.error('Erro ao enviar. Tente novamente mais tarde.')
     }
     setLoading(false)
   }
@@ -3986,6 +4097,7 @@ function AppContent() {
       <Topbar page={page} setPage={setPage} />
       <div className="main">{PAGES[page] || PAGES.dashboard}</div>
       <BottomNav page={page} setPage={setPage} isGestor={isGestor} />
+      <Toaster />
     </div>
   )
 }
