@@ -1088,42 +1088,24 @@ async function parseFichaPDF(file) {
     const buf = await file.arrayBuffer()
     const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
 
-    // Collect all text items with X/Y positions across all pages
-    const rawItems = []
+    // Extrair todo o texto como string única, quebrando linha quando Y muda
+    let fullText = ''
     for (let p = 1; p <= doc.numPages; p++) {
       const page = await doc.getPage(p)
       const content = await page.getTextContent()
+      let prevY = null
       for (const item of content.items) {
         if (!item.str?.trim()) continue
-        rawItems.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || 0, pg: p })
+        const y = Math.round(item.transform[5])
+        if (prevY !== null && Math.abs(prevY - y) > 3) fullText += '\n'
+        else if (prevY !== null) fullText += ' '
+        fullText += item.str.trim()
+        prevY = y
       }
+      fullText += '\n'
     }
 
-    // Group items into lines by page+Y (within 3px tolerance)
-    const lineMap = []
-    for (const item of rawItems) {
-      const existing = lineMap.find(g => g.pg === item.pg && Math.abs(g.y - item.y) <= 3)
-      if (existing) { existing.items.push(item) }
-      else lineMap.push({ pg: item.pg, y: item.y, items: [item] })
-    }
-
-    // Sort: page ascending, then Y descending (higher Y = top of page in PDF coords)
-    lineMap.sort((a, b) => a.pg !== b.pg ? a.pg - b.pg : b.y - a.y)
-
-    // Build text lines with TAB separators where X gap > 10px between item end and next item start
-    const lines = lineMap.map(g => {
-      const sorted = g.items.sort((a, b) => a.x - b.x)
-      let text = ''
-      let prevEnd = null
-      for (const it of sorted) {
-        if (prevEnd !== null && it.x - prevEnd > 10) text += '\t'
-        text += it.str
-        prevEnd = it.x + (it.w > 0 ? it.w : it.str.length * 6)
-      }
-      return text.trim()
-    }).filter(Boolean)
-
-    const fullText = lines.join('\n')
+    const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean)
     const lf = (rx) => { const m = fullText.match(rx); return m ? m[1].trim() : '' }
 
     const numero_pedido =
@@ -1138,9 +1120,8 @@ async function parseFichaPDF(file) {
     let loja = lf(/(?:Loja|LOJA|Filial|FILIAL|Emitente)\s*:?\s*([^\n]+)/i)
     if (!loja) {
       for (const line of lines.slice(0, 10)) {
-        const clean = line.split('\t')[0].trim()
-        if (clean.length >= 4 && /^[A-ZÁÉÍÓÚÃÕÇ\s&-]{4,}$/.test(clean) && !/^(FICHA|ENTREGA|DOCUMENTO|PEDIDO|DATA|NOTA|RAZ|CNPJ|CPF)/.test(clean)) {
-          loja = clean; break
+        if (line.length >= 4 && /^[A-ZÁÉÍÓÚÃÕÇ\s&-]{4,}$/.test(line) && !/^(FICHA|ENTREGA|DOCUMENTO|PEDIDO|DATA|NOTA|RAZ|CNPJ|CPF)/.test(line)) {
+          loja = line; break
         }
       }
     }
@@ -1162,29 +1143,29 @@ async function parseFichaPDF(file) {
     const cidade = lf(/MUNIC[IÍ]PIO\s*:?\s*([^\n]+)/i) || lf(/CIDADE\s*:?\s*([^\n]+)/i) || 'Belo Horizonte'
     const enderecoCompleto = [endereco, bairro].filter(Boolean).join(', ')
 
-    // ── Parse DADOS DOS PRODUTOS section ──
-    const HEADER_COLS = /^(PRODUTO|ACABAMENTO|MEDIDA|TECIDO|LOCAL|VOLUME|QTDE\.?|VALOR|TOTAL)$/i
+    // ── Extrair produtos SOMENTE da seção DADOS DOS PRODUTOS ──
     const produtos = []
-    const dadosIdx = lines.findIndex(l => /DADOS\s+DOS\s+PRODUTOS/i.test(l))
-    if (dadosIdx >= 0) {
-      // Skip past the column header row (line containing PRODUTO + ACABAMENTO/MEDIDA/QTDE)
-      let startIdx = dadosIdx + 1
-      for (let i = dadosIdx + 1; i < Math.min(dadosIdx + 6, lines.length); i++) {
-        if (/PRODUTO/i.test(lines[i]) && /ACABAMENTO|MEDIDA|QTDE/i.test(lines[i])) {
-          startIdx = i + 1; break
+    const ftUp = fullText.toUpperCase()
+    const iStart = ftUp.indexOf('DADOS DOS PRODUTOS')
+    const iEnd   = ftUp.indexOf('DADOS ADICIONAIS')
+    if (iStart >= 0) {
+      const secao = fullText.slice(iStart + 'DADOS DOS PRODUTOS'.length, iEnd >= 0 ? iEnd : undefined)
+      const HEADER = /^(PRODUTO|ACABAMENTO|MEDIDA|TECIDO|LOCAL|VOLUME|QTDE\.?|VALOR|TOTAL)$/i
+      const secLines = secao.split('\n').map(l => l.trim()).filter(Boolean)
+      for (let i = 0; i < secLines.length; i++) {
+        const ln = secLines[i]
+        if (HEADER.test(ln))              continue  // cabeçalho de coluna
+        if (/R\$/.test(ln))               continue  // linha de preço
+        if (/^[\d.,\s]+$/.test(ln))       continue  // apenas números
+        if (/^\d/.test(ln))               continue  // começa com dígito (ex: "3.50x1.10...")
+        if (ln.length < 3)                continue
+        // Quantidade: inteiro isolado entre esta linha e a próxima linha com R$
+        let qty = 1
+        for (let j = i + 1; j < Math.min(i + 8, secLines.length); j++) {
+          if (/R\$/.test(secLines[j])) break
+          if (/^(\d+)$/.test(secLines[j].trim())) { qty = parseInt(secLines[j]); break }
         }
-      }
-      for (let i = startIdx; i < lines.length; i++) {
-        const ln = lines[i]
-        if (/DADOS\s+ADICIONAIS|ASSINATURA|FORMULÁRIO|Este documento|DESTINATÁRIO|REMETENTE/i.test(ln)) break
-        if (!ln.trim()) continue
-        const cells = ln.split('\t').map(s => s.trim()).filter(Boolean)
-        if (!cells.length) continue
-        const first = cells[0]
-        if (HEADER_COLS.test(first)) continue
-        if (/^[\d.,R$%\s]+$/.test(first) || first.length < 2) continue
-        const qty = cells.find(c => /^\d+$/.test(c.replace(/[.,]/g, '')))
-        produtos.push({ nome_produto: first, acabamento: cells[1] || '', medida: cells[2] || '', quantidade: parseInt(qty?.replace(/[.,]/g,'')) || 1, observacao: '' })
+        produtos.push({ nome_produto: ln, acabamento: '', medida: '', quantidade: qty, observacao: '' })
       }
     }
 
