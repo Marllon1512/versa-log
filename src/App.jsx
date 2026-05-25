@@ -1090,15 +1090,19 @@ async function parseFichaPDF(file) {
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
 
     // Coletar itens de TODAS as páginas com posição X,Y
+    // Offset Y por página para que itens de páginas diferentes não se misturem
     const allItems = []
-    for (let pg = 1; pg <= pdf.numPages; pg++) {
-      const page = await pdf.getPage(pg)
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum)
       const content = await page.getTextContent()
-      for (const i of content.items) {
-        const t = i.str?.trim()
-        if (!t) continue
-        allItems.push({ text: t, x: Math.round(i.transform[4]), y: Math.round(i.transform[5]) })
-      }
+      const pageItems = content.items
+        .map(i => ({
+          text: i.str.trim(),
+          x: Math.round(i.transform[4]),
+          y: Math.round(i.transform[5]) + (pageNum - 1) * 1000,
+        }))
+        .filter(i => i.text.length > 0)
+      allItems.push(...pageItems)
     }
     // Ordenar: top-to-bottom (Y desc), left-to-right (X asc)
     allItems.sort((a, b) => b.y - a.y || a.x - b.x)
@@ -1221,8 +1225,8 @@ async function parseFichaPDF(file) {
     console.log('=== ZONA PRODUTOS ===', 'yProdutos:', yProdutos, 'yAdicionais:', yAdicionais, 'total:', zonaProdutos.length)
     zonaProdutos.forEach(i => console.log('x:' + Math.round(i.x), 'y:' + Math.round(i.y), '"' + i.text + '"'))
 
-    // Agrupar itens por linha Y (tolerância ±15px), ordenar por X dentro de cada linha
-    function agruparPorLinha(items, tolerancia = 15) {
+    // Agrupar itens por linha Y (tolerância ±25px), ordenar por X dentro de cada linha
+    function agruparPorLinha(items, tolerancia = 25) {
       const linhas = [], usados = new Set()
       const sorted = [...items].sort((a, b) => b.y - a.y)
       for (const item of sorted) {
