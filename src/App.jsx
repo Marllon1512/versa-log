@@ -4,7 +4,11 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { useData, useAction, useDateInfo, usePrazo } from './hooks/index'
 import { Btn, Badge, Modal, Ic, Logo, Alert, Spinner, Empty, Input } from './components/ui/index'
 import * as XLSX from 'xlsx'
+import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from './lib/supabase'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 import { pedidosService } from './services/pedidos'
 import {
   produtosService, usuariosService, equipesService,
@@ -437,7 +441,11 @@ function Pedidos() {
   })
 
   const handleCreate = async (dados) => {
-    await pedidosService.create({ ...dados, created_by: perfil?.id })
+    const { produtos, ...pedidoData } = dados
+    const novo = await pedidosService.create({ ...pedidoData, created_by: perfil?.id })
+    if (produtos?.length) {
+      await produtosService.createMany(produtos.map(p => ({ ...p, pedido_id: novo.id, status_produto: 'Pendente' })))
+    }
     await reload()
     setShowNew(false)
   }
@@ -828,23 +836,30 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
     observacoes: '', local_separacao: '', status: 'Pendente',
     ...inicial,
   })
+  const [produtos, setProdutos] = useState(
+    inicial?.produtos?.length ? inicial.produtos : [{ nome_produto: '', quantidade: 1, acabamento: '', medida: '', observacao: '' }]
+  )
   const [errors, setErrors] = useState({})
   const { run, loading } = useAction()
 
   const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
+  const addProd = () => setProdutos(p => [...p, { nome_produto: '', quantidade: 1, acabamento: '', medida: '', observacao: '' }])
+  const remProd = (i) => setProdutos(p => p.filter((_, idx) => idx !== i))
+  const upProd = (i, k, v) => setProdutos(p => p.map((pr, idx) => idx === i ? { ...pr, [k]: v } : pr))
 
   const validate = () => {
     const errs = {}
     if (!form.cliente) errs.cliente = 'Obrigatório'
     if (!form.endereco) errs.endereco = 'Obrigatório'
     if (!form.data_entrega) errs.data_entrega = 'Obrigatório'
+    if (!produtos.some(p => p.nome_produto.trim())) errs.produtos = 'Adicione ao menos um produto'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
 
   const handleSave = async () => {
     if (!validate()) return
-    await run(() => onSave(form))
+    await run(() => onSave({ ...form, produtos: produtos.filter(p => p.nome_produto.trim()) }))
   }
 
   return (
@@ -905,6 +920,30 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
       <div className="fg">
         <label className="fl">Observações</label>
         <textarea className="fi" rows={2} value={form.observacoes} onChange={up('observacoes')} />
+      </div>
+      <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Produtos *</div>
+          <Btn variant="secondary" size="sm" onClick={addProd}><Ic n="plus" s={12} /> Adicionar</Btn>
+        </div>
+        {errors.produtos && <div className="field-error" style={{ marginBottom: 8 }}>{errors.produtos}</div>}
+        {produtos.map((pr, i) => (
+          <div key={i} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>#{i+1}</span>
+              {produtos.length > 1 && <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => remProd(i)}><Ic n="trash" s={11} /></button>}
+            </div>
+            <div className="fg" style={{ marginBottom: 6 }}>
+              <input className="fi" placeholder="Nome do produto *" value={pr.nome_produto} onChange={e => upProd(i, 'nome_produto', e.target.value)} />
+            </div>
+            <div className="grid2" style={{ gap: 6 }}>
+              <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Qtd</label><input className="fi" type="number" min="1" value={pr.quantidade} onChange={e => upProd(i, 'quantidade', parseInt(e.target.value)||1)} /></div>
+              <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Medida</label><input className="fi" value={pr.medida} onChange={e => upProd(i, 'medida', e.target.value)} placeholder="Ex: 1.80x0.90" /></div>
+              <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Acabamento</label><input className="fi" value={pr.acabamento} onChange={e => upProd(i, 'acabamento', e.target.value)} /></div>
+              <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Obs.</label><input className="fi" value={pr.observacao} onChange={e => upProd(i, 'observacao', e.target.value)} /></div>
+            </div>
+          </div>
+        ))}
       </div>
     </Modal>
   )
@@ -1004,6 +1043,95 @@ function CancelarModal({ pedido, onClose, onSave, loading }) {
 }
 
 // ── Importar em Lote ──────────────────────────────────────
+const MESES_PT = { janeiro:1,fevereiro:2,'março':3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12,marco:3,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12,jan:1,fev:2 }
+
+async function parseFichaPDF(file) {
+  try {
+    const buf = await file.arrayBuffer()
+    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
+    let fullText = ''
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p)
+      const content = await page.getTextContent()
+      let prevY = null
+      for (const item of content.items) {
+        if (!item.str) continue
+        const y = Math.round(item.transform[5])
+        if (prevY !== null && Math.abs(prevY - y) > 3) fullText += '\n'
+        fullText += item.str
+        prevY = y
+      }
+      fullText += '\n'
+    }
+    const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean)
+    const lf = (rx) => { const m = fullText.match(rx); return m ? m[1].trim() : '' }
+
+    const numero_pedido =
+      lf(/Documento\s*N[°ºo\.]*\s*:?\s*([0-9]+)/i) ||
+      lf(/N[°ºo\.]\s*(?:do\s*)?[Pp]edido[:\s]+([0-9]+)/i) ||
+      lf(/Pedido[:\s#]+([0-9]+)/i) || ''
+
+    const cliente =
+      lf(/NOME\s*RAZ[ÃA]O\s*SOCIAL\s*:?\s*([^\n]+)/i) ||
+      lf(/(?:Nome do Cliente|CLIENTE|Cliente)\s*:?\s*([^\n]+)/i) || ''
+
+    let loja = lf(/(?:Loja|LOJA|Filial|FILIAL|Emitente)\s*:?\s*([^\n]+)/i)
+    if (!loja) {
+      for (const line of lines.slice(0, 10)) {
+        if (line.length >= 4 && /^[A-ZÁÉÍÓÚÃÕÇ\s&-]{4,}$/.test(line) && !/^(FICHA|ENTREGA|DOCUMENTO|PEDIDO|DATA|NOTA|RAZÃO|CNPJ|CPF)$/.test(line)) {
+          loja = line; break
+        }
+      }
+    }
+
+    let data_entrega = ''
+    const dm = fullText.match(/(\d{1,2})\s+de\s+([A-Za-záéíóúãõçêê]+)\s+de\s+(\d{4})/i)
+    if (dm) {
+      const d = dm[1].padStart(2,'0')
+      const mesKey = dm[2].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+      const mes = (MESES_PT[dm[2].toLowerCase()] || MESES_PT[mesKey] || 1).toString().padStart(2,'0')
+      data_entrega = `${dm[3]}-${mes}-${d}`
+    } else {
+      const dm2 = fullText.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+      if (dm2) data_entrega = `${dm2[3]}-${dm2[2]}-${dm2[1]}`
+    }
+
+    const endereco = lf(/ENDERE[ÇC]O\s*:?\s*([^\n]+)/i)
+    const bairro = lf(/BAIRRO\s*:?\s*([^\n]+)/i)
+    const cidade = lf(/MUNIC[IÍ]PIO\s*:?\s*([^\n]+)/i) || lf(/CIDADE\s*:?\s*([^\n]+)/i) || 'Belo Horizonte'
+    const enderecoCompleto = [endereco, bairro].filter(Boolean).join(', ')
+
+    const produtos = []
+    const hIdx = lines.findIndex(l => /PRODUTO|DESCRI[ÇC][ÃA]O/i.test(l) && l.length < 80)
+    if (hIdx >= 0) {
+      for (let i = hIdx + 1; i < Math.min(hIdx + 40, lines.length); i++) {
+        const ln = lines[i]
+        if (!ln || /^(TOTAL|SUB[\s-]?TOTAL|VALOR\s+TOTAL|OBS|ASSINATURA|ENTREGUE|RECEBIDO)/i.test(ln)) break
+        const parts = ln.split(/\s{2,}|\t/).map(s => s.trim()).filter(Boolean)
+        if (!parts[0] || /^[\d.,R$%]+$/.test(parts[0]) || parts[0].length < 2) continue
+        const qty = parts.find(p => /^\d+$/.test(p))
+        produtos.push({ nome_produto: parts[0], acabamento: parts[1] || '', medida: parts[2] || '', quantidade: parseInt(qty) || 1, observacao: '' })
+      }
+    }
+
+    return {
+      numero_pedido, cliente: cliente || file.name.replace(/\.pdf$/i,''),
+      loja, local_separacao: loja, endereco: enderecoCompleto, cidade,
+      data_entrega: data_entrega || new Date().toISOString().split('T')[0],
+      status: 'Pendente', prioridade: 'Normal', observacoes: '', produtos,
+      selected: true, erro: (!numero_pedido && !cliente) ? 'Dados insuficientes no PDF' : null,
+    }
+  } catch (e) {
+    console.error('[PDF]', e)
+    return {
+      numero_pedido: '', cliente: file.name.replace(/\.pdf$/i,''), loja: '', local_separacao: '',
+      endereco: '', cidade: 'Belo Horizonte', data_entrega: new Date().toISOString().split('T')[0],
+      status: 'Pendente', prioridade: 'Normal', observacoes: '', produtos: [],
+      selected: false, erro: `Erro ao ler PDF: ${e.message}`,
+    }
+  }
+}
+
 function ImportarLoteModal({ onClose, onImport }) {
   const [step, setStep] = useState(0)
   const [files, setFiles] = useState([])
@@ -1016,21 +1144,9 @@ function ImportarLoteModal({ onClose, onImport }) {
       const result = []
       for (let i = 0; i < files.length; i++) {
         setProg(Math.round(((i + 1) / files.length) * 100))
-        // Mock extraction — replace with real PDF extraction in production
-        await new Promise(r => setTimeout(r, 400))
-        result.push({
-          numero_pedido: `MOCK-${Date.now()}-${i}`,
-          cliente: files[i].name.replace('.pdf', '').toUpperCase(),
-          endereco: 'A preencher',
-          cidade: 'Belo Horizonte',
-          data_entrega: new Date().toISOString().split('T')[0],
-          status: 'Pendente',
-          prioridade: 'Normal',
-          local_separacao: '',
-          produtos: [],
-          selected: true,
-          erro: null,
-        })
+        const parsed = await parseFichaPDF(files[i])
+        parsed._filename = files[i].name
+        result.push(parsed)
       }
       setItems(result)
       setStep(1)
@@ -1123,7 +1239,9 @@ function ImportarLoteModal({ onClose, onImport }) {
               </div>
               {!p.erro && (
                 <>
-                  <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 6 }}>{p.endereco}</div>
+                  <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 4 }}>{p.endereco}{p.cidade && p.cidade !== 'Belo Horizonte' ? ` — ${p.cidade}` : ''}</div>
+                  {p.loja && <div style={{ fontSize: 11, color: 'var(--accent)', marginBottom: 4 }}>🏪 {p.loja}</div>}
+                  {p.produtos?.length > 0 && <div style={{ fontSize: 11, color: 'var(--green)', marginBottom: 4 }}>📦 {p.produtos.length} produto(s) detectado(s)</div>}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     <input type="date" value={p.data_entrega || ''} onChange={e => upd(i, 'data_entrega', e.target.value)}
                       style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--t1)', fontSize: 12, fontFamily: 'var(--font)' }} />
@@ -2384,6 +2502,7 @@ function FotoCaptura({ label, value, onChange }) {
 function NovaConferenciaModal({ onClose, onSave }) {
   const [form, setForm] = useState({ numero_pedido: '', numero_nf: '', produto: '', fornecedor: '', resultado: '', motivo_reprovacao: '', descricao_reprovacao: '' })
   const [fotos, setFotos] = useState({ frente: null, costas: null, ladoEsq: null, ladoDir: null })
+  const [saveErr, setSaveErr] = useState('')
   const { run, loading } = useAction()
   const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
   const setFoto = (k) => (v) => setFotos(prev => ({ ...prev, [k]: v }))
@@ -2391,6 +2510,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
   const canSave = form.numero_pedido && form.produto && form.fornecedor && form.numero_nf && form.resultado && todasFotos
 
   const handleSave = async () => {
+    setSaveErr('')
     const tmpId = crypto.randomUUID()
     const fotoUrls = {}
     for (const [slot, foto] of Object.entries(fotos)) {
@@ -2405,7 +2525,12 @@ function NovaConferenciaModal({ onClose, onSave }) {
         }
       } catch {}
     }
-    await onSave({ ...form, fotos: fotoUrls })
+    try {
+      await onSave({ ...form, fotos: fotoUrls })
+    } catch (e) {
+      setSaveErr(e.message || 'Erro ao salvar. Tente novamente.')
+      throw e
+    }
   }
 
   return (
@@ -2422,6 +2547,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
         </>
       }
     >
+      {saveErr && <Alert type="error" style={{ marginBottom: 12 }}>{saveErr}</Alert>}
       <div className="grid2">
         <div className="fg"><label className="fl">Nº Pedido *</label><input className="fi" value={form.numero_pedido} onChange={up('numero_pedido')} /></div>
         <div className="fg"><label className="fl">Nota Fiscal *</label><input className="fi" value={form.numero_nf} onChange={up('numero_nf')} /></div>
@@ -2515,7 +2641,7 @@ function Roteiro() {
             </div>
             <div className="li-main">
               <div className="li-title">Roteiro {r.data ? new Date(r.data + 'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
-              <div className="li-sub">{r.motorista_nome || '—'}{r.montador_nome ? ` · ${r.montador_nome}` : ''}</div>
+              <div className="li-sub">{r.motorista_nome || '—'}{r.montador_nome ? ` · ${r.montador_nome}` : ''} {r.entregadores_extra ? `· ${r.entregadores_extra}` : ''}</div>
               <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>{(r.roteiro_itens || []).length} parada(s)</div>
             </div>
             <Badge status={r.status === 'planejado' ? 'Pendente' : r.status === 'em_andamento' ? 'Em Rota' : 'Entregue'} />
@@ -2588,7 +2714,7 @@ function RoteiroDetalhe({ id, onBack }) {
         Roteiro — {roteiro.data ? new Date(roteiro.data + 'T12:00').toLocaleDateString('pt-BR') : '—'}
       </h1>
       <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 16 }}>
-        🚗 {roteiro.motorista_nome || '—'}{roteiro.montador_nome ? ` · 🔧 ${roteiro.montador_nome}` : ''}
+        🚗 {roteiro.motorista_nome || '—'}{roteiro.montador_nome ? ` · 👤 ${roteiro.montador_nome}` : ''}
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -2653,7 +2779,7 @@ function gerarPDFRoteiro(roteiro, itens) {
   w.document.write(`<html><head><title>Roteiro ${data}</title><style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px}.header{background:#fbbf24;padding:10px 14px;font-weight:bold;font-size:15px;text-align:center;letter-spacing:.05em}.info{display:flex;gap:32px;padding:8px 14px;border:1px solid #ccc;border-top:none;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:6px}th{background:#fbbf24;padding:6px 8px;text-align:left;border:1px solid #ccc;font-size:11px;font-weight:bold}td{padding:5px 8px;border:1px solid #ccc}tr:nth-child(even){background:#f9f9f9}</style></head><body>
   <div class="header">ROTEIRO DIÁRIO</div>
   <div class="info"><span><b>DATA:</b> ${data}</span><span><b>SAÍDA:</b> ${roteiro.hora_saida || '__:__'}</span><span><b>TÉRMINO:</b> ${roteiro.hora_termino || '__:__'}</span></div>
-  <div class="info"><span><b>MOTORISTA:</b> ${roteiro.motorista_nome || '—'}</span><span><b>MONTADOR:</b> ${roteiro.montador_nome || '—'}</span></div>
+  <div class="info"><span><b>MOTORISTA:</b> ${roteiro.motorista_nome || '—'}</span><span><b>ENTREGADORES:</b> ${[roteiro.montador_nome, roteiro.entregadores_extra].filter(Boolean).join(' / ') || '—'}</span></div>
   <table><thead><tr><th>QTD</th><th>LOJA</th><th>PEDIDO</th><th>CLIENTE</th><th>BAIRRO</th><th>SERVIÇO</th><th>STATUS</th></tr></thead><tbody>${rows}</tbody></table>
   <script>window.onload=()=>{window.print()}</script></body></html>`)
   w.document.close()
@@ -2661,12 +2787,14 @@ function gerarPDFRoteiro(roteiro, itens) {
 
 function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
   const { data: assistencias } = useData(() => assistenciasService.list(), [])
-  const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], motorista_nome: '', montador_nome: '' })
+  const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], motorista_nome: '' })
+  const [entregadores, setEntregadores] = useState(['', '', '', '', ''])
   const [itens, setItens] = useState([])
   const [step, setStep] = useState(0)
   const { run, loading } = useAction()
 
   const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
+  const upEnt = (i, v) => setEntregadores(prev => prev.map((e, idx) => idx === i ? v : e))
   const TIPOS_SERVICO = ['Coleta', 'Vistoria', 'Retoque', 'Visita Técnica', 'Entrega e Instalação', 'Troca', 'Outros']
 
   const addAssistencia = (a) => {
@@ -2695,17 +2823,26 @@ function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
         <>
           {step > 0 && <Btn variant="secondary" onClick={() => setStep(0)}>← Voltar</Btn>}
           <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-          {step === 0 && <Btn disabled={!form.data || !form.motorista_nome} onClick={() => setStep(1)}>Continuar →</Btn>}
-          {step === 1 && <Btn disabled={itens.length === 0} loading={loading} onClick={() => run(() => onSave({ ...form, itens }))}>✓ Criar Roteiro</Btn>}
+          {step === 0 && <Btn disabled={!form.data || !form.motorista_nome || !entregadores[0]} onClick={() => setStep(1)}>Continuar →</Btn>}
+          {step === 1 && <Btn disabled={itens.length === 0} loading={loading} onClick={() => {
+            const ents = entregadores.filter(Boolean)
+            const saveData = { ...form, montador_nome: ents[0] || '', entregadores_extra: ents.slice(1).join(' / ') || '', itens }
+            run(() => onSave(saveData))
+          }}>✓ Criar Roteiro</Btn>}
         </>
       }
     >
       {step === 0 && (
         <>
           <div className="fg"><label className="fl">Data *</label><input className="fi" type="date" value={form.data} onChange={up('data')} /></div>
-          <div className="grid2">
-            <div className="fg"><label className="fl">Motorista *</label><input className="fi" value={form.motorista_nome} onChange={up('motorista_nome')} /></div>
-            <div className="fg"><label className="fl">Montador / Técnico</label><input className="fi" value={form.montador_nome} onChange={up('montador_nome')} /></div>
+          <div className="fg"><label className="fl">Motorista *</label><input className="fi" value={form.motorista_nome} onChange={up('motorista_nome')} placeholder="Nome do motorista" /></div>
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 8, fontWeight: 500 }}>Entregadores / Técnicos (até 5)</div>
+            {entregadores.map((ent, i) => (
+              <div key={i} className="fg" style={{ marginBottom: 6 }}>
+                <input className="fi" value={ent} onChange={e => upEnt(i, e.target.value)} placeholder={`Entregador ${i + 1}${i === 0 ? ' *' : ' (opcional)'}`} />
+              </div>
+            ))}
           </div>
         </>
       )}
@@ -2772,6 +2909,7 @@ function Equipe() {
   const { perfil } = useAuth()
   const [showNewEquipe, setShowNewEquipe] = useState(false)
   const [showNewUser, setShowNewUser] = useState(false)
+  const [editUser, setEditUser] = useState(null)
   const { data: equipes, reload: reloadEq } = useData(() => equipesService.list(), [])
   const { data: usuarios, reload: reloadU } = useData(() => usuariosService.list(), [])
 
@@ -2785,6 +2923,12 @@ function Equipe() {
     await usuariosService.create(dados)
     await reloadU()
     setShowNewUser(false)
+  }
+
+  const handleEditUser = async (id, dados) => {
+    await usuariosService.update(id, dados)
+    await reloadU()
+    setEditUser(null)
   }
 
   return (
@@ -2831,7 +2975,7 @@ function Equipe() {
                 </td>
                 <td style={{ fontSize: 12, color: 'var(--t2)' }}>{u.email}</td>
                 <td><span className="badge bg-accent" style={{ textTransform: 'capitalize' }}>{u.role}</span></td>
-                <td><button className="btn btn-g btn-ico btn-sm"><Ic n="edit" s={13} /></button></td>
+                <td><button className="btn btn-g btn-ico btn-sm" onClick={() => setEditUser(u)}><Ic n="edit" s={13} /></button></td>
               </tr>
             ))}
           </tbody>
@@ -2847,6 +2991,9 @@ function Equipe() {
         <Modal title="Novo Usuário" onClose={() => setShowNewUser(false)} footer={null}>
           <NovoUsuarioForm onClose={() => setShowNewUser(false)} onSave={handleUser} />
         </Modal>
+      )}
+      {editUser && (
+        <EditarUsuarioModal usuario={editUser} onClose={() => setEditUser(null)} onSave={(dados) => handleEditUser(editUser.id, dados)} />
       )}
     </div>
   )
@@ -2938,6 +3085,47 @@ function NovoUsuarioForm({ onClose, onSave }) {
         <Btn disabled={!canSave} loading={loading} onClick={() => run(handleSave)}>Criar</Btn>
       </div>
     </>
+  )
+}
+
+function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
+  const [form, setForm] = useState({ full_name: u.full_name || '', role: u.role || 'entregador', telefone: u.telefone || '', nova_senha: '' })
+  const { run, loading } = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    const updates = { full_name: form.full_name.trim(), role: form.role, telefone: form.telefone }
+    if (form.nova_senha.length >= 4) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(form.nova_senha))
+      updates.senha_hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+    }
+    await onSave(updates)
+  }
+
+  return (
+    <Modal
+      title={`Editar — ${u.full_name}`}
+      onClose={onClose}
+      footer={
+        <>
+          <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+          <Btn disabled={!form.full_name.trim()} loading={loading} onClick={() => run(handleSave)}><Ic n="save" s={13} /> Salvar</Btn>
+        </>
+      }
+    >
+      <div className="fg"><label className="fl">Nome Completo *</label><input className="fi" value={form.full_name} onChange={up('full_name')} /></div>
+      <div className="grid2">
+        <div className="fg">
+          <label className="fl">Cargo</label>
+          <select className="fi" value={form.role} onChange={up('role')}>
+            {['admin', 'gestor', 'motorista', 'entregador', 'estoque', 'conferente'].map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+      </div>
+      <div className="fg"><label className="fl">Nova Senha (deixe em branco para manter)</label><input className="fi" type="password" value={form.nova_senha} onChange={up('nova_senha')} placeholder="mín. 4 caracteres" /></div>
+      <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>Login: {u.usuario || u.email}</div>
+    </Modal>
   )
 }
 
@@ -3623,15 +3811,22 @@ function MobileMenu({ setPage, isGestor, perfil, logout }) {
 // ============================================================
 function SolicitarAssistenciaPublica() {
   const [form, setForm] = useState({ nome: '', telefone: '', pedido: '', loja: '', produto: '', descricao: '', categoria: '' })
+  const [fotos, setFotos] = useState([])
   const [enviado, setEnviado] = useState(false)
   const [loading, setLoading] = useState(false)
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
   const canSend = form.nome && form.telefone && form.produto && form.descricao
 
+  const addFotos = (e) => {
+    const newFiles = Array.from(e.target.files || []).slice(0, 5 - fotos.length)
+    setFotos(prev => [...prev, ...newFiles.map(f => ({ file: f, preview: URL.createObjectURL(f) }))].slice(0, 5))
+  }
+  const remFoto = (i) => setFotos(prev => prev.filter((_, idx) => idx !== i))
+
   const handleEnviar = async () => {
     setLoading(true)
     try {
-      const { error } = await supabase.from('assistencias').insert({
+      const { data: nova, error } = await supabase.from('assistencias').insert({
         cliente: form.nome,
         telefone: form.telefone,
         pedido_ref: form.pedido || null,
@@ -3641,8 +3836,22 @@ function SolicitarAssistenciaPublica() {
         data_abertura: new Date().toISOString().split('T')[0],
         status: 'solicitacao',
         origem: 'formulario',
-      })
+      }).select().single()
       if (error) throw error
+      if (nova && fotos.length > 0) {
+        const urls = []
+        for (let i = 0; i < fotos.length; i++) {
+          const f = fotos[i].file
+          const ext = f.name.split('.').pop() || 'jpg'
+          const path = `${nova.id}/foto_${i}.${ext}`
+          const { error: upErr } = await supabase.storage.from('assistencias').upload(path, f)
+          if (!upErr) {
+            const { data: { publicUrl } } = supabase.storage.from('assistencias').getPublicUrl(path)
+            urls.push(publicUrl)
+          }
+        }
+        if (urls.length) await supabase.from('assistencias').update({ fotos_cliente: urls }).eq('id', nova.id)
+      }
       setEnviado(true)
     } catch (e) {
       alert('Erro ao enviar. Tente novamente.')
@@ -3696,9 +3905,30 @@ function SolicitarAssistenciaPublica() {
             {['Avaria', 'Defeito de fabricação', 'Erro de acabamento', 'Item incorreto', 'Outros'].map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Descrição do problema *</label>
           <textarea style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', resize: 'vertical', minHeight: 80 }} value={form.descricao} onChange={up('descricao')} />
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: 12, color: '#64748b' }}>Fotos do problema (opcional, até 5)</label>
+            {fotos.length < 5 && (
+              <label style={{ padding: '6px 12px', background: '#6366f1', color: '#fff', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>
+                + Adicionar foto
+                <input type="file" multiple accept="image/*" capture="environment" style={{ display: 'none' }} onChange={addFotos} />
+              </label>
+            )}
+          </div>
+          {fotos.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {fotos.map((f, i) => (
+                <div key={i} style={{ position: 'relative' }}>
+                  <img src={f.preview} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '2px solid #e2e8f0' }} />
+                  <button onClick={() => remFoto(i)} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', border: 'none', color: '#fff', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <button disabled={!canSend || loading}
           style={{ width: '100%', padding: '13px', background: canSend ? '#6366f1' : '#e2e8f0', color: canSend ? '#fff' : '#94a3b8', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: canSend ? 'pointer' : 'default' }}
