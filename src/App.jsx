@@ -441,12 +441,26 @@ function Pedidos() {
     return mSearch && mStatus && mLoja
   })
 
+  // Mapeia campos da UI para colunas reais da tabela pedidos
+  const mapPedidoDB = (dados) => {
+    const COLS = ['numero_pedido','cliente','telefone','endereco','cidade','data_entrega','status','prioridade','observacoes','local_separacao','entregador_id','entregador_nome','motivo_remarcacao','motivo_cancelamento']
+    return Object.fromEntries(COLS.filter(k => dados[k] !== undefined).map(k => [k, dados[k]]))
+  }
+  // Mapeia produto da UI → colunas reais de produtos (sem acabamento/medida)
+  const mapProdutoDB = (p, pedidoId) => ({
+    pedido_id: pedidoId,
+    nome_produto: p.nome_produto,
+    quantidade: parseInt(p.quantidade) || 1,
+    status_produto: p.status_produto || 'Pendente',
+    observacao: [p.medida && `Medida: ${p.medida}`, p.acabamento && `Acabamento: ${p.acabamento}`, p.observacao].filter(Boolean).join(' | ') || null,
+  })
+
   const handleCreate = async (dados) => {
     try {
-      const { produtos, ...pedidoData } = dados
-      const novo = await pedidosService.create({ ...pedidoData, created_by: perfil?.id })
+      const { produtos, ...raw } = dados
+      const novo = await pedidosService.create(mapPedidoDB(raw))
       if (produtos?.length) {
-        await produtosService.createMany(produtos.map(p => ({ ...p, pedido_id: novo.id, status_produto: 'Pendente' })))
+        await produtosService.createMany(produtos.map(p => mapProdutoDB(p, novo.id)))
       }
       await reload()
       setShowNew(false)
@@ -461,10 +475,10 @@ function Pedidos() {
     let ok = 0, erros = 0
     for (const item of lista) {
       try {
-        const { produtos, selected: _s, erro: _e, _confidence: _c, _filename: _f, ...pedido } = item
-        const novo = await pedidosService.create(pedido)
+        const { produtos, selected: _s, erro: _e, _confidence: _c, _filename: _f, ...raw } = item
+        const novo = await pedidosService.create(mapPedidoDB(raw))
         if (produtos?.length) {
-          await produtosService.createMany(produtos.map(pr => ({ ...pr, pedido_id: novo.id, status_produto: 'Pendente' })))
+          await produtosService.createMany(produtos.map(p => mapProdutoDB(p, novo.id)))
         }
         ok++
       } catch (e) {
@@ -634,7 +648,8 @@ function PedidoDetalhe({ pedidoId, onBack }) {
 
   const handleEdit = async (dados) => {
     try {
-      await runAction(async () => { await pedidosService.update(pedidoId, dados); reload(); setShowEdit(false) })
+      const { produtos: _p, ...pedidoData } = dados
+      await runAction(async () => { await pedidosService.update(pedidoId, pedidoData); reload(); setShowEdit(false) })
       toast.success('Pedido atualizado!')
     } catch (e) { console.error('[Pedido] handleEdit:', e); toast.error('Erro ao salvar: ' + e.message) }
   }
