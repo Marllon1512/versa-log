@@ -1086,142 +1086,194 @@ const MESES_PT = { janeiro:1,fevereiro:2,'março':3,abril:4,maio:5,junho:6,julho
 async function parseFichaPDF(file) {
   try {
     const buf = await file.arrayBuffer()
-    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
 
-    // Coletar todos os itens com posição X/Y
+    // Coletar itens de TODAS as páginas com posição X,Y
     const allItems = []
-    for (let pg = 1; pg <= doc.numPages; pg++) {
-      const page = await doc.getPage(pg)
-      const { items } = await page.getTextContent()
-      for (const it of items) {
-        if (!it.str?.trim()) continue
-        allItems.push({ str: it.str.trim(), x: it.transform[4], y: it.transform[5], pg })
+    for (let pg = 1; pg <= pdf.numPages; pg++) {
+      const page = await pdf.getPage(pg)
+      const content = await page.getTextContent()
+      for (const i of content.items) {
+        const t = i.str?.trim()
+        if (!t) continue
+        allItems.push({ text: t, x: Math.round(i.transform[4]), y: Math.round(i.transform[5]) })
       }
     }
+    // Ordenar: top-to-bottom (Y desc), left-to-right (X asc)
+    allItems.sort((a, b) => b.y - a.y || a.x - b.x)
 
-    // Ordenar: página asc, Y desc (topo → base da página)
-    allItems.sort((a, b) => a.pg !== b.pg ? a.pg - b.pg : b.y - a.y)
+    const fullText = allItems.map(i => i.text).join(' ')
 
-    // Texto completo para extração dos campos do cabeçalho (regex)
-    let fullText = '', prevY = null, prevPg = null
-    for (const it of allItems) {
-      const sameLine = prevPg === it.pg && prevY !== null && Math.abs(prevY - it.y) <= 3
-      fullText += (sameLine ? ' ' : '\n') + it.str
-      prevY = it.y; prevPg = it.pg
+    // ── getNextValue: label → próximo item que não é outro label ──
+    const LABEL_KEYS = ['NOME','CNPJ','CPF','DATA','ENDERE','BAIRRO','MUNIC','ESTADO','CEP','E-MAIL','TELEFONE','FONE','TEL']
+    function getNextValue(label) {
+      const idx = allItems.findIndex(i => i.text.toUpperCase().includes(label.toUpperCase()))
+      if (idx < 0) return ''
+      for (let j = idx + 1; j < Math.min(idx + 15, allItems.length); j++) {
+        const t = allItems[j].text
+        if (t && !LABEL_KEYS.some(l => t.toUpperCase().startsWith(l))) return t
+      }
+      return ''
     }
 
-    const lf = (rx) => { const m = fullText.match(rx); return m ? m[1].trim() : '' }
-    const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean)
+    // ── parseDataPorExtenso → "YYYY-MM-DD" para o banco ──
+    function parseDataPorExtenso(texto) {
+      if (!texto) return ''
+      const MESES = { janeiro:'01',fevereiro:'02',março:'03',marco:'03',abril:'04',maio:'05',junho:'06',julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12' }
+      const m = texto.toLowerCase().match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/)
+      if (m) {
+        const mesKey = m[2].normalize('NFD').replace(/[̀-ͯ]/g,'')
+        const mes = MESES[mesKey] || MESES[m[2]] || '01'
+        return `${m[3]}-${mes}-${m[1].padStart(2,'0')}`
+      }
+      const m2 = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+      if (m2) return `${m2[3]}-${m2[2]}-${m2[1]}`
+      return ''
+    }
 
-    const numero_pedido =
-      lf(/Documento\s*N[°ºo\.]*\s*:?\s*([0-9]+)/i) ||
-      lf(/N[°ºo\.]\s*(?:do\s*)?[Pp]edido[:\s]+([0-9]+)/i) ||
-      lf(/Pedido[:\s#]+([0-9]+)/i) || ''
+    // ── Número do pedido ──
+    let numero_pedido = ''
+    const numItem = allItems.find(i => /N[°º]\s*\d+/.test(i.text))
+    if (numItem) { const m = numItem.text.match(/N[°º]\s*(\d+)/); if (m) numero_pedido = m[1] }
+    if (!numero_pedido) { const m = fullText.match(/Documento\s*N[°º]\s*(\d+)/i); if (m) numero_pedido = m[1] }
+    if (!numero_pedido) { const m = fullText.match(/N[°ºo\.]*\s*(?:do\s*)?[Pp]edido[:\s]+(\d+)/i); if (m) numero_pedido = m[1] }
 
-    const cliente =
-      lf(/NOME\s*RAZ[ÃA]O\s*SOCIAL\s*:?\s*([^\n]+)/i) ||
-      lf(/(?:Nome do Cliente|CLIENTE|Cliente)\s*:?\s*([^\n]+)/i) || ''
-
-    let loja = lf(/(?:Loja|LOJA|Filial|FILIAL|Emitente)\s*:?\s*([^\n]+)/i)
+    // ── Loja emitente ──
+    let loja = ''
+    const lojaM = fullText.match(/RECEBEMOS DE (.+?) O[S]? PRODUTO/i)
+    if (lojaM) loja = lojaM[1].trim()
     if (!loja) {
-      for (const line of lines.slice(0, 10)) {
-        if (line.length >= 4 && /^[A-ZÁÉÍÓÚÃÕÇ\s&-]{4,}$/.test(line) && !/^(FICHA|ENTREGA|DOCUMENTO|PEDIDO|DATA|NOTA|RAZ|CNPJ|CPF)/.test(line)) {
-          loja = line; break
+      for (const it of allItems.slice(0, 20)) {
+        if (it.text.length >= 4 && /^[A-ZÁÉÍÓÚÃÕÇ\s&.\-–]{4,}$/.test(it.text)
+          && !/^(VERSA|FICHA|ENTREGA|DOCUMENTO|PEDIDO|DATA|RAZ|NOTA|HTTP|WWW|FORMULÁRIO)/.test(it.text.toUpperCase())) {
+          loja = it.text; break
         }
       }
     }
 
-    let data_entrega = ''
-    const dm = fullText.match(/(\d{1,2})\s+de\s+([A-Za-záéíóúãõçê]+)\s+de\s+(\d{4})/i)
-    if (dm) {
-      const d = dm[1].padStart(2,'0')
-      const mesKey = dm[2].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
-      const mes = (MESES_PT[dm[2].toLowerCase()] || MESES_PT[mesKey] || 1).toString().padStart(2,'0')
-      data_entrega = `${dm[3]}-${mes}-${d}`
-    } else {
-      const dm2 = fullText.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-      if (dm2) data_entrega = `${dm2[3]}-${dm2[2]}-${dm2[1]}`
-    }
+    // ── Campos do destinatário ──
+    const cliente  = getNextValue('NOME RAZÃO SOCIAL') || getNextValue('CLIENTE')
+    const rua      = getNextValue('ENDEREÇO') || getNextValue('ENDERECO')
+    const bairro   = getNextValue('BAIRRO')
+    const cidade   = getNextValue('MUNICÍPIO') || getNextValue('MUNICIPIO') || 'Belo Horizonte'
+    const estado   = getNextValue('ESTADO') || 'MG'
+    const cep      = getNextValue('CEP')
+    const telefone = getNextValue('TELEFONE') || getNextValue('FONE') || getNextValue('TEL')
+    const email    = getNextValue('E-MAIL') || getNextValue('EMAIL')
 
-    const endereco = lf(/ENDERE[ÇC]O\s*:?\s*([^\n]+)/i)
-    const bairro   = lf(/BAIRRO\s*:?\s*([^\n]+)/i)
-    const cidade   = lf(/MUNIC[IÍ]PIO\s*:?\s*([^\n]+)/i) || lf(/CIDADE\s*:?\s*([^\n]+)/i) || 'Belo Horizonte'
-    const enderecoCompleto = [endereco, bairro].filter(Boolean).join(', ')
-
-    // ── Produtos via posição X/Y ──────────────────────────────
-    // Agrupar itens em linhas (tolerância Y = 4px)
-    const rowMap = []
-    for (const it of allItems) {
-      const row = rowMap.find(r => r.pg === it.pg && Math.abs(r.y - it.y) <= 4)
-      if (row) row.items.push(it)
-      else rowMap.push({ pg: it.pg, y: it.y, items: [it] })
-    }
-    rowMap.sort((a, b) => a.pg !== b.pg ? a.pg - b.pg : b.y - a.y)
-
-    // Encontrar linha de cabeçalho da tabela (tem "PRODUTO" e "ACABAMENTO" no mesmo Y)
-    const headerRow = rowMap.find(r =>
-      r.items.some(i => /^PRODUTO$/i.test(i.str)) &&
-      r.items.some(i => /^ACABAMENTO$/i.test(i.str))
-    )
-
-    // Encontrar linhas dos marcadores de seção
-    const dadosProdRow = rowMap.find(r => r.items.some(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.str)))
-    const dadosAdicRow = rowMap.find(r => r.items.some(i => /DADOS\s*ADICIONAIS/i.test(i.str)))
-
-    // Limites X da coluna PRODUTO (dinâmico pelo cabeçalho; fallback 220)
-    let prodMaxX = 220
-    let qtdeMinX = 450, qtdeMaxX = 570
-    if (headerRow) {
-      const hi = headerRow.items.sort((a, b) => a.x - b.x)
-      const pItem = hi.find(i => /^PRODUTO$/i.test(i.str))
-      const aItem = hi.find(i => /^ACABAMENTO$/i.test(i.str))
-      const qItem = hi.find(i => /^QTDE/i.test(i.str))
-      if (pItem && aItem) prodMaxX = aItem.x - 2
-      if (qItem) { qtdeMinX = qItem.x - 5; qtdeMaxX = qItem.x + 80 }
-    }
-
-    const produtos = []
-    if (dadosProdRow) {
-      // Função auxiliar: "g está depois de referência" (leitura top-to-bottom)
-      const after  = (g, ref) => g.pg > ref.pg || (g.pg === ref.pg && g.y < ref.y)
-      const before = (g, ref) => g.pg < ref.pg || (g.pg === ref.pg && g.y > ref.y)
-
-      const sectionRows = rowMap.filter(r =>
-        after(r, dadosProdRow) &&
-        (!dadosAdicRow || before(r, dadosAdicRow)) &&
-        (!headerRow || !(r.pg === headerRow.pg && Math.abs(r.y - headerRow.y) <= 4))
-      )
-
-      for (const r of sectionRows) {
-        // Apenas itens dentro da coluna PRODUTO
-        const prodItems = r.items.filter(i => i.x <= prodMaxX).sort((a, b) => a.x - b.x)
-        const qtdeItems = r.items.filter(i => i.x >= qtdeMinX && i.x <= qtdeMaxX)
-        if (!prodItems.length) continue
-        const nome = prodItems.map(i => i.str).join(' ').trim()
-        if (!nome || nome.length < 2) continue
-        if (/^[\d.,\s]+$/.test(nome)) continue          // só números
-        if (/R\$|https?:|www\./i.test(nome)) continue   // preço ou URL
-        const qty = qtdeItems.length ? (parseInt(qtdeItems[0].str) || 1) : 1
-        produtos.push({ nome_produto: nome, acabamento: '', medida: '', quantidade: qty, observacao: '' })
+    // ── Data de entrega ──
+    let data_entrega = parseDataPorExtenso(getNextValue('DATA'))
+    if (!data_entrega) {
+      const m = fullText.match(/(\d{1,2})\s+de\s+([A-Za-záéíóúãõçê]+)\s+de\s+(\d{4})/i)
+      if (m) {
+        const MESES2 = { janeiro:'01',fevereiro:'02',março:'03',marco:'03',abril:'04',maio:'05',junho:'06',julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12' }
+        const mk = m[2].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+        const mes = MESES2[mk] || MESES2[m[2].toLowerCase()] || '01'
+        data_entrega = `${m[3]}-${mes}-${m[1].padStart(2,'0')}`
+      } else {
+        const m2 = fullText.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+        if (m2) data_entrega = `${m2[3]}-${m2[2]}-${m2[1]}`
       }
     }
 
+    const enderecoCompleto = [rua, bairro].filter(Boolean).join(', ').replace(/,\s*,/g,',').trim()
+
+    // ── Produtos: zona DADOS DOS PRODUTOS → DADOS ADICIONAIS ──
+    const idxInicio = allItems.findIndex(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.text))
+    const idxFim    = allItems.findIndex(i => /DADOS\s*ADICIONAIS/i.test(i.text))
+    const zonaProdutos = idxInicio >= 0
+      ? allItems.slice(idxInicio + 1, idxFim >= 0 ? idxFim : undefined)
+      : []
+
+    const CABECALHOS = new Set(['PRODUTO','ACABAMENTO','MEDIDA','TECIDO','LOCAL','VOLUME','QTDE.','QTDE','VALOR','TOTAL'])
+    const itensProduto = zonaProdutos.filter(i =>
+      i.x < 200 &&
+      !CABECALHOS.has(i.text.toUpperCase()) &&
+      !i.text.includes('R$') &&
+      !i.text.toLowerCase().includes('http') &&
+      i.text.length > 2
+    )
+
+    const produtos = itensProduto.map(prod => {
+      const qtdItem = zonaProdutos.find(i =>
+        i.x >= 450 && i.x <= 540 &&
+        Math.abs(i.y - prod.y) < 15 &&
+        /^\d+$/.test(i.text)
+      )
+      return { nome_produto: prod.text, quantidade: qtdItem ? parseInt(qtdItem.text) : 1, acabamento: '', medida: '', observacao: '' }
+    })
+
+    // ── Validações ──
+    const _warnings = []
+    if (!numero_pedido)    _warnings.push('Pedido não encontrado')
+    if (!cliente)          _warnings.push('Cliente não encontrado')
+    if (!data_entrega)     _warnings.push('Data não identificada')
+    if (!enderecoCompleto) _warnings.push('Endereço não encontrado')
+    if (!produtos.length)  _warnings.push('Nenhum produto detectado')
+
     return {
-      numero_pedido, cliente: cliente || file.name.replace(/\.pdf$/i,''),
-      loja, local_separacao: loja, endereco: enderecoCompleto, cidade,
+      numero_pedido,
+      cliente: cliente || file.name.replace(/\.pdf$/i,''),
+      loja, local_separacao: loja,
+      endereco: enderecoCompleto,
+      cidade, cep, telefone, email,
       data_entrega: data_entrega || new Date().toISOString().split('T')[0],
-      status: 'Pendente', prioridade: 'Normal', observacoes: '', produtos,
-      selected: true, erro: (!numero_pedido && !cliente) ? 'Dados insuficientes no PDF' : null,
+      status: 'Pendente', prioridade: 'Normal', observacoes: '',
+      produtos,
+      selected: !(!numero_pedido && !cliente),
+      erro: (!numero_pedido && !cliente) ? 'Dados insuficientes no PDF' : null,
+      _warnings,
     }
   } catch (e) {
     console.error('[PDF]', e)
     return {
       numero_pedido: '', cliente: file.name.replace(/\.pdf$/i,''), loja: '', local_separacao: '',
-      endereco: '', cidade: 'Belo Horizonte', data_entrega: new Date().toISOString().split('T')[0],
-      status: 'Pendente', prioridade: 'Normal', observacoes: '', produtos: [],
-      selected: false, erro: `Erro ao ler PDF: ${e.message}`,
+      endereco: '', cidade: 'Belo Horizonte', cep: '', telefone: '', email: '',
+      data_entrega: new Date().toISOString().split('T')[0],
+      status: 'Pendente', prioridade: 'Normal', observacoes: '',
+      produtos: [], selected: false,
+      erro: `Erro ao ler PDF: ${e.message}`, _warnings: [],
     }
   }
+}
+
+function EditParsedItemModal({ item, onSave, onClose }) {
+  const [form, setForm] = useState({
+    cliente: item.cliente || '', numero_pedido: item.numero_pedido || '',
+    loja: item.loja || '', data_entrega: item.data_entrega || '',
+    endereco: item.endereco || '', telefone: item.telefone || '',
+    prioridade: item.prioridade || 'Normal', observacoes: item.observacoes || '',
+  })
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+  return (
+    <Modal
+      title={`Editar — ${item._filename || item.cliente || 'PDF'}`}
+      onClose={onClose}
+      footer={<><Btn variant="ghost" onClick={onClose}>Cancelar</Btn><Btn disabled={!form.cliente.trim()} onClick={() => onSave(form)}><Ic n="save" s={13} /> Salvar</Btn></>}
+    >
+      <div className="grid2">
+        <div className="fg"><label className="fl">Cliente *</label><input className="fi" value={form.cliente} onChange={up('cliente')} /></div>
+        <div className="fg"><label className="fl">Nº Pedido</label><input className="fi" value={form.numero_pedido} onChange={up('numero_pedido')} /></div>
+      </div>
+      <div className="grid2">
+        <div className="fg"><label className="fl">Loja</label><input className="fi" value={form.loja} onChange={up('loja')} /></div>
+        <div className="fg"><label className="fl">Data Entrega</label><input className="fi" type="date" value={form.data_entrega} onChange={up('data_entrega')} /></div>
+      </div>
+      <div className="fg"><label className="fl">Endereço</label><input className="fi" value={form.endereco} onChange={up('endereco')} /></div>
+      <div className="grid2">
+        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+        <div className="fg"><label className="fl">Prioridade</label>
+          <select className="fi" value={form.prioridade} onChange={up('prioridade')}>
+            <option>Normal</option><option>Alta</option><option>Urgente</option>
+          </select>
+        </div>
+      </div>
+      <div className="fg"><label className="fl">Observações</label><input className="fi" value={form.observacoes} onChange={up('observacoes')} /></div>
+      <div style={{ marginTop: 8, padding: '7px 10px', background: 'var(--bg2)', borderRadius: 6, fontSize: 12, color: 'var(--t2)' }}>
+        {item.produtos?.length || 0} produto(s) detectado(s) nesta ficha
+      </div>
+    </Modal>
+  )
 }
 
 function ImportarLoteModal({ onClose, onImport }) {
@@ -1229,6 +1281,7 @@ function ImportarLoteModal({ onClose, onImport }) {
   const [files, setFiles] = useState([])
   const [items, setItems] = useState([])
   const [prog, setProg] = useState(0)
+  const [editIdx, setEditIdx] = useState(null)
   const { run, loading } = useAction()
 
   const processar = async () => {
@@ -1243,7 +1296,9 @@ function ImportarLoteModal({ onClose, onImport }) {
         }
         setItems(result)
         setStep(1)
-        toast.info(`${result.length} ficha(s) processada(s). Revise e confirme.`)
+        const erros = result.filter(r => r.erro).length
+        const avisos = result.filter(r => !r.erro && r._warnings?.length).length
+        toast.info(`${result.length} ficha(s) processada(s).${erros ? ` ${erros} com erro.` : ''}${avisos ? ` ${avisos} com aviso.` : ''} Revise e confirme.`)
       })
     } catch (e) {
       console.error('[ImportarLote] processar:', e)
@@ -1251,48 +1306,30 @@ function ImportarLoteModal({ onClose, onImport }) {
     }
   }
 
-  const toggle = (i) => setItems(prev => prev.map((p, idx) => idx === i ? { ...p, selected: !p.selected } : p))
-  const upd = (i, k, v) => setItems(prev => prev.map((p, idx) => idx === i ? { ...p, [k]: v } : p))
+  const toggle  = (i) => setItems(prev => prev.map((p, idx) => idx === i ? { ...p, selected: !p.selected } : p))
+  const updAll  = (i, data) => setItems(prev => prev.map((p, idx) => idx === i ? { ...p, ...data } : p))
   const selecionados = items.filter(p => p.selected && !p.erro)
+  const isPassado = (d) => d && new Date(d + 'T12:00') < new Date(new Date().toDateString())
 
   const confirmar = async () => {
     try {
-      await run(async () => {
-        await onImport(selecionados)
-        setStep(2)
-      })
+      await run(async () => { await onImport(selecionados); setStep(2) })
     } catch (e) {
       console.error('[ImportarLote] confirmar:', e)
       toast.error('Erro na importação: ' + (e.message || 'desconhecido'))
     }
   }
 
-  const isPassado = (d) => d && new Date(d + 'T12:00') < new Date(new Date().toDateString())
-
   return (
     <Modal
       title="Importar Fichas em Lote"
-      subtitle={step === 0 ? 'Selecione os PDFs' : step === 1 ? `${selecionados.length} pronto(s)` : 'Concluído'}
+      subtitle={step === 0 ? 'Selecione os PDFs' : step === 1 ? `${items.length} ficha(s) — ${selecionados.length} selecionada(s)` : 'Concluído'}
       onClose={onClose}
       size="lg"
       footer={
         <>
-          {step === 0 && (
-            <>
-              <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-              <Btn disabled={files.length === 0} loading={loading} onClick={processar}>
-                Processar {files.length} ficha(s)
-              </Btn>
-            </>
-          )}
-          {step === 1 && (
-            <>
-              <Btn variant="secondary" onClick={() => setStep(0)}>← Voltar</Btn>
-              <Btn disabled={selecionados.length === 0} loading={loading} onClick={confirmar}>
-                ✓ Importar {selecionados.length}
-              </Btn>
-            </>
-          )}
+          {step === 0 && (<><Btn variant="ghost" onClick={onClose}>Cancelar</Btn><Btn disabled={files.length === 0} loading={loading} onClick={processar}>Processar {files.length} ficha(s)</Btn></>)}
+          {step === 1 && (<><Btn variant="secondary" onClick={() => setStep(0)}>← Voltar</Btn><Btn disabled={selecionados.length === 0} loading={loading} onClick={confirmar}>✓ Importar {selecionados.length}</Btn></>)}
           {step === 2 && <Btn onClick={onClose}>Fechar</Btn>}
         </>
       }
@@ -1300,20 +1337,18 @@ function ImportarLoteModal({ onClose, onImport }) {
       {step === 0 && (
         <div>
           <label className="upload-zone" style={{ display: 'block' }}>
-            <input type="file" multiple accept=".pdf,.jpg,.png" style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files))} />
+            <input type="file" multiple accept=".pdf" style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files))} />
             <div style={{ fontSize: 28, marginBottom: 8 }}>📄</div>
-            <div style={{ fontWeight: 500, marginBottom: 4 }}>Toque para selecionar fichas</div>
-            <div style={{ fontSize: 12, color: 'var(--t2)' }}>PDF, JPG ou PNG · múltiplos arquivos</div>
+            <div style={{ fontWeight: 500, marginBottom: 4 }}>Toque para selecionar fichas PDF</div>
+            <div style={{ fontSize: 12, color: 'var(--t2)' }}>Múltiplos arquivos PDF</div>
           </label>
           {files.length > 0 && (
             <div style={{ marginTop: 14 }}>
               {files.map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg2)', borderRadius: 6, marginBottom: 5 }}>
-                  <span>📄</span>
+                  <span style={{ fontSize: 14 }}>📄</span>
                   <span style={{ flex: 1, fontSize: 12 }}>{f.name}</span>
-                  <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => setFiles(prev => prev.filter((_, fi) => fi !== i))}>
-                    <Ic n="x" s={12} />
-                  </button>
+                  <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => setFiles(prev => prev.filter((_, fi) => fi !== i))}><Ic n="x" s={12} /></button>
                 </div>
               ))}
             </div>
@@ -1327,40 +1362,70 @@ function ImportarLoteModal({ onClose, onImport }) {
         </div>
       )}
 
-      {step === 1 && items.map((p, i) => (
-        <div key={i} style={{
-          background: p.erro ? 'var(--rdim)' : isPassado(p.data_entrega) ? 'rgba(245,158,11,.05)' : 'var(--bg2)',
-          border: `1px solid ${p.erro ? 'rgba(239,68,68,.3)' : isPassado(p.data_entrega) ? 'rgba(245,158,11,.3)' : 'var(--border)'}`,
-          borderRadius: 10, padding: 13, marginBottom: 9,
-        }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <input type="checkbox" checked={!!p.selected && !p.erro} disabled={!!p.erro} onChange={() => toggle(i)} style={{ marginTop: 3 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div style={{ fontWeight: 500, fontSize: 13 }}>{p.cliente}</div>
-                <span style={{ fontSize: 11, color: 'var(--t2)' }}>#{p.numero_pedido}</span>
-              </div>
-              {!p.erro && (
-                <>
-                  <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 4 }}>{p.endereco}{p.cidade && p.cidade !== 'Belo Horizonte' ? ` — ${p.cidade}` : ''}</div>
-                  {p.loja && <div style={{ fontSize: 11, color: 'var(--accent)', marginBottom: 4 }}>🏪 {p.loja}</div>}
-                  {p.produtos?.length > 0 && <div style={{ fontSize: 11, color: 'var(--green)', marginBottom: 4 }}>📦 {p.produtos.length} produto(s) detectado(s)</div>}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <input type="date" value={p.data_entrega || ''} onChange={e => upd(i, 'data_entrega', e.target.value)}
-                      style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--t1)', fontSize: 12, fontFamily: 'var(--font)' }} />
-                    <select value={p.prioridade} onChange={e => upd(i, 'prioridade', e.target.value)}
-                      style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--t1)', fontSize: 12, fontFamily: 'var(--font)' }}>
-                      <option>Normal</option><option>Alta</option><option>Urgente</option>
-                    </select>
-                  </div>
-                  {isPassado(p.data_entrega) && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--amber)' }}>⚠ Data no passado — verifique</div>}
-                </>
-              )}
-              {p.erro && <div style={{ fontSize: 12, color: 'var(--red)' }}>Erro: {p.erro}</div>}
-            </div>
+      {step === 1 && (
+        <div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="tbl" style={{ minWidth: 680, fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 28 }}></th>
+                  <th style={{ width: 24 }}>#</th>
+                  <th>Cliente</th>
+                  <th>Pedido</th>
+                  <th>Loja</th>
+                  <th>Data</th>
+                  <th>Endereço</th>
+                  <th>Tel</th>
+                  <th style={{ textAlign: 'center' }}>Prod.</th>
+                  <th style={{ width: 36 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((p, i) => {
+                  const hasWarn = !p.erro && p._warnings?.length > 0
+                  return (
+                    <tr key={i} style={{
+                      background: p.erro ? 'var(--rdim)' : hasWarn ? 'rgba(245,158,11,.05)' : 'transparent',
+                      opacity: (!p.selected || p.erro) ? 0.55 : 1,
+                    }}>
+                      <td><input type="checkbox" checked={!!p.selected && !p.erro} disabled={!!p.erro} onChange={() => toggle(i)} /></td>
+                      <td style={{ color: 'var(--t3)', fontFamily: 'var(--mono)' }}>{i + 1}</td>
+                      <td style={{ fontWeight: 500, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.erro ? <span style={{ color: 'var(--red)', fontSize: 11 }}>ERRO</span> : p.cliente}
+                      </td>
+                      <td style={{ fontFamily: 'var(--mono)' }}>
+                        {p.numero_pedido ? `#${p.numero_pedido}` : <span style={{ color: 'var(--red)' }}>?</span>}
+                      </td>
+                      <td style={{ color: 'var(--t2)', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.loja || '—'}</td>
+                      <td style={{ whiteSpace: 'nowrap', color: isPassado(p.data_entrega) ? 'var(--amber)' : 'inherit' }}>
+                        {p.data_entrega ? p.data_entrega.split('-').reverse().join('/') : <span style={{ color: 'var(--amber)' }}>—</span>}
+                      </td>
+                      <td style={{ color: 'var(--t2)', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.endereco || '—'}</td>
+                      <td style={{ color: 'var(--t2)', whiteSpace: 'nowrap' }}>{p.telefone || '—'}</td>
+                      <td style={{ textAlign: 'center', color: p.produtos?.length ? 'var(--green)' : 'var(--amber)', fontWeight: 600 }}>{p.produtos?.length || 0}</td>
+                      <td>
+                        <button className="btn btn-g btn-ico btn-sm" onClick={() => setEditIdx(i)} title="Editar"><Ic n="edit" s={13} /></button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
+          {items.some(p => p._warnings?.length || p.erro) && (
+            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--t2)', padding: '6px 10px', background: 'var(--bg2)', borderRadius: 6 }}>
+              Itens em vermelho = erro de leitura. Amarelo = dados incompletos. Clique em <Ic n="edit" s={11} /> para corrigir.
+            </div>
+          )}
+          {editIdx !== null && (
+            <EditParsedItemModal
+              item={items[editIdx]}
+              onClose={() => setEditIdx(null)}
+              onSave={(dados) => { updAll(editIdx, { ...dados, erro: null, selected: true, _warnings: [] }); setEditIdx(null) }}
+            />
+          )}
         </div>
-      ))}
+      )}
 
       {step === 2 && (
         <div style={{ textAlign: 'center', padding: 32 }}>
