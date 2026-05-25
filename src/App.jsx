@@ -13,7 +13,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 import { pedidosService } from './services/pedidos'
 import {
   produtosService, usuariosService, equipesService,
-  assistenciasService, conferenciasService, pontoService, assinaturasService
+  assistenciasService, conferenciasService, pontoService
 } from './services/index'
 
 // ============================================================
@@ -604,7 +604,6 @@ function PedidoDetalhe({ pedidoId, onBack }) {
 
   const { data: pedido, loading, reload } = useData(() => pedidosService.getById(pedidoId), [pedidoId])
   const { data: historico, reload: reloadHist } = useData(() => pedidosService.getHistorico(pedidoId), [pedidoId])
-  const { data: assinatura } = useData(() => assinaturasService.getByPedido(pedidoId), [pedidoId])
   const { data: entregadores } = useData(() => usuariosService.listEntregadores(), [])
   const { data: histCliente } = useData(
     () => pedido?.cliente ? pedidosService.list({ cliente: pedido.cliente }) : Promise.resolve([]),
@@ -1088,21 +1087,43 @@ async function parseFichaPDF(file) {
   try {
     const buf = await file.arrayBuffer()
     const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
-    let fullText = ''
+
+    // Collect all text items with X/Y positions across all pages
+    const rawItems = []
     for (let p = 1; p <= doc.numPages; p++) {
       const page = await doc.getPage(p)
       const content = await page.getTextContent()
-      let prevY = null
       for (const item of content.items) {
-        if (!item.str) continue
-        const y = Math.round(item.transform[5])
-        if (prevY !== null && Math.abs(prevY - y) > 3) fullText += '\n'
-        fullText += item.str
-        prevY = y
+        if (!item.str?.trim()) continue
+        rawItems.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || 0, pg: p })
       }
-      fullText += '\n'
     }
-    const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean)
+
+    // Group items into lines by page+Y (within 3px tolerance)
+    const lineMap = []
+    for (const item of rawItems) {
+      const existing = lineMap.find(g => g.pg === item.pg && Math.abs(g.y - item.y) <= 3)
+      if (existing) { existing.items.push(item) }
+      else lineMap.push({ pg: item.pg, y: item.y, items: [item] })
+    }
+
+    // Sort: page ascending, then Y descending (higher Y = top of page in PDF coords)
+    lineMap.sort((a, b) => a.pg !== b.pg ? a.pg - b.pg : b.y - a.y)
+
+    // Build text lines with TAB separators where X gap > 10px between item end and next item start
+    const lines = lineMap.map(g => {
+      const sorted = g.items.sort((a, b) => a.x - b.x)
+      let text = ''
+      let prevEnd = null
+      for (const it of sorted) {
+        if (prevEnd !== null && it.x - prevEnd > 10) text += '\t'
+        text += it.str
+        prevEnd = it.x + (it.w > 0 ? it.w : it.str.length * 6)
+      }
+      return text.trim()
+    }).filter(Boolean)
+
+    const fullText = lines.join('\n')
     const lf = (rx) => { const m = fullText.match(rx); return m ? m[1].trim() : '' }
 
     const numero_pedido =
@@ -1117,14 +1138,15 @@ async function parseFichaPDF(file) {
     let loja = lf(/(?:Loja|LOJA|Filial|FILIAL|Emitente)\s*:?\s*([^\n]+)/i)
     if (!loja) {
       for (const line of lines.slice(0, 10)) {
-        if (line.length >= 4 && /^[A-ZÁÉÍÓÚÃÕÇ\s&-]{4,}$/.test(line) && !/^(FICHA|ENTREGA|DOCUMENTO|PEDIDO|DATA|NOTA|RAZÃO|CNPJ|CPF)$/.test(line)) {
-          loja = line; break
+        const clean = line.split('\t')[0].trim()
+        if (clean.length >= 4 && /^[A-ZÁÉÍÓÚÃÕÇ\s&-]{4,}$/.test(clean) && !/^(FICHA|ENTREGA|DOCUMENTO|PEDIDO|DATA|NOTA|RAZ|CNPJ|CPF)/.test(clean)) {
+          loja = clean; break
         }
       }
     }
 
     let data_entrega = ''
-    const dm = fullText.match(/(\d{1,2})\s+de\s+([A-Za-záéíóúãõçêê]+)\s+de\s+(\d{4})/i)
+    const dm = fullText.match(/(\d{1,2})\s+de\s+([A-Za-záéíóúãõçê]+)\s+de\s+(\d{4})/i)
     if (dm) {
       const d = dm[1].padStart(2,'0')
       const mesKey = dm[2].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
@@ -1140,16 +1162,29 @@ async function parseFichaPDF(file) {
     const cidade = lf(/MUNIC[IÍ]PIO\s*:?\s*([^\n]+)/i) || lf(/CIDADE\s*:?\s*([^\n]+)/i) || 'Belo Horizonte'
     const enderecoCompleto = [endereco, bairro].filter(Boolean).join(', ')
 
+    // ── Parse DADOS DOS PRODUTOS section ──
+    const HEADER_COLS = /^(PRODUTO|ACABAMENTO|MEDIDA|TECIDO|LOCAL|VOLUME|QTDE\.?|VALOR|TOTAL)$/i
     const produtos = []
-    const hIdx = lines.findIndex(l => /PRODUTO|DESCRI[ÇC][ÃA]O/i.test(l) && l.length < 80)
-    if (hIdx >= 0) {
-      for (let i = hIdx + 1; i < Math.min(hIdx + 40, lines.length); i++) {
+    const dadosIdx = lines.findIndex(l => /DADOS\s+DOS\s+PRODUTOS/i.test(l))
+    if (dadosIdx >= 0) {
+      // Skip past the column header row (line containing PRODUTO + ACABAMENTO/MEDIDA/QTDE)
+      let startIdx = dadosIdx + 1
+      for (let i = dadosIdx + 1; i < Math.min(dadosIdx + 6, lines.length); i++) {
+        if (/PRODUTO/i.test(lines[i]) && /ACABAMENTO|MEDIDA|QTDE/i.test(lines[i])) {
+          startIdx = i + 1; break
+        }
+      }
+      for (let i = startIdx; i < lines.length; i++) {
         const ln = lines[i]
-        if (!ln || /^(TOTAL|SUB[\s-]?TOTAL|VALOR\s+TOTAL|OBS|ASSINATURA|ENTREGUE|RECEBIDO)/i.test(ln)) break
-        const parts = ln.split(/\s{2,}|\t/).map(s => s.trim()).filter(Boolean)
-        if (!parts[0] || /^[\d.,R$%]+$/.test(parts[0]) || parts[0].length < 2) continue
-        const qty = parts.find(p => /^\d+$/.test(p))
-        produtos.push({ nome_produto: parts[0], acabamento: parts[1] || '', medida: parts[2] || '', quantidade: parseInt(qty) || 1, observacao: '' })
+        if (/DADOS\s+ADICIONAIS|ASSINATURA|FORMULÁRIO|Este documento|DESTINATÁRIO|REMETENTE/i.test(ln)) break
+        if (!ln.trim()) continue
+        const cells = ln.split('\t').map(s => s.trim()).filter(Boolean)
+        if (!cells.length) continue
+        const first = cells[0]
+        if (HEADER_COLS.test(first)) continue
+        if (/^[\d.,R$%\s]+$/.test(first) || first.length < 2) continue
+        const qty = cells.find(c => /^\d+$/.test(c.replace(/[.,]/g, '')))
+        produtos.push({ nome_produto: first, acabamento: cells[1] || '', medida: cells[2] || '', quantidade: parseInt(qty?.replace(/[.,]/g,'')) || 1, observacao: '' })
       }
     }
 
@@ -3500,13 +3535,6 @@ function MinhaRota() {
       await pedidosService.update(active.id, {
         status: 'Entregue',
         hora_fim: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      })
-      await assinaturasService.create({
-        pedido_id: active.id,
-        nome_cliente: sigNome,
-        documento_cliente: sigDoc,
-        assinatura_url: sigData,
-        data_hora: new Date().toISOString(),
       })
       await pedidosService.addHistorico(active.id, 'Entregue', `Concluído por ${perfil?.full_name}. Recebido por: ${sigNome}${obs ? `. Obs: ${obs}` : ''}`, perfil)
       reload()
