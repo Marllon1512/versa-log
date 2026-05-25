@@ -31,6 +31,11 @@ export const produtosService = {
     if (error) throw error
     return true
   },
+  async removeByPedido(pedidoId) {
+    const { error } = await supabase.from('produtos').delete().eq('pedido_id', pedidoId)
+    if (error) throw error
+    return true
+  },
 }
 
 // ── Usuários ──────────────────────────────────────────────

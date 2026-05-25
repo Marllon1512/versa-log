@@ -428,6 +428,9 @@ function Pedidos() {
   const [selected, setSelected] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [checkedIds, setCheckedIds] = useState(new Set())
+  const [showBulkDel, setShowBulkDel] = useState(false)
+  const [bulkDelLoading, setBulkDelLoading] = useState(false)
 
   const { data: pedidos, loading, reload } = useData(() => pedidosService.list(), [])
 
@@ -492,6 +495,29 @@ function Pedidos() {
     else toast.error(`${ok} importado(s), ${erros} com erro. Veja o console (F12).`)
   }
 
+  const toggleCheck = (id, e) => {
+    e.stopPropagation()
+    setCheckedIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
+  const handleBulkDelete = async () => {
+    setBulkDelLoading(true)
+    let ok = 0, erros = 0
+    for (const id of checkedIds) {
+      try {
+        await produtosService.removeByPedido(id)
+        await pedidosService.remove(id)
+        ok++
+      } catch (e) { console.error('[Pedidos] bulkDelete:', e); erros++ }
+    }
+    setBulkDelLoading(false)
+    setShowBulkDel(false)
+    setCheckedIds(new Set())
+    await reload()
+    if (erros === 0) toast.success(`${ok} pedido(s) excluído(s).`)
+    else toast.error(`${ok} excluído(s), ${erros} com erro.`)
+  }
+
   if (selected) {
     return (
       <PedidoDetalhe
@@ -506,15 +532,26 @@ function Pedidos() {
       <div className="ph">
         <div>
           <h1>Pedidos</h1>
-          <div className="ph-sub">{filtered.length} pedido(s) encontrado(s)</div>
+          <div className="ph-sub">{filtered.length} pedido(s){checkedIds.size > 0 ? ` · ${checkedIds.size} selecionado(s)` : ''}</div>
         </div>
         {isGestor && (
           <div className="row">
+            {checkedIds.size > 0 && (
+              <Btn size="sm" style={{ background: 'var(--red)', color: '#fff' }} onClick={() => setShowBulkDel(true)}>
+                <Ic n="x" s={13} /> Excluir {checkedIds.size}
+              </Btn>
+            )}
             <Btn variant="secondary" size="sm" onClick={() => setShowImport(true)}><Ic n="upload" s={13} /> Importar em Lote</Btn>
             <Btn size="sm" onClick={() => setShowNew(true)}><Ic n="plus" s={13} /> Novo Pedido</Btn>
           </div>
         )}
       </div>
+      {showBulkDel && (
+        <Modal title="Excluir Pedidos" onClose={() => setShowBulkDel(false)}
+          footer={<><Btn variant="ghost" onClick={() => setShowBulkDel(false)}>Cancelar</Btn><Btn style={{ background: 'var(--red)', color: '#fff' }} loading={bulkDelLoading} onClick={handleBulkDelete}>Excluir {checkedIds.size} pedido(s)</Btn></>}>
+          <Alert type="error">Tem certeza? Esta ação não pode ser desfeita. Todos os produtos vinculados também serão excluídos.</Alert>
+        </Modal>
+      )}
 
       <div className="filters">
         <input className="search" placeholder="Buscar cliente ou pedido..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -529,7 +566,12 @@ function Pedidos() {
       </div>
 
       {loading ? <Spinner /> : filtered.length === 0 ? <Empty icon="📦" /> :
-        filtered.map(p => <PedidoCard key={p.id} pedido={p} onClick={() => setSelected(p.id)} />)}
+        filtered.map(p => (
+          <PedidoCard key={p.id} pedido={p} onClick={() => setSelected(p.id)}
+            checked={isGestor ? checkedIds.has(p.id) : undefined}
+            onCheck={isGestor ? (e) => toggleCheck(p.id, e) : undefined}
+          />
+        ))}
 
       {showNew && (
         <NovoPedidoModal onClose={() => setShowNew(false)} onSave={handleCreate} />
@@ -541,10 +583,14 @@ function Pedidos() {
   )
 }
 
-function PedidoCard({ pedido: p, onClick }) {
+function PedidoCard({ pedido: p, onClick, checked, onCheck }) {
   const d = useDateInfo(p.data_entrega)
   return (
-    <div className="li" onClick={onClick}>
+    <div className="li" onClick={onClick} style={{ background: checked ? 'var(--rdim)' : undefined }}>
+      {onCheck !== undefined && (
+        <input type="checkbox" checked={!!checked} onChange={onCheck}
+          style={{ flexShrink: 0, marginRight: 4, cursor: 'pointer' }} />
+      )}
       <div className="li-main">
         <div className="li-title">{p.cliente}</div>
         <div className="li-sub">#{p.numero_pedido} · {p.endereco}{p.cidade ? `, ${p.cidade}` : ''}</div>
@@ -600,6 +646,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   const [showRemarcar, setShowRemarcar] = useState(false)
   const [showCancelar, setShowCancelar] = useState(false)
   const [showWaGestor, setShowWaGestor] = useState(false)
+  const [showExcluir, setShowExcluir] = useState(false)
   const { run: runAction, loading: actionLoading } = useAction()
 
   const { data: pedido, loading, reload } = useData(() => pedidosService.getById(pedidoId), [pedidoId])
@@ -677,6 +724,17 @@ function PedidoDetalhe({ pedidoId, onBack }) {
     } catch (e) { console.error('[Pedido] handleCancelar:', e); toast.error('Erro: ' + e.message) }
   }
 
+  const handleExcluir = async () => {
+    try {
+      await runAction(async () => {
+        await produtosService.removeByPedido(pedidoId)
+        await pedidosService.remove(pedidoId)
+      })
+      toast.success('Pedido excluído com sucesso.')
+      onBack()
+    } catch (e) { console.error('[Pedido] handleExcluir:', e); toast.error('Erro ao excluir: ' + e.message) }
+  }
+
   if (loading) return <div className="page"><Spinner /></div>
   if (!pedido) return <div className="page"><Empty text="Pedido não encontrado" /></div>
 
@@ -689,8 +747,16 @@ function PedidoDetalhe({ pedidoId, onBack }) {
         <div className="row">
           <Btn variant="secondary" size="sm" onClick={() => gerarPDFSimples(pedido, produtos || [])}><Ic n="pdf" s={13} /> Gerar PDF</Btn>
           {isGestor && <Btn variant="secondary" size="sm" onClick={() => setShowEdit(true)}><Ic n="edit" s={13} /></Btn>}
+          {isGestor && <Btn size="sm" style={{ background: 'var(--red)', color: '#fff' }} onClick={() => setShowExcluir(true)}><Ic n="x" s={13} /> Excluir</Btn>}
         </div>
       </div>
+      {showExcluir && (
+        <Modal title="Excluir Pedido" onClose={() => setShowExcluir(false)}
+          footer={<><Btn variant="ghost" onClick={() => setShowExcluir(false)}>Cancelar</Btn><Btn style={{ background: 'var(--red)', color: '#fff' }} loading={actionLoading} onClick={handleExcluir}>Excluir definitivamente</Btn></>}>
+          <Alert type="error">Tem certeza? Esta ação não pode ser desfeita. Todos os produtos vinculados também serão excluídos.</Alert>
+          <div style={{ marginTop: 10, fontWeight: 500 }}>Pedido #{pedido?.numero_pedido} — {pedido?.cliente}</div>
+        </Modal>
+      )}
 
       <Badge status={pedido.status} style={{ marginBottom: 8 }} />
       <h1 style={{ fontSize: 20, marginBottom: 2 }}>{pedido.cliente}</h1>
