@@ -1085,6 +1085,7 @@ const MESES_PT = { janeiro:1,fevereiro:2,'março':3,abril:4,maio:5,junho:6,julho
 
 async function parseFichaPDF(file) {
   try {
+    console.log('PARSE INICIADO:', file.name)
     const buf = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise
 
@@ -1101,6 +1102,8 @@ async function parseFichaPDF(file) {
     }
     // Ordenar: top-to-bottom (Y desc), left-to-right (X asc)
     allItems.sort((a, b) => b.y - a.y || a.x - b.x)
+    console.log('TOTAL ITEMS:', allItems.length)
+    allItems.slice(0, 30).forEach(i => console.log(i.x, i.y, i.text))
 
     const fullText = allItems.map(i => i.text).join(' ')
 
@@ -1178,19 +1181,18 @@ async function parseFichaPDF(file) {
 
     // ── DADOS ADICIONAIS: endereço de entrega e observação ──
     const idxAdicInicio = allItems.findIndex(i => /DADOS\s*ADICIONAIS/i.test(i.text))
-    const dadosAdic = idxAdicInicio >= 0 ? allItems.slice(idxAdicInicio) : []
 
+    // Endereço: pegar exatamente 2 linhas após "ENDEREÇO DE ENTREGA"
     let enderecoEntrega = ''
-    const idxEndEnt = dadosAdic.findIndex(i => /ENDERE[ÇC]O\s*DE\s*ENTREGA/i.test(i.text))
+    const IGNORAR_END = ['OBSERVAÇÃO','OBSERVACAO','SR(A)','GORJETA','DOCUMENTO','ESTE DOCUMENTO','FORMULÁRIO','IDENTIFICAÇÃO','ASSINATURA','RECEBEDOR','ENTREGADORES','DATA DE']
+    const idxEndEnt = allItems.findIndex(i => i.text.toUpperCase().includes('ENDEREÇO DE ENTREGA') || i.text.toUpperCase().includes('ENDERECO DE ENTREGA'))
     if (idxEndEnt >= 0) {
-      const STOP = ['OBSERVA','BAIRRO','MUNIC','ESTADO','CEP','FONE','CNPJ','CPF','ASSIN']
-      const partes = []
-      for (let j = idxEndEnt + 1; j < Math.min(idxEndEnt + 20, dadosAdic.length); j++) {
-        const t = dadosAdic[j].text
-        if (STOP.some(s => t.toUpperCase().startsWith(s))) break
-        partes.push(t)
+      const linhasEnd = []
+      for (let j = idxEndEnt + 1; j < allItems.length && linhasEnd.length < 2; j++) {
+        const t = allItems[j].text
+        if (t.length > 3 && !IGNORAR_END.some(ig => t.toUpperCase().includes(ig))) linhasEnd.push(t)
       }
-      enderecoEntrega = partes.join(' ').replace(/^Documento\s*/i, '').trim()
+      enderecoEntrega = linhasEnd.join(', ')
     }
 
     // Observação do cliente
@@ -1210,6 +1212,8 @@ async function parseFichaPDF(file) {
     const idxInicio = allItems.findIndex(i => /DADOS\s*DOS\s*PRODUTOS/i.test(i.text))
     const idxFim    = idxAdicInicio >= 0 ? idxAdicInicio : allItems.length
     const zonaProdutos = idxInicio >= 0 ? allItems.slice(idxInicio + 1, idxFim) : []
+    console.log('=== ZONA PRODUTOS ===', 'idxInicio:', idxInicio, 'idxFim:', idxFim, 'total:', zonaProdutos.length)
+    zonaProdutos.forEach(i => console.log('x:' + i.x, 'y:' + i.y, '"' + i.text + '"'))
 
     // Agrupar itens por linha Y (tolerância ±15px), ordenar por X dentro de cada linha
     function agruparPorLinha(items, tolerancia = 15) {
