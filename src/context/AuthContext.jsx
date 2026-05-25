@@ -44,29 +44,36 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const login = async (email, password) => {
-    // Fallback local para quando Supabase estiver indisponível
-    const LOCAL_USERS = [
-      { email: 'admin@versalog.com', password: 'Versa@2026', full_name: 'Marllon Augusto', role: 'admin' },
-      { email: 'gestor@versalog.com', password: 'Versa@2026', full_name: 'Carlos Gestor', role: 'gestor' },
-      { email: 'entregador@versalog.com', password: 'Versa@2026', full_name: 'João Entregador', role: 'entregador' },
-      { email: 'motorista@versalog.com', password: 'Versa@2026', full_name: 'Pedro Motorista', role: 'motorista' },
-    ]
+  const login = async (loginInput, password) => {
+    const sha256 = async (msg) => {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg))
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+    }
+    // Autenticação direto na tabela usuarios (email ou campo usuario + senha_hash)
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw new Error(error.message)
-      return data
-    } catch (e) {
-      // Se Supabase falhar, tenta login local
-      const localUser = LOCAL_USERS.find(u => u.email === email && u.password === password)
-      if (localUser) {
-        const perfil = { id: localUser.email, email: localUser.email, full_name: localUser.full_name, role: localUser.role }
+      const hash = await sha256(password)
+      const { data: rows } = await supabase
+        .from('usuarios')
+        .select('*')
+        .or(`email.eq.${loginInput},usuario.eq.${loginInput}`)
+      const user = (rows || []).find(u => u.senha_hash === hash)
+      if (user) {
+        const perfil = { id: user.id, email: user.email, full_name: user.full_name, role: user.role }
         setPerfil(perfil)
         sessionStorage.setItem('versa_perfil', JSON.stringify(perfil))
         return perfil
       }
-      throw new Error('Email ou senha incorretos')
+    } catch (e) {
+      console.warn('[Auth] Erro ao consultar usuarios:', e?.message)
     }
+    // Fallback admin fixo — para acesso de manutenção sem banco
+    if (loginInput === 'admin@versalog.com' && password === 'Versa@2026') {
+      const perfil = { id: 'admin-local', email: 'admin@versalog.com', full_name: 'Marllon Augusto', role: 'admin' }
+      setPerfil(perfil)
+      sessionStorage.setItem('versa_perfil', JSON.stringify(perfil))
+      return perfil
+    }
+    throw new Error('Email ou senha incorretos')
   }
 
   const logout = async () => {

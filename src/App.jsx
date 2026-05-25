@@ -53,22 +53,13 @@ function Login() {
         {err && <Alert type="error">{err}</Alert>}
 
         <form onSubmit={handleLogin}>
-          <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required />
+          <Input label="Email ou usuário" type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="email ou nome de usuário" required />
           <Input label="Senha" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••" required />
           <Btn type="submit" style={{ width: '100%', justifyContent: 'center', padding: 12, marginTop: 4 }} loading={loading}>
             Entrar
           </Btn>
         </form>
 
-        <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-          <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 10, textAlign: 'center' }}>Acesso rápido:</div>
-          {[['Admin', 'admin@versalog.com'], ['Gestor', 'gestor@versalog.com'], ['Entregador', 'entregador@versalog.com']].map(([label, e]) => (
-            <button key={label} className="btn btn-s" style={{ width: '100%', justifyContent: 'center', marginBottom: 6 }}
-              onClick={() => handleLogin(null, e, 'Versa@2026')} disabled={loading}>
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   )
@@ -1231,6 +1222,7 @@ function Assistencia() {
   const [selectedId, setSelectedId] = useState(null)
   const [showRelatorio, setShowRelatorio] = useState(false)
   const { data: assistencias, loading, reload } = useData(() => assistenciasService.list(), [])
+  const novasSolicitacoes = (assistencias || []).filter(a => a.status === 'solicitacao' || a.origem === 'formulario')
 
   const hoje = new Date()
   const diasAberto = (d) => !d ? 0 : Math.floor((hoje - new Date(d)) / 86400000)
@@ -1249,7 +1241,7 @@ function Assistencia() {
 
   const handleCreate = async (dados) => {
     const { itens, ...assistencia } = dados
-    const nova = await assistenciasService.create({ ...assistencia, created_by: perfil?.id })
+    const nova = await assistenciasService.create(assistencia)
     if (itens?.length) {
       for (const item of itens) await assistenciasService.createItem({ ...item, assistencia_id: nova.id })
     }
@@ -1366,10 +1358,27 @@ function Assistencia() {
         </div>
         <div className="row" style={{ gap: 6 }}>
           <Btn variant="ghost" size="sm" onClick={() => setShowRelatorio(true)}><Ic n="bar" s={13} /> Relatório</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => {
+            const url = `${window.location.origin}${window.location.pathname}#/solicitar`
+            const txt = encodeURIComponent(`Solicite assistência técnica aqui: ${url}`)
+            window.open(`https://wa.me/?text=${txt}`, '_blank')
+          }}>📲 WhatsApp</Btn>
           <Btn variant="secondary" size="sm" onClick={() => setShowImport(true)}><Ic n="save" s={13} /> Excel</Btn>
           <Btn size="sm" onClick={() => setShowNew(true)}><Ic n="plus" s={13} /> Nova</Btn>
         </div>
       </div>
+
+      {novasSolicitacoes.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, borderColor: 'var(--accent)', background: 'var(--adim)', cursor: 'pointer' }}
+          onClick={() => { setSf('Todos'); setBusca('') }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.5s infinite' }} />
+            <div style={{ fontWeight: 600 }}>Novas Solicitações</div>
+            <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: 12, fontSize: 11, fontWeight: 700, padding: '1px 8px' }}>{novasSolicitacoes.length}</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 4 }}>Aguardando aprovação do supervisor</div>
+        </div>
+      )}
 
       <div className="stats" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 20 }}>
         {[
@@ -2225,7 +2234,12 @@ function Conferencia() {
     setShowNew(false)
   }
 
-  if (selectedId) return <ConferenciaDetalhe id={selectedId} onBack={() => { setSelectedId(null); reload() }} />
+  const handleEncaminhar = (c) => {
+    const url = `${window.location.origin}${window.location.pathname}#/solicitar`
+    alert(`Abra uma Nova Assistência preenchendo com:\nCliente: ${c.produto}\nPedido: ${c.numero_pedido}\nFornecedor: ${c.fornecedor}\nMotivo: ${c.motivo_reprovacao || 'Avaria'}`)
+  }
+
+  if (selectedId) return <ConferenciaDetalhe id={selectedId} onBack={() => { setSelectedId(null); reload() }} onEncaminharAssistencia={handleEncaminhar} />
 
   return (
     <div className="page">
@@ -2266,40 +2280,57 @@ function Conferencia() {
 }
 
 function gerarPDFConferencia(c) {
+  const fotos = c.fotos || {}
+  const slots = [['frente','Frente'],['costas','Costas'],['ladoEsq','Lado Esq.'],['ladoDir','Lado Dir.']]
+  const fotoGrid = slots.map(([k,lbl]) => fotos[k]
+    ? `<div style="text-align:center"><div style="font-size:10px;color:#64748b;margin-bottom:3px">${lbl}</div><img src="${fotos[k]}" style="width:100%;height:140px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0"/></div>`
+    : `<div style="text-align:center;border:1px dashed #cbd5e1;border-radius:6px;height:140px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">${lbl}<br/>sem foto</div>`
+  ).join('')
   const w = window.open('', '_blank')
   w.document.write(`
     <html><head><title>Conferência #${c.numero_pedido}</title>
-    <style>body{font-family:sans-serif;padding:24px}h1{font-size:18px}p{font-size:13px;margin:4px 0}.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:${c.resultado==='Aprovado'?'#dcfce7;color:#16a34a':'#fee2e2;color:#dc2626'}}</style>
+    <style>*{box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;padding:24px;color:#1e293b;max-width:800px;margin:0 auto}h1{font-size:17px;margin-bottom:4px}p{font-size:13px;margin:4px 0}.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;background:${c.resultado==='Aprovado'?'#dcfce7;color:#16a34a':'#fee2e2;color:#dc2626'}}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}</style>
     </head><body>
     <h1>Conferência — Pedido #${c.numero_pedido}</h1>
     <p><span class="badge">${c.resultado || 'Pendente'}</span></p>
-    <p><b>Produto:</b> ${c.produto}</p>
-    <p><b>NF:</b> ${c.numero_nf}</p>
-    <p><b>Fornecedor:</b> ${c.fornecedor}</p>
-    <p><b>Conferente:</b> ${c.conferente_nome}</p>
-    <p><b>Data:</b> ${new Date(c.data_hora).toLocaleString('pt-BR')}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:10px 0;font-size:13px">
+      <p><b>Produto:</b> ${c.produto}</p><p><b>NF:</b> ${c.numero_nf}</p>
+      <p><b>Fornecedor:</b> ${c.fornecedor}</p><p><b>Conferente:</b> ${c.conferente_nome}</p>
+      <p><b>Data:</b> ${new Date(c.data_hora).toLocaleString('pt-BR')}</p>
+    </div>
     ${c.motivo_reprovacao ? `<p><b>Motivo:</b> ${c.motivo_reprovacao}</p>` : ''}
     ${c.descricao_reprovacao ? `<p><b>Descrição:</b> ${c.descricao_reprovacao}</p>` : ''}
+    <div style="margin-top:18px;font-size:12px;font-weight:600;color:#475569;border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:10px">FOTOS DO PRODUTO</div>
+    <div class="grid">${fotoGrid}</div>
     <script>window.onload=()=>{window.print()}</script>
     </body></html>
   `)
   w.document.close()
 }
 
-function ConferenciaDetalhe({ id, onBack }) {
+function ConferenciaDetalhe({ id, onBack, onEncaminharAssistencia }) {
   const { data: c, loading } = useData(() => conferenciasService.getById(id), [id])
   if (loading) return <div className="page"><Spinner /></div>
   if (!c) return <div className="page"><Empty text="Não encontrado" /></div>
+  const fotos = c.fotos || {}
+  const slots = [['frente','Frente'],['costas','Costas'],['ladoEsq','Lado Esq.'],['ladoDir','Lado Dir.']]
+  const temAvaria = c.resultado === 'Reprovado'
   return (
     <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
-        <Btn variant="secondary" size="sm" onClick={() => gerarPDFConferencia(c)}><Ic n="pdf" s={13} /> Gerar PDF</Btn>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {temAvaria && onEncaminharAssistencia && (
+            <Btn size="sm" style={{ background: 'var(--amber)', color: '#fff' }}
+              onClick={() => onEncaminharAssistencia(c)}>🔧 Encaminhar p/ Assistência</Btn>
+          )}
+          <Btn variant="secondary" size="sm" onClick={() => gerarPDFConferencia(c)}><Ic n="pdf" s={13} /> PDF</Btn>
+        </div>
       </div>
       <Badge status={c.resultado || 'Pendente'} style={{ marginBottom: 8 }} />
       <h1 style={{ fontSize: 18, marginBottom: 4 }}>{c.produto}</h1>
       <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 16 }}>Pedido #{c.numero_pedido} · NF: {c.numero_nf}</div>
-      <div className="card">
+      <div className="card" style={{ marginBottom: 12 }}>
         <div className="grid2" style={{ fontSize: 13, gap: 10 }}>
           <div><span style={{ color: 'var(--t2)' }}>Fornecedor: </span>{c.fornecedor}</div>
           <div><span style={{ color: 'var(--t2)' }}>Conferente: </span>{c.conferente_nome}</div>
@@ -2308,24 +2339,86 @@ function ConferenciaDetalhe({ id, onBack }) {
         </div>
         {c.descricao_reprovacao && <div style={{ marginTop: 12, fontSize: 13, color: 'var(--t2)' }}>{c.descricao_reprovacao}</div>}
       </div>
+      {Object.values(fotos).some(Boolean) && (
+        <div className="card">
+          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 10 }}>Fotos do produto</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
+            {slots.map(([k, lbl]) => fotos[k] ? (
+              <div key={k} style={{ textAlign: 'center' }}>
+                <img src={fotos[k]} alt={lbl} style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8 }} />
+                <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 3 }}>{lbl}</div>
+              </div>
+            ) : null)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FotoCaptura({ label, value, onChange }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      <label style={{ fontSize: 11, color: 'var(--t3)', textAlign: 'center' }}>{label}</label>
+      {value ? (
+        <div style={{ position: 'relative' }}>
+          <img src={value.preview} alt={label} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '2px solid var(--green)' }} />
+          <button onClick={() => onChange(null)} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: 'var(--red)', border: 'none', color: '#fff', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        </div>
+      ) : (
+        <label style={{ width: 90, height: 90, borderRadius: 8, border: '2px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', gap: 4 }}>
+          <span style={{ fontSize: 24 }}>📷</span>
+          <span style={{ fontSize: 10, color: 'var(--t3)' }}>Tirar foto</span>
+          <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => {
+            const f = e.target.files?.[0]
+            if (!f) return
+            const preview = URL.createObjectURL(f)
+            onChange({ file: f, preview })
+          }} />
+        </label>
+      )}
     </div>
   )
 }
 
 function NovaConferenciaModal({ onClose, onSave }) {
   const [form, setForm] = useState({ numero_pedido: '', numero_nf: '', produto: '', fornecedor: '', resultado: '', motivo_reprovacao: '', descricao_reprovacao: '' })
+  const [fotos, setFotos] = useState({ frente: null, costas: null, ladoEsq: null, ladoDir: null })
   const { run, loading } = useAction()
   const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
-  const canSave = form.numero_pedido && form.produto && form.fornecedor && form.numero_nf && form.resultado
+  const setFoto = (k) => (v) => setFotos(prev => ({ ...prev, [k]: v }))
+  const todasFotos = fotos.frente && fotos.costas && fotos.ladoEsq && fotos.ladoDir
+  const canSave = form.numero_pedido && form.produto && form.fornecedor && form.numero_nf && form.resultado && todasFotos
+
+  const handleSave = async () => {
+    const tmpId = crypto.randomUUID()
+    const fotoUrls = {}
+    for (const [slot, foto] of Object.entries(fotos)) {
+      if (!foto?.file) continue
+      try {
+        const ext = foto.file.name.split('.').pop() || 'jpg'
+        const path = `${tmpId}/${slot}.${ext}`
+        const { error } = await supabase.storage.from('conferencias').upload(path, foto.file)
+        if (!error) {
+          const { data: { publicUrl } } = supabase.storage.from('conferencias').getPublicUrl(path)
+          fotoUrls[slot] = publicUrl
+        }
+      } catch {}
+    }
+    await onSave({ ...form, fotos: fotoUrls })
+  }
 
   return (
     <Modal
       title="Nova Conferência"
       onClose={onClose}
+      size="lg"
       footer={
         <>
           <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-          <Btn disabled={!canSave} loading={loading} onClick={() => run(() => onSave(form))}>Salvar</Btn>
+          <Btn disabled={!canSave} loading={loading} onClick={() => run(handleSave)}>
+            {!todasFotos ? '4 fotos obrigatórias' : 'Salvar'}
+          </Btn>
         </>
       }
     >
@@ -2353,6 +2446,16 @@ function NovaConferenciaModal({ onClose, onSave }) {
           <div className="fg"><label className="fl">Descrição</label><textarea className="fi" rows={2} value={form.descricao_reprovacao} onChange={up('descricao_reprovacao')} /></div>
         </>
       )}
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 10, fontWeight: 500 }}>Fotos do produto * (4 obrigatórias)</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+          <FotoCaptura label="Frente" value={fotos.frente} onChange={setFoto('frente')} />
+          <FotoCaptura label="Costas" value={fotos.costas} onChange={setFoto('costas')} />
+          <FotoCaptura label="Lado Esq." value={fotos.ladoEsq} onChange={setFoto('ladoEsq')} />
+          <FotoCaptura label="Lado Dir." value={fotos.ladoDir} onChange={setFoto('ladoDir')} />
+        </div>
+        {!todasFotos && <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 8 }}>⚠ Tire as 4 fotos para habilitar o botão Salvar</div>}
+      </div>
     </Modal>
   )
 }
@@ -2366,6 +2469,7 @@ function Roteiro() {
   const [loading, setLoading] = useState(true)
   const [showNovo, setShowNovo] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
+  const [tipoTab, setTipoTab] = useState('entregas')
 
   const carregar = () => {
     setLoading(true)
@@ -2377,7 +2481,7 @@ function Roteiro() {
 
   const criar = async (dados) => {
     const { itens, ...roteiro } = dados
-    const { data: novo } = await supabase.from('roteiros').insert({ ...roteiro, status: 'planejado', created_at: new Date().toISOString() }).select().single()
+    const { data: novo } = await supabase.from('roteiros').insert({ ...roteiro, tipo: tipoTab, status: 'planejado', created_at: new Date().toISOString() }).select().single()
     if (novo && itens?.length) {
       await supabase.from('roteiro_itens').insert(itens.map((item, i) => ({ ...item, roteiro_id: novo.id, ordem: i + 1, concluido: false })))
     }
@@ -2386,20 +2490,29 @@ function Roteiro() {
 
   if (selectedId) return <RoteiroDetalhe id={selectedId} onBack={() => { setSelectedId(null); carregar() }} />
 
+  const filtrados = roteiros.filter(r => (r.tipo || 'entregas') === tipoTab)
+
   return (
     <div className="page">
       <div className="ph">
         <div>
           <h1>Roteiro Diário</h1>
-          <div className="ph-sub">{roteiros.length} roteiro(s)</div>
+          <div className="ph-sub">{filtrados.length} roteiro(s)</div>
         </div>
-        {isGestor && <Btn size="sm" onClick={() => setShowNovo(true)}><Ic n="plus" s={13} /> Novo Roteiro</Btn>}
+        {isGestor && <Btn size="sm" onClick={() => setShowNovo(true)}><Ic n="plus" s={13} /> Novo</Btn>}
       </div>
 
-      {loading ? <Spinner /> : roteiros.length === 0 ? <Empty icon="🗺️" text="Nenhum roteiro cadastrado" /> :
-        roteiros.map(r => (
+      <div className="filters" style={{ marginBottom: 16 }}>
+        <button className={`fb${tipoTab === 'entregas' ? ' on' : ''}`} onClick={() => setTipoTab('entregas')}>🚚 Roteiro de Entregas</button>
+        <button className={`fb${tipoTab === 'assistencias' ? ' on' : ''}`} onClick={() => setTipoTab('assistencias')}>🔧 Roteiro de Assistências</button>
+      </div>
+
+      {loading ? <Spinner /> : filtrados.length === 0 ? <Empty icon="🗺️" text={`Nenhum roteiro de ${tipoTab === 'entregas' ? 'entregas' : 'assistências'}`} /> :
+        filtrados.map(r => (
           <div key={r.id} className="li" onClick={() => setSelectedId(r.id)}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>🗺️</div>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
+              {r.tipo === 'assistencias' ? '🔧' : '🗺️'}
+            </div>
             <div className="li-main">
               <div className="li-title">Roteiro {r.data ? new Date(r.data + 'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
               <div className="li-sub">{r.motorista_nome || '—'}{r.montador_nome ? ` · ${r.montador_nome}` : ''}</div>
@@ -2411,7 +2524,7 @@ function Roteiro() {
         ))
       }
 
-      {showNovo && <NovoRoteiroModal onClose={() => setShowNovo(false)} onSave={criar} />}
+      {showNovo && <NovoRoteiroModal onClose={() => setShowNovo(false)} onSave={criar} tipo={tipoTab} />}
     </div>
   )
 }
@@ -2546,7 +2659,7 @@ function gerarPDFRoteiro(roteiro, itens) {
   w.document.close()
 }
 
-function NovoRoteiroModal({ onClose, onSave }) {
+function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
   const { data: assistencias } = useData(() => assistenciasService.list(), [])
   const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], motorista_nome: '', montador_nome: '' })
   const [itens, setItens] = useState([])
@@ -2554,12 +2667,13 @@ function NovoRoteiroModal({ onClose, onSave }) {
   const { run, loading } = useAction()
 
   const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
-  const TIPOS = ['Coleta', 'Vistoria', 'Retoque', 'Visita Técnica', 'Entrega e Instalação']
+  const TIPOS_SERVICO = ['Coleta', 'Vistoria', 'Retoque', 'Visita Técnica', 'Entrega e Instalação', 'Troca', 'Outros']
 
   const addAssistencia = (a) => {
     if (itens.find(it => it.assistencia_id === a.id)) return
     setItens(prev => [...prev, { assistencia_id: a.id, cliente: a.cliente, pedido_ref: a.pedido_ref || '', loja: a.loja || '', bairro: '', status_servico: 'Visita Técnica' }])
   }
+  const addManual = () => setItens(prev => [...prev, { assistencia_id: null, cliente: '', pedido_ref: '', loja: '', bairro: '', status_servico: tipo === 'entregas' ? 'Entrega e Instalação' : 'Visita Técnica' }])
 
   const upItem = (idx, k, v) => setItens(prev => prev.map((it, i) => i === idx ? { ...it, [k]: v } : it))
   const remItem = (idx) => setItens(prev => prev.filter((_, i) => i !== idx))
@@ -2573,7 +2687,7 @@ function NovoRoteiroModal({ onClose, onSave }) {
 
   return (
     <Modal
-      title="Novo Roteiro"
+      title={tipo === 'assistencias' ? 'Novo Roteiro de Assistências' : 'Novo Roteiro de Entregas'}
       subtitle={`Etapa ${step + 1} de 2 — ${['Dados gerais', 'Paradas'][step]}`}
       onClose={onClose}
       size="lg"
@@ -2591,55 +2705,60 @@ function NovoRoteiroModal({ onClose, onSave }) {
           <div className="fg"><label className="fl">Data *</label><input className="fi" type="date" value={form.data} onChange={up('data')} /></div>
           <div className="grid2">
             <div className="fg"><label className="fl">Motorista *</label><input className="fi" value={form.motorista_nome} onChange={up('motorista_nome')} /></div>
-            <div className="fg"><label className="fl">Montador</label><input className="fi" value={form.montador_nome} onChange={up('montador_nome')} /></div>
+            <div className="fg"><label className="fl">Montador / Técnico</label><input className="fi" value={form.montador_nome} onChange={up('montador_nome')} /></div>
           </div>
         </>
       )}
       {step === 1 && (
         <>
-          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>Selecionar assistências abertas:</div>
-          <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8, marginBottom: 16 }}>
-            {abertas.length === 0 ? <div style={{ fontSize: 12, color: 'var(--t3)', padding: 8 }}>Nenhuma assistência aberta</div> :
-              abertas.map(a => {
-                const adicionada = !!itens.find(it => it.assistencia_id === a.id)
-                return (
-                  <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 4px', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: 12 }}>
-                      <span style={{ fontWeight: 500 }}>{a.cliente}</span>
-                      {a.pedido_ref && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>#{a.pedido_ref}</span>}
-                      {a.loja && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>{a.loja}</span>}
+          {tipo === 'assistencias' && abertas.length > 0 && (
+            <>
+              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>Assistências abertas (clique para adicionar):</div>
+              <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8, marginBottom: 12 }}>
+                {abertas.map(a => {
+                  const adicionada = !!itens.find(it => it.assistencia_id === a.id)
+                  return (
+                    <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 4px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 12 }}>
+                        <span style={{ fontWeight: 500 }}>{a.cliente}</span>
+                        {a.pedido_ref && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>#{a.pedido_ref}</span>}
+                      </div>
+                      <Btn size="sm" variant={adicionada ? 'secondary' : 'primary'} onClick={() => addAssistencia(a)} disabled={adicionada}>{adicionada ? '✓' : '+'}</Btn>
                     </div>
-                    <Btn size="sm" variant={adicionada ? 'secondary' : 'primary'} onClick={() => addAssistencia(a)} disabled={adicionada}>{adicionada ? '✓' : '+'}</Btn>
-                  </div>
-                )
-              })}
-          </div>
-          {itens.length > 0 && (
-            <div>
-              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>Paradas selecionadas ({itens.length}):</div>
-              {itens.map((item, idx) => (
-                <div key={idx} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>#{idx + 1} {item.cliente}</div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-g btn-ico btn-sm" onClick={() => mover(idx, -1)} disabled={idx === 0}>↑</button>
-                      <button className="btn btn-g btn-ico btn-sm" onClick={() => mover(idx, 1)} disabled={idx === itens.length - 1}>↓</button>
-                      <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => remItem(idx)}><Ic n="trash" s={11} /></button>
-                    </div>
-                  </div>
-                  <div className="grid2" style={{ gap: 6 }}>
-                    <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Bairro</label><input className="fi" value={item.bairro} onChange={e => upItem(idx, 'bairro', e.target.value)} placeholder="Bairro" /></div>
-                    <div className="fg" style={{ marginBottom: 0 }}>
-                      <label className="fl">Tipo de Serviço</label>
-                      <select className="fi" value={item.status_servico} onChange={e => upItem(idx, 'status_servico', e.target.value)}>
-                        {TIPOS.map(t => <option key={t}>{t}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  )
+                })}
+              </div>
+            </>
           )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontWeight: 500, fontSize: 13 }}>Paradas ({itens.length})</div>
+            <Btn variant="secondary" size="sm" onClick={addManual}><Ic n="plus" s={12} /> Adicionar manual</Btn>
+          </div>
+          {itens.length === 0 && <div style={{ fontSize: 12, color: 'var(--t3)', textAlign: 'center', padding: 16 }}>Adicione paradas acima</div>}
+          {itens.map((item, idx) => (
+            <div key={idx} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>#{idx + 1}</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn btn-g btn-ico btn-sm" onClick={() => mover(idx, -1)} disabled={idx === 0}>↑</button>
+                  <button className="btn btn-g btn-ico btn-sm" onClick={() => mover(idx, 1)} disabled={idx === itens.length - 1}>↓</button>
+                  <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => remItem(idx)}><Ic n="trash" s={11} /></button>
+                </div>
+              </div>
+              <div className="grid2" style={{ gap: 6 }}>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Cliente *</label><input className="fi" value={item.cliente} onChange={e => upItem(idx, 'cliente', e.target.value)} /></div>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Pedido</label><input className="fi" value={item.pedido_ref} onChange={e => upItem(idx, 'pedido_ref', e.target.value)} /></div>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Loja</label><input className="fi" value={item.loja} onChange={e => upItem(idx, 'loja', e.target.value)} /></div>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Bairro</label><input className="fi" value={item.bairro} onChange={e => upItem(idx, 'bairro', e.target.value)} /></div>
+              </div>
+              <div className="fg" style={{ marginBottom: 0, marginTop: 6 }}>
+                <label className="fl">Tipo de Serviço</label>
+                <select className="fi" value={item.status_servico} onChange={e => upItem(idx, 'status_servico', e.target.value)}>
+                  {TIPOS_SERVICO.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+          ))}
         </>
       )}
     </Modal>
@@ -2778,14 +2897,32 @@ function NovaEquipeForm({ usuarios, onClose, onSave }) {
 }
 
 function NovoUsuarioForm({ onClose, onSave }) {
-  const [form, setForm] = useState({ full_name: '', email: '', role: 'entregador', telefone: '' })
+  const [form, setForm] = useState({ full_name: '', usuario: '', senha: '', role: 'entregador', telefone: '' })
   const { run, loading } = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+  const canSave = form.full_name.trim() && form.usuario.trim() && form.senha.length >= 4
+
+  const handleSave = async () => {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(form.senha))
+    const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+    await onSave({
+      full_name: form.full_name.trim(),
+      email: `${form.usuario.trim()}@versalog.local`,
+      usuario: form.usuario.trim().toLowerCase(),
+      senha_hash: hash,
+      role: form.role,
+      telefone: form.telefone,
+    })
+  }
+
   return (
     <>
       <div className="mb">
         <div className="fg"><label className="fl">Nome Completo *</label><input className="fi" value={form.full_name} onChange={up('full_name')} /></div>
-        <div className="fg"><label className="fl">Email *</label><input className="fi" type="email" value={form.email} onChange={up('email')} /></div>
+        <div className="grid2">
+          <div className="fg"><label className="fl">Usuário * (para login)</label><input className="fi" value={form.usuario} onChange={up('usuario')} placeholder="ex: marllon" /></div>
+          <div className="fg"><label className="fl">Senha * (mín. 4 caracteres)</label><input className="fi" type="password" value={form.senha} onChange={up('senha')} placeholder="••••••" /></div>
+        </div>
         <div className="grid2">
           <div className="fg">
             <label className="fl">Cargo</label>
@@ -2795,11 +2932,10 @@ function NovoUsuarioForm({ onClose, onSave }) {
           </div>
           <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
         </div>
-        <Alert type="warning">Após criar, cadastre a senha em Supabase → Authentication → Users.</Alert>
       </div>
       <div className="mf">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-        <Btn disabled={!form.full_name || !form.email} loading={loading} onClick={() => run(() => onSave(form))}>Criar</Btn>
+        <Btn disabled={!canSave} loading={loading} onClick={() => run(handleSave)}>Criar</Btn>
       </div>
     </>
   )
@@ -3431,10 +3567,154 @@ function Configuracoes() {
 }
 
 // ============================================================
+// BOTTOM NAV (mobile)
+// ============================================================
+function BottomNav({ page, setPage, isGestor }) {
+  const gestorItems = [
+    { id: 'dashboard', label: 'Painel', icon: '⊞' },
+    { id: 'pedidos', label: 'Pedidos', icon: '📦' },
+    { id: 'assistencia', label: 'Assistência', icon: '🔧' },
+    { id: 'roteiro', label: 'Roteiro', icon: '🗺' },
+    { id: 'mob-menu', label: 'Mais', icon: '☰' },
+  ]
+  const entregadorItems = [
+    { id: 'rota', label: 'Minha Rota', icon: '🚚' },
+    { id: 'ponto', label: 'Ponto', icon: '⏰' },
+    { id: 'separacao', label: 'Separação', icon: '✂' },
+    { id: 'mob-menu', label: 'Mais', icon: '☰' },
+  ]
+  const items = isGestor ? gestorItems : entregadorItems
+  return (
+    <div className="bottom-nav">
+      {items.map(it => (
+        <button key={it.id} className={`bn-item${page === it.id ? ' on' : ''}`} onClick={() => setPage(it.id)}>
+          <span className="bn-icon">{it.icon}</span>
+          <span>{it.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function MobileMenu({ setPage, isGestor, perfil, logout }) {
+  const todos = isGestor
+    ? ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config']
+    : ['rota','ponto','separacao']
+  const labels = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações' }
+  return (
+    <div className="page">
+      <div className="ph"><div><h1>Menu</h1><div className="ph-sub">{perfil?.full_name}</div></div>
+        <button className="btn btn-g btn-sm" onClick={logout}>Sair</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {todos.map(id => (
+          <button key={id} className="btn" style={{ justifyContent: 'center', padding: 16, fontSize: 14 }}
+            onClick={() => setPage(id)}>
+            {labels[id] || id}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// FORMULÁRIO PÚBLICO DE SOLICITAÇÃO DE ASSISTÊNCIA
+// ============================================================
+function SolicitarAssistenciaPublica() {
+  const [form, setForm] = useState({ nome: '', telefone: '', pedido: '', loja: '', produto: '', descricao: '', categoria: '' })
+  const [enviado, setEnviado] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+  const canSend = form.nome && form.telefone && form.produto && form.descricao
+
+  const handleEnviar = async () => {
+    setLoading(true)
+    try {
+      const { error } = await supabase.from('assistencias').insert({
+        cliente: form.nome,
+        telefone: form.telefone,
+        pedido_ref: form.pedido || null,
+        loja: form.loja || null,
+        tipo_problema: form.categoria || 'Outros',
+        observacoes: form.descricao,
+        data_abertura: new Date().toISOString().split('T')[0],
+        status: 'solicitacao',
+        origem: 'formulario',
+      })
+      if (error) throw error
+      setEnviado(true)
+    } catch (e) {
+      alert('Erro ao enviar. Tente novamente.')
+    }
+    setLoading(false)
+  }
+
+  if (enviado) return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+        <h2 style={{ color: '#1e293b', marginBottom: 8 }}>Solicitação enviada!</h2>
+        <p style={{ color: '#64748b', fontSize: 14 }}>Nossa equipe entrará em contato em breve pelo telefone {form.telefone}.</p>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '16px', display: 'flex', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: '24px', maxWidth: 500, width: '100%', height: 'fit-content' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ width: 40, height: 40, background: '#6366f1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16 }}>V</div>
+          <div><div style={{ fontWeight: 700, color: '#1e293b' }}>VERSA LOG</div><div style={{ fontSize: 12, color: '#64748b' }}>Solicitar Assistência Técnica</div></div>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Nome completo *</label>
+          <input style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} value={form.nome} onChange={up('nome')} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Telefone / WhatsApp *</label>
+          <input style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} value={form.telefone} onChange={up('telefone')} inputMode="tel" />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Nº Pedido</label>
+            <input style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} value={form.pedido} onChange={up('pedido')} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Loja</label>
+            <input style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} value={form.loja} onChange={up('loja')} />
+          </div>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Produto com problema *</label>
+          <input style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} value={form.produto} onChange={up('produto')} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Categoria</label>
+          <select style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', background: '#fff' }} value={form.categoria} onChange={up('categoria')}>
+            <option value="">Selecione...</option>
+            {['Avaria', 'Defeito de fabricação', 'Erro de acabamento', 'Item incorreto', 'Outros'].map(c => <option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Descrição do problema *</label>
+          <textarea style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', resize: 'vertical', minHeight: 80 }} value={form.descricao} onChange={up('descricao')} />
+        </div>
+        <button disabled={!canSend || loading}
+          style={{ width: '100%', padding: '13px', background: canSend ? '#6366f1' : '#e2e8f0', color: canSend ? '#fff' : '#94a3b8', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: canSend ? 'pointer' : 'default' }}
+          onClick={handleEnviar}>
+          {loading ? 'Enviando...' : 'Enviar Solicitação'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
 // APP ROOT
 // ============================================================
 function AppContent() {
-  const { perfil, loading, isGestor, isEntregador } = useAuth()
+  const { perfil, loading, isGestor, isEntregador, logout } = useAuth()
   const defaultPage = isEntregador && !isGestor ? 'rota' : 'dashboard'
   const [page, setPage] = useState(defaultPage)
 
@@ -3452,6 +3732,8 @@ function AppContent() {
 
   if (!perfil) return <Login />
 
+  const navPage = (id) => { setPage(id) }
+
   const PAGES = {
     dashboard: <Dashboard />,
     pedidos: <Pedidos />,
@@ -3466,17 +3748,22 @@ function AppContent() {
     rota: <MinhaRota />,
     ponto: <Ponto />,
     config: <Configuracoes />,
+    'mob-menu': <MobileMenu setPage={navPage} isGestor={isGestor} perfil={perfil} logout={logout} />,
   }
 
   return (
     <div className="app">
       <Topbar page={page} setPage={setPage} />
       <div className="main">{PAGES[page] || PAGES.dashboard}</div>
+      <BottomNav page={page} setPage={setPage} isGestor={isGestor} />
     </div>
   )
 }
 
 export default function App() {
+  if (window.location.hash === '#/solicitar') {
+    return <SolicitarAssistenciaPublica />
+  }
   return (
     <AuthProvider>
       <AppContent />
