@@ -27,13 +27,13 @@ const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','ro
 const PROFILE_PAGES = {
   admin:     _ALL_PAGES,
   gestor:    _ALL_PAGES,
-  entregador:['rota','pedidos','ponto','ranking'],
-  motorista: ['rota','pedidos','ponto','ranking'],
-  separador: ['separacao','pedidos','ponto'],
-  conferente:['conferencia','pedidos','ponto'],
-  estoque:   ['separacao','pedidos','ponto','estoque'],
-  tecnico:   ['roteiro','assistencia','ponto','os'],
-  atendente: ['assistencia','pedidos','agenda','ponto','vendas','clientes'],
+  entregador:['dashboard','rota','pedidos','ponto','ranking'],
+  motorista: ['dashboard','rota','pedidos','ponto','ranking'],
+  separador: ['dashboard','separacao','pedidos','ponto'],
+  conferente:['dashboard','conferencia','pedidos','ponto'],
+  estoque:   ['dashboard','separacao','pedidos','ponto','estoque'],
+  tecnico:   ['dashboard','roteiro','assistencia','ponto','os'],
+  atendente: ['dashboard','assistencia','pedidos','agenda','ponto','vendas','cadastros'],
 }
 const PROFILE_NAV = {
   admin:     [{id:'dashboard',label:'Painel',icon:'⊞'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'vendas',label:'Vendas',icon:'💰'},{id:'financeiro',label:'Financeiro',icon:'💳'},{id:'mob-menu',label:'Mais',icon:'☰'}],
@@ -138,78 +138,247 @@ function Login() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg0)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 20, padding: 40, width: '100%', maxWidth: 380 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-          <div style={{ width: 44, height: 44, background: 'var(--t1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--bg0)', flexShrink: 0 }}>
-            <Logo size={28} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: '.04em' }}>VERSA LOG</div>
-            <div style={{ fontSize: 11, color: 'var(--t3)' }}>Sistema de logística</div>
-          </div>
+    <div style={{ minHeight:'100vh', background:'var(--bg0)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      {/* Background glow */}
+      <div style={{ position:'fixed', top:'20%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle, rgba(110,110,240,0.08) 0%, transparent 70%)', pointerEvents:'none' }} />
+
+      <div style={{ background:'var(--bg1)', border:'1px solid var(--border)', borderRadius:24, padding:'40px 36px', width:'100%', maxWidth:400, position:'relative', boxShadow:'0 24px 64px rgba(0,0,0,0.5)' }}>
+
+        {/* Logo block */}
+        <div style={{ textAlign:'center', marginBottom:36 }}>
+          <div style={{ width:64, height:64, borderRadius:20, background:'var(--accent)', display:'inline-flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:900, fontSize:22, letterSpacing:'-.02em', marginBottom:16, boxShadow:'0 8px 24px rgba(110,110,240,0.4)' }}>VA</div>
+          <div style={{ fontWeight:800, fontSize:22, letterSpacing:'.06em', color:'var(--t1)', marginBottom:4 }}>VERSA LOG</div>
+          <div style={{ fontSize:13, color:'var(--t3)' }}>Sistema de Logística · ERP</div>
         </div>
 
-        {err && <Alert type="error">{err}</Alert>}
+        {err && <Alert type="error" style={{ marginBottom:16 }}>{err}</Alert>}
 
         <form onSubmit={handleLogin}>
           <Input label="Email ou usuário" type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="email ou nome de usuário" required />
           <Input label="Senha" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••" required />
-          <Btn type="submit" style={{ width: '100%', justifyContent: 'center', padding: 12, marginTop: 4 }} loading={loading}>
-            Entrar
+          <Btn type="submit" style={{ width:'100%', justifyContent:'center', padding:'13px', marginTop:8, fontSize:14, borderRadius:10 }} loading={loading}>
+            Entrar no sistema
           </Btn>
         </form>
 
+        <div style={{ textAlign:'center', marginTop:24, fontSize:11, color:'var(--t3)' }}>v2.1 · Versa Log ERP</div>
       </div>
     </div>
   )
 }
 
 // ============================================================
-// TOPBAR
+// SIDEBAR
 // ============================================================
-function Topbar({ page, setPage }) {
+const MOTIVATIONAL_MSGS = [
+  'Cada entrega é uma promessa cumprida. 🚀',
+  'Excelência em logística começa com você. 💪',
+  'Juntos somos o melhor do Brasil! 🇧🇷',
+  'Organização hoje, sucesso amanhã. ⭐',
+  'Sua dedicação faz a diferença. 🏆',
+]
+
+const SIDEBAR_GROUPS = [
+  { group:'OPERACIONAL', items:[
+    { id:'dashboard', label:'Painel',          icon:'🏠' },
+    { id:'pedidos',   label:'Pedidos',          icon:'📦' },
+    { id:'separacao', label:'Separação',        icon:'📋' },
+    { id:'agenda',    label:'Agenda',           icon:'📅' },
+    { id:'mapa',      label:'Mapa',             icon:'🗺️' },
+    { id:'rota',      label:'Minha Rota',       icon:'🚚' },
+    { id:'fila',      label:'Fila Liberação',   icon:'✅' },
+  ]},
+  { group:'COMERCIAL', items:[
+    { id:'vendas',     label:'Vendas (PDV)',    icon:'💰' },
+    { id:'compras',    label:'Compras',         icon:'🛒' },
+    { id:'estoque',    label:'Estoque',         icon:'📊' },
+    { id:'financeiro', label:'Financeiro',      icon:'💳' },
+  ]},
+  { group:'ATENDIMENTO', items:[
+    { id:'assistencia', label:'Assistência',   icon:'🔧' },
+    { id:'roteiro',     label:'Roteiro',        icon:'📍' },
+    { id:'conferencia', label:'Conferência',   icon:'☑️' },
+  ]},
+  { group:'GESTÃO', items:[
+    { id:'equipe',   label:'Equipe',            icon:'👥' },
+    { id:'ranking',  label:'Ranking',           icon:'🏆' },
+    { id:'ponto',    label:'Ponto',             icon:'⏰' },
+    { id:'dp',       label:'Dep. Pessoal',      icon:'👔' },
+    { id:'os',       label:'Ordens de Serviço', icon:'📋' },
+  ]},
+  { group:'SISTEMA', items:[
+    { id:'config',    label:'Configurações',    icon:'⚙️' },
+    { id:'cadastros', label:'Cadastros',        icon:'🏪' },
+  ]},
+]
+
+function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole } = useAuth()
   const allowedPages = PROFILE_PAGES[effectiveRole] || _ALL_PAGES
-  const items = allowedPages.filter(id => id !== 'mob-menu').map(id => ({ id, label: PAGE_LABELS[id] || id }))
+  const [msgIdx, setMsgIdx] = useState(0)
+
+  useEffect(() => {
+    const t = setInterval(() => setMsgIdx(i => (i + 1) % MOTIVATIONAL_MSGS.length), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  const navigate = (id) => { setPage(id); setMobileOpen(false) }
+  const toggle = () => { const c = !collapsed; setCollapsed(c); localStorage.setItem('sb_collapsed', String(c)) }
 
   return (
-    <div className="topbar">
-      <div className="logo">
-        <Logo size={18} />
-        <span>VERSA LOG</span>
-      </div>
-      {items.map(it => (
-        <button key={it.id} className={`nav${page === it.id ? ' on' : ''}`} onClick={() => setPage(it.id)}>
-          {it.label}
-        </button>
-      ))}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        {isAdmin && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {isSimulating && (
-              <span style={{ fontSize: 11, background: '#f97316', color: '#fff', padding: '2px 10px', borderRadius: 20, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                👁 {PROFILE_LABELS[simulatedRole] || simulatedRole}
-              </span>
+    <>
+      {mobileOpen && <div className="sb-overlay" onClick={() => setMobileOpen(false)} />}
+      <div className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>
+
+        {/* Header */}
+        <div style={{ padding:'14px 12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap: collapsed ? 0 : 10, overflow:'hidden' }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:14, flexShrink:0, letterSpacing:'-.02em' }}>VA</div>
+            {!collapsed && (
+              <div style={{ overflow:'hidden', flex:1 }}>
+                <div style={{ fontWeight:700, fontSize:13, color:'var(--t1)', letterSpacing:'.05em', whiteSpace:'nowrap' }}>VERSA LOG</div>
+                <div style={{ fontSize:10, color:'var(--t3)', whiteSpace:'nowrap' }}>Sistema de Logística</div>
+              </div>
             )}
-            <select
-              title="Simular perfil"
-              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg1)', color: isSimulating ? '#f97316' : 'var(--t1)', cursor: 'pointer' }}
-              value={simulatedRole || ''}
-              onChange={e => setSimulatedRole(e.target.value || null)}
-            >
-              <option value="">Admin (real)</option>
-              <option value="gestor">Gestor</option>
-              <option value="entregador">Entregador</option>
-              <option value="separador">Separador</option>
-              <option value="conferente">Conferente</option>
-              <option value="tecnico">Téc. Assistência</option>
-              <option value="atendente">Atendente</option>
-            </select>
+            <button onClick={toggle} title={collapsed ? 'Expandir' : 'Recolher'}
+              style={{ marginLeft:'auto', width:26, height:26, borderRadius:6, border:'none', background:'var(--bg3)', color:'var(--t2)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, flexShrink:0 }}>
+              {collapsed ? '→' : '←'}
+            </button>
+          </div>
+        </div>
+
+        {/* User profile */}
+        <div style={{ padding:'12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, overflow:'hidden' }}>
+            <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,var(--accent),#a78bfa)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:13, flexShrink:0 }}>
+              {perfil?.full_name?.[0]?.toUpperCase() || 'U'}
+            </div>
+            {!collapsed && (
+              <div style={{ overflow:'hidden', flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:13, color:'var(--t1)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{perfil?.full_name}</div>
+                <div style={{ fontSize:10, color:'var(--t3)', whiteSpace:'nowrap' }}>{PROFILE_LABELS[effectiveRole] || effectiveRole} · Versa Log</div>
+              </div>
+            )}
+          </div>
+          {!collapsed && isAdmin && (
+            <div style={{ marginTop:8 }}>
+              <select
+                style={{ width:'100%', fontSize:11, padding:'4px 8px', border:'1px solid var(--border)', borderRadius:6, background:'var(--bg2)', color: isSimulating ? '#f97316' : 'var(--t2)', cursor:'pointer', fontFamily:'var(--font)' }}
+                value={simulatedRole || ''}
+                onChange={e => setSimulatedRole(e.target.value || null)}
+              >
+                <option value="">👁 Admin (real)</option>
+                <option value="gestor">Gestor</option>
+                <option value="entregador">Entregador</option>
+                <option value="separador">Separador</option>
+                <option value="conferente">Conferente</option>
+                <option value="tecnico">Téc. Assistência</option>
+                <option value="atendente">Atendente</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <div className="sb-nav">
+          {SIDEBAR_GROUPS.map(grp => {
+            const visible = grp.items.filter(it => allowedPages.includes(it.id))
+            if (!visible.length) return null
+            return (
+              <div key={grp.group}>
+                {!collapsed
+                  ? <div className="sb-group-label">{grp.group}</div>
+                  : <div style={{ height:10 }} />
+                }
+                {visible.map(it => (
+                  <button key={it.id}
+                    className={`sb-item${page === it.id ? ' active' : ''}`}
+                    onClick={() => navigate(it.id)}
+                    title={collapsed ? it.label : undefined}
+                    style={collapsed ? { justifyContent:'center', padding:'10px 0', margin:'1px 4px', width:'calc(100% - 8px)', borderLeft:'none' } : {}}
+                  >
+                    <span className="sb-icon">{it.icon}</span>
+                    {!collapsed && <span className="sb-label">{it.label}</span>}
+                  </button>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        {!collapsed ? (
+          <div style={{ padding:'12px 16px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
+            <div style={{ fontSize:12, color:'var(--t3)', lineHeight:1.55, marginBottom:8, minHeight:38, transition:'opacity .3s' }}>
+              {MOTIVATIONAL_MSGS[msgIdx]}
+            </div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:10, color:'var(--t3)', fontFamily:'var(--mono)' }}>v2.1 · Versa Log ERP</span>
+              <button className="btn btn-g btn-sm btn-ico" onClick={logout} title="Sair" style={{ width:28, height:28 }}>
+                <Ic n="logout" s={13} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding:'10px 0', borderTop:'1px solid var(--border)', flexShrink:0, display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:9, color:'var(--t3)', fontFamily:'var(--mono)' }}>v2.1</span>
+            <button className="btn btn-g btn-sm btn-ico" onClick={logout} title="Sair" style={{ width:28, height:28 }}>
+              <Ic n="logout" s={13} />
+            </button>
           </div>
         )}
-        <span style={{ fontSize: 12, color: 'var(--t3)' }}>{perfil?.full_name}</span>
-        <button className="btn btn-g btn-ico btn-sm" onClick={logout} title="Sair"><Ic n="logout" /></button>
+
+      </div>
+    </>
+  )
+}
+
+function ContentTopbar({ page, setMobileOpen }) {
+  const { perfil, isSimulating, simulatedRole } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef()
+
+  useEffect(() => {
+    const fn = e => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+
+  const { logout } = useAuth()
+
+  return (
+    <div className="content-topbar">
+      <button className="btn btn-g btn-ico btn-sm sb-mobile-btn" onClick={() => setMobileOpen(o => !o)}>☰</button>
+      <div style={{ flex:1 }}>
+        <span style={{ fontWeight:600, fontSize:16, color:'var(--t1)' }}>{PAGE_LABELS[page] || page}</span>
+      </div>
+      {isSimulating && (
+        <span style={{ fontSize:11, background:'#f97316', color:'#fff', padding:'2px 10px', borderRadius:20, fontWeight:600, whiteSpace:'nowrap' }}>
+          👁 {PROFILE_LABELS[simulatedRole] || simulatedRole}
+        </span>
+      )}
+      <div ref={menuRef} style={{ position:'relative' }}>
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          style={{ width:34, height:34, borderRadius:'50%', border:'none', background:'linear-gradient(135deg,var(--accent),#a78bfa)', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          {perfil?.full_name?.[0]?.toUpperCase() || 'U'}
+        </button>
+        {menuOpen && (
+          <div style={{ position:'absolute', right:0, top:'calc(100% + 8px)', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'6px', minWidth:180, zIndex:300, boxShadow:'0 8px 32px rgba(0,0,0,.5)' }}>
+            <div style={{ padding:'8px 12px 10px', borderBottom:'1px solid var(--border)', marginBottom:4 }}>
+              <div style={{ fontWeight:600, fontSize:13 }}>{perfil?.full_name}</div>
+              <div style={{ fontSize:11, color:'var(--t3)', marginTop:1 }}>{perfil?.email}</div>
+            </div>
+            <button onClick={() => setMenuOpen(false)}
+              style={{ display:'block', width:'100%', textAlign:'left', padding:'8px 12px', border:'none', background:'none', cursor:'pointer', color:'var(--t1)', fontSize:13, borderRadius:8, fontFamily:'var(--font)' }}>
+              Ver perfil
+            </button>
+            <button onClick={() => { setMenuOpen(false); logout() }}
+              style={{ display:'block', width:'100%', textAlign:'left', padding:'8px 12px', border:'none', background:'none', cursor:'pointer', color:'var(--red)', fontSize:13, borderRadius:8, fontFamily:'var(--font)' }}>
+              Sair
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -5740,68 +5909,6 @@ function FilaLiberacao() {
   )
 }
 
-// ============================================================
-// BOTTOM NAV (mobile)
-// ============================================================
-function BottomNav({ page, setPage }) {
-  const { effectiveRole } = useAuth()
-  const items = PROFILE_NAV[effectiveRole] || PROFILE_NAV.admin
-  return (
-    <div className="bottom-nav">
-      {items.map(it => (
-        <button key={it.id} className={`bn-item${page === it.id ? ' on' : ''}`} onClick={() => setPage(it.id)}>
-          <span className="bn-icon">{it.icon}</span>
-          <span>{it.label}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function MobileMenu({ setPage }) {
-  const { perfil, logout, effectiveRole, isAdmin, isSimulating, simulatedRole, setSimulatedRole } = useAuth()
-  const todos = PROFILE_PAGES[effectiveRole] || _ALL_PAGES
-  return (
-    <div className="page">
-      <div className="ph">
-        <div>
-          <h1>Menu</h1>
-          <div className="ph-sub">{perfil?.full_name}</div>
-        </div>
-        <button className="btn btn-g btn-sm" onClick={logout}>Sair</button>
-      </div>
-      {isAdmin && (
-        <div style={{ background: isSimulating ? '#fff7ed' : 'var(--bg2)', border: `1px solid ${isSimulating ? '#fed7aa' : 'var(--border)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 13, color: 'var(--t2)', flexShrink: 0 }}>Visualizando como:</span>
-          <select
-            style={{ flex: 1, fontSize: 13, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg1)', color: isSimulating ? '#f97316' : 'var(--t1)' }}
-            value={simulatedRole || ''}
-            onChange={e => setSimulatedRole(e.target.value || null)}
-          >
-            <option value="">Admin (real)</option>
-            <option value="gestor">Gestor</option>
-            <option value="entregador">Entregador</option>
-            <option value="separador">Separador</option>
-            <option value="conferente">Conferente</option>
-            <option value="tecnico">Téc. Assistência</option>
-            <option value="atendente">Atendente</option>
-          </select>
-          {isSimulating && (
-            <button className="btn btn-g btn-sm" style={{ color: '#f97316', borderColor: '#fed7aa', flexShrink: 0 }} onClick={() => setSimulatedRole(null)}>✕ Sair</button>
-          )}
-        </div>
-      )}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {todos.map(id => (
-          <button key={id} className="btn" style={{ justifyContent: 'center', padding: 16, fontSize: 14 }}
-            onClick={() => setPage(id)}>
-            {PAGE_LABELS[id] || id}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 // ============================================================
 // FORMULÁRIO PÚBLICO DE SOLICITAÇÃO DE ASSISTÊNCIA
@@ -5945,22 +6052,29 @@ function AppContent() {
   const { perfil, loading, isGestor, isEntregador, simulatedRole, effectiveRole } = useAuth()
   const defaultPage = isEntregador && !isGestor ? 'rota' : 'dashboard'
   const [page, setPage] = useState(defaultPage)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sb_collapsed') === 'true')
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [animKey, setAnimKey] = useState(0)
 
-  // Ao fazer login: vai para a página padrão do perfil real
+  const navigateTo = useCallback((id) => {
+    setPage(id)
+    setAnimKey(k => k + 1)
+    setMobileOpen(false)
+  }, [])
+
   useEffect(() => {
-    if (perfil) setPage(isEntregador && !isGestor ? 'rota' : 'dashboard')
+    if (perfil) navigateTo(isEntregador && !isGestor ? 'rota' : 'dashboard')
   }, [perfil?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ao mudar simulação: redireciona se a página atual não é permitida
   useEffect(() => {
     const allowed = PROFILE_PAGES[effectiveRole] || _ALL_PAGES
-    if (!allowed.includes(page)) setPage(allowed[0])
+    if (!allowed.includes(page)) navigateTo(allowed[0])
   }, [simulatedRole]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg0)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: 'var(--t2)' }}>Carregando...</div>
+      <div style={{ minHeight:'100vh', background:'var(--bg0)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{ color:'var(--t2)' }}>Carregando...</div>
       </div>
     )
   }
@@ -5989,14 +6103,26 @@ function AppContent() {
     dp: <DP />,
     os: <OrdensServico />,
     fila: <FilaLiberacao />,
-    'mob-menu': <MobileMenu setPage={setPage} />,
   }
 
   return (
     <div className="app">
-      <Topbar page={page} setPage={setPage} />
-      <div className="main">{PAGES[page] || PAGES.dashboard}</div>
-      <BottomNav page={page} setPage={setPage} />
+      <Sidebar
+        page={page}
+        setPage={navigateTo}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+      />
+      <div className="content-area">
+        <ContentTopbar page={page} setMobileOpen={setMobileOpen} />
+        <div className="content-main">
+          <div key={animKey} className="page-enter">
+            {PAGES[page] || PAGES.dashboard}
+          </div>
+        </div>
+      </div>
       <Toaster />
     </div>
   )
