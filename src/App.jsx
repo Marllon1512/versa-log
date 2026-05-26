@@ -11,6 +11,71 @@ import { toast, Toaster } from './lib/toast'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 import { pedidosService } from './services/pedidos'
+
+// ── Lojas do grupo (lista fixa) ───────────────────────────
+const LOJAS_GRUPO = ['Templum Comércio','Templum Minas','Movelaria Olga','Santa Comércio','Alpendre Mobiliário','Arca Garden','Feirão']
+
+function LojaSelect({ value, onChange, className, style, placeholder }) {
+  const [outra, setOutra] = useState(() => !!(value && !LOJAS_GRUPO.includes(value)))
+  const selVal = outra ? '__outra__' : (LOJAS_GRUPO.includes(value) ? value : '')
+  const cls = className !== undefined ? className : 'fi'
+  return (
+    <div>
+      <select className={cls} style={style} value={selVal}
+        onChange={e => {
+          if (e.target.value === '__outra__') { setOutra(true); onChange('') }
+          else { setOutra(false); onChange(e.target.value) }
+        }}
+      >
+        <option value="">{placeholder || 'Selecione a loja...'}</option>
+        {LOJAS_GRUPO.map(l => <option key={l} value={l}>{l}</option>)}
+        <option value="__outra__">Outra (digitar manualmente)</option>
+      </select>
+      {outra && (
+        <input className={cls} style={{ ...(style || {}), marginTop: 6 }}
+          value={value} onChange={e => onChange(e.target.value)}
+          placeholder="Nome da loja" autoFocus />
+      )}
+    </div>
+  )
+}
+
+function LojaMultiSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef()
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+  const todas = value.length === 0
+  const toggle = l => onChange(value.includes(l) ? value.filter(v => v !== l) : [...value, l])
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" className="fi"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', width: '100%', padding: '6px 10px', textAlign: 'left' }}
+        onClick={() => setOpen(o => !o)}
+      >
+        <span style={{ fontSize: 13 }}>{todas ? 'Todas as lojas' : `${value.length} loja(s)`}</span>
+        <Ic n="chev" s={11} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, minWidth: '100%', background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 10, zIndex: 200, padding: '6px 4px', boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>
+            <input type="checkbox" checked={todas} onChange={() => onChange([])} />
+            <span style={{ fontWeight: todas ? 600 : 400 }}>Todas as lojas</span>
+          </label>
+          {LOJAS_GRUPO.map(l => (
+            <label key={l} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>
+              <input type="checkbox" checked={value.includes(l)} onChange={() => toggle(l)} />
+              {l}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 import {
   produtosService, usuariosService, equipesService,
   assistenciasService, conferenciasService, pontoService
@@ -461,7 +526,7 @@ function Pedidos() {
   const { perfil, isGestor } = useAuth()
   const [search, setSearch] = useState('')
   const [statusFil, setStatusFil] = useState('Todos')
-  const [lojaFil, setLojaFil] = useState('Todas')
+  const [lojasFil, setLojasFil] = useState([])
   const [selected, setSelected] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -471,13 +536,12 @@ function Pedidos() {
 
   const { data: pedidos, loading, reload } = useData(() => pedidosService.list(), [])
 
-  const lojas = ['Todas', ...new Set((pedidos || []).map(p => p.local_separacao).filter(Boolean))]
   const statuses = ['Todos', 'Pendente', 'Separando', 'Pronto para Rota', 'Em Rota', 'Entregue', 'Problema', 'Remarcado', 'Cancelado']
 
   const filtered = (pedidos || []).filter(p => {
     const mSearch = !search || p.cliente?.toLowerCase().includes(search.toLowerCase()) || p.numero_pedido?.includes(search)
     const mStatus = statusFil === 'Todos' || p.status === statusFil
-    const mLoja = lojaFil === 'Todas' || p.local_separacao === lojaFil
+    const mLoja = lojasFil.length === 0 || lojasFil.includes(p.local_separacao)
     return mSearch && mStatus && mLoja
   })
 
@@ -592,9 +656,7 @@ function Pedidos() {
 
       <div className="filters">
         <input className="search" placeholder="Buscar cliente ou pedido..." value={search} onChange={e => setSearch(e.target.value)} />
-        <select className="fi" style={{ width: 'auto', padding: '6px 10px' }} value={lojaFil} onChange={e => setLojaFil(e.target.value)}>
-          {lojas.map(l => <option key={l}>{l}</option>)}
-        </select>
+        <div style={{ minWidth: 160 }}><LojaMultiSelect value={lojasFil} onChange={setLojasFil} /></div>
       </div>
       <div className="filters">
         {statuses.map(s => (
@@ -1055,7 +1117,7 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
         </div>
         <div className="fg">
           <label className="fl">Loja</label>
-          <input className="fi" value={form.local_separacao} onChange={up('local_separacao')} placeholder="Ex: Templum Minas" />
+          <LojaSelect value={form.local_separacao} onChange={v => setForm(p => ({ ...p, local_separacao: v }))} />
         </div>
       </div>
       <div className="fg">
@@ -1425,7 +1487,7 @@ function EditParsedItemModal({ item, onSave, onClose }) {
         <div className="fg"><label className="fl">Nº Pedido</label><input className="fi" value={form.numero_pedido} onChange={up('numero_pedido')} /></div>
       </div>
       <div className="grid2">
-        <div className="fg"><label className="fl">Loja</label><input className="fi" value={form.loja} onChange={up('loja')} /></div>
+        <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
         <div className="fg"><label className="fl">Data Entrega</label><input className="fi" type="date" value={form.data_entrega} onChange={up('data_entrega')} /></div>
       </div>
       <div className="fg"><label className="fl">Endereço</label><input className="fi" value={form.endereco} onChange={up('endereco')} /></div>
@@ -2407,7 +2469,7 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
           </div>
           <div className="grid2">
             <div className="fg"><label className="fl">Cliente *</label><input className="fi" value={dados.cliente} onChange={upDados('cliente')} /></div>
-            <div className="fg"><label className="fl">Loja</label><input className="fi" value={dados.loja} onChange={upDados('loja')} placeholder="Ex: Loja Centro" /></div>
+            <div className="fg"><label className="fl">Loja</label><LojaSelect value={dados.loja} onChange={v => setDados(p => ({ ...p, loja: v }))} /></div>
           </div>
           <div className="grid2">
             <div className="fg"><label className="fl">Nº Pedido</label><input className="fi" value={dados.numero_pedido} onChange={upDados('numero_pedido')} /></div>
@@ -2542,7 +2604,7 @@ function TabelaRelatorio({ dados }) {
 function RelatorioAssistencias({ onBack }) {
   const [dataInicio, setDataInicio] = useState('')
   const [dataFim, setDataFim] = useState('')
-  const [lojaFil, setLojaFil] = useState('')
+  const [lojasFil, setLojasFil] = useState([])
 
   const { data: assistencias, loading } = useData(() => assistenciasService.list(), [])
   const { data: todosItens } = useData(async () => {
@@ -2558,7 +2620,7 @@ function RelatorioAssistencias({ onBack }) {
   const lista = (assistencias || []).filter(a => {
     const okInicio = !dataInicio || (a.data_abertura >= dataInicio)
     const okFim = !dataFim || (a.data_abertura <= dataFim)
-    const okLoja = !lojaFil || a.loja === lojaFil
+    const okLoja = lojasFil.length === 0 || lojasFil.includes(a.loja)
     return okInicio && okFim && okLoja
   })
 
@@ -2572,9 +2634,6 @@ function RelatorioAssistencias({ onBack }) {
   const listaIds = new Set(lista.map(a => a.id))
   const itensFiltrados = (todosItens || []).filter(it => listaIds.has(it.assistencia_id))
   const dataFabricas = buildDynamic(itensFiltrados, it => it.fornecedor)
-
-  // Dropdown de lojas populado dinamicamente a partir dos dados reais
-  const lojasDisponiveis = [...new Set((assistencias || []).map(a => a.loja).filter(Boolean))].sort()
 
   const gerarPDF = () => {
     const w = window.open('', '_blank')
@@ -2605,7 +2664,7 @@ function RelatorioAssistencias({ onBack }) {
         </div>
       </div>`
     }
-    const periodo = `${fmtData(dataInicio)} até ${fmtData(dataFim)}${lojaFil ? ` · Loja: ${stripPrefix(lojaFil)}` : ''}`
+    const periodo = `${fmtData(dataInicio)} até ${fmtData(dataFim)}${lojasFil.length ? ` · Loja: ${lojasFil.join(', ')}` : ''}`
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Assistências</title>
       <style>*{box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;padding:32px;color:#1e293b;max-width:900px;margin:0 auto}@media print{body{padding:16px}}</style>
       </head><body>
@@ -2647,7 +2706,7 @@ function RelatorioAssistencias({ onBack }) {
           <button className="btn btn-g btn-ico btn-sm" onClick={onBack}><Ic n="back" /></button>
           <div>
             <h1>Relatório de Assistências</h1>
-            <div className="ph-sub">{lista.length} assistências{lojaFil ? ` · ${stripPrefix(lojaFil)}` : ''}</div>
+            <div className="ph-sub">{lista.length} assistências{lojasFil.length ? ` · ${lojasFil.length} loja(s)` : ''}</div>
           </div>
         </div>
         <Btn size="sm" onClick={gerarPDF}><Ic n="pdf" s={13} /> Exportar PDF</Btn>
@@ -2660,10 +2719,7 @@ function RelatorioAssistencias({ onBack }) {
           <div className="fg"><label className="fl">Data início</label><input className="fi" type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} /></div>
           <div className="fg"><label className="fl">Data fim</label><input className="fi" type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} /></div>
           <div className="fg"><label className="fl">Loja</label>
-            <select className="fi" value={lojaFil} onChange={e => setLojaFil(e.target.value)}>
-              <option value="">Todas as lojas</option>
-              {lojasDisponiveis.map(l => <option key={l} value={l}>{stripPrefix(l)}</option>)}
-            </select>
+            <LojaMultiSelect value={lojasFil} onChange={setLojasFil} />
           </div>
         </div>
       </div>
@@ -3275,7 +3331,7 @@ function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
               <div className="grid2" style={{ gap: 6 }}>
                 <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Cliente *</label><input className="fi" value={item.cliente} onChange={e => upItem(idx, 'cliente', e.target.value)} /></div>
                 <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Pedido</label><input className="fi" value={item.pedido_ref} onChange={e => upItem(idx, 'pedido_ref', e.target.value)} /></div>
-                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Loja</label><input className="fi" value={item.loja} onChange={e => upItem(idx, 'loja', e.target.value)} /></div>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Loja</label><LojaSelect value={item.loja} onChange={v => upItem(idx, 'loja', v)} /></div>
                 <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Bairro</label><input className="fi" value={item.bairro} onChange={e => upItem(idx, 'bairro', e.target.value)} /></div>
               </div>
               <div className="fg" style={{ marginBottom: 0, marginTop: 6 }}>
@@ -4297,7 +4353,7 @@ function SolicitarAssistenciaPublica() {
           </div>
           <div>
             <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 4 }}>Loja</label>
-            <input style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} value={form.loja} onChange={up('loja')} />
+            <LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} className="" style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', background: '#fff' }} placeholder="Selecione a loja" />
           </div>
         </div>
         <div style={{ marginBottom: 12 }}>
