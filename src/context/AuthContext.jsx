@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [perfil, setPerfil] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [simulatedRole, setSimulatedRole] = useState(null) // null = sem simulação
 
   const loadPerfil = async (authUser) => {
     if (!authUser) { setPerfil(null); return }
@@ -80,15 +81,23 @@ export function AuthProvider({ children }) {
     try { await supabase.auth.signOut() } catch {}
     setUser(null)
     setPerfil(null)
+    setSimulatedRole(null)
     sessionStorage.removeItem('versa_perfil')
   }
 
-  const isGestor = ['admin', 'gestor'].includes(perfil?.role)
-  const isEntregador = ['entregador', 'motorista'].includes(perfil?.role)
-  const isAdmin = perfil?.role === 'admin'
+  // Role efetivo: simulação sobrepõe role real para isGestor/isEntregador
+  const effectiveRole = simulatedRole ?? perfil?.role
+  const isGestor     = ['admin', 'gestor'].includes(effectiveRole)
+  const isEntregador = ['entregador', 'motorista'].includes(effectiveRole)
+  const isAdmin      = perfil?.role === 'admin'  // sempre real — controla UI de simulação
+  const isSimulating = simulatedRole !== null
 
   return (
-    <AuthContext.Provider value={{ user, perfil, loading, login, logout, isGestor, isEntregador, isAdmin }}>
+    <AuthContext.Provider value={{
+      user, perfil, loading, login, logout,
+      isGestor, isEntregador, isAdmin,
+      simulatedRole, setSimulatedRole, isSimulating, effectiveRole,
+    }}>
       {children}
     </AuthContext.Provider>
   )

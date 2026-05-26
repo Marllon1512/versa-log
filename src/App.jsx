@@ -15,6 +15,33 @@ import { pedidosService } from './services/pedidos'
 // ── Lojas do grupo (lista fixa) ───────────────────────────
 const LOJAS_GRUPO = ['Templum Comércio','Templum Minas','Movelaria Olga','Santa Comércio','Alpendre Mobiliário','Arca Garden','Feirão']
 
+// ── Permissões por perfil ─────────────────────────────────
+const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config']
+const PROFILE_PAGES = {
+  admin:     _ALL_PAGES,
+  gestor:    _ALL_PAGES,
+  entregador:['rota','pedidos','ponto','ranking'],
+  motorista: ['rota','pedidos','ponto','ranking'],
+  separador: ['separacao','pedidos','ponto'],
+  conferente:['conferencia','pedidos','ponto'],
+  estoque:   ['separacao','pedidos','ponto'],
+  tecnico:   ['roteiro','assistencia','ponto'],
+  atendente: ['assistencia','pedidos','agenda','ponto'],
+}
+const PROFILE_NAV = {
+  admin:     [{id:'dashboard',label:'Painel',icon:'⊞'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'roteiro',label:'Roteiro',icon:'🗺'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  gestor:    [{id:'dashboard',label:'Painel',icon:'⊞'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'roteiro',label:'Roteiro',icon:'🗺'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  entregador:[{id:'rota',label:'Minha Rota',icon:'🚚'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'separacao',label:'Separação',icon:'✂'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  motorista: [{id:'rota',label:'Minha Rota',icon:'🚚'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'separacao',label:'Separação',icon:'✂'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  separador: [{id:'separacao',label:'Separação',icon:'✂'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  conferente:[{id:'conferencia',label:'Conferência',icon:'📋'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  estoque:   [{id:'separacao',label:'Separação',icon:'✂'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  tecnico:   [{id:'roteiro',label:'Roteiro',icon:'🗺'},{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  atendente: [{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'agenda',label:'Agenda',icon:'📅'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+}
+const PROFILE_LABELS = { admin:'Admin',gestor:'Gestor',entregador:'Entregador',motorista:'Motorista',separador:'Separador',conferente:'Conferente',estoque:'Estoque',tecnico:'Téc. Assistência',atendente:'Atendente' }
+const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações' }
+
 function LojaSelect({ value, onChange, className, style, placeholder }) {
   const [outra, setOutra] = useState(() => !!(value && !LOJAS_GRUPO.includes(value)))
   const selVal = outra ? '__outra__' : (LOJAS_GRUPO.includes(value) ? value : '')
@@ -139,26 +166,9 @@ function Login() {
 // TOPBAR
 // ============================================================
 function Topbar({ page, setPage }) {
-  const { perfil, logout, isGestor } = useAuth()
-
-  const items = [
-    ...(isGestor ? [
-      { id: 'dashboard', label: 'Painel' },
-      { id: 'pedidos', label: 'Pedidos' },
-      { id: 'separacao', label: 'Separação' },
-      { id: 'agenda', label: 'Agenda' },
-      { id: 'assistencia', label: 'Assistência' },
-      { id: 'roteiro', label: 'Roteiro' },
-      { id: 'conferencia', label: 'Conferência' },
-      { id: 'equipe', label: 'Equipe' },
-      { id: 'ranking', label: 'Ranking' },
-      { id: 'mapa', label: 'Mapa' },
-    ] : []),
-    ...(!isGestor && ['estoque', 'conferente'].includes(perfil?.role) ? [{ id: 'separacao', label: 'Separação' }] : []),
-    { id: 'rota', label: 'Minha Rota' },
-    { id: 'ponto', label: 'Ponto' },
-    ...(isGestor ? [{ id: 'config', label: 'Configurações' }] : []),
-  ]
+  const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole } = useAuth()
+  const allowedPages = PROFILE_PAGES[effectiveRole] || _ALL_PAGES
+  const items = allowedPages.filter(id => id !== 'mob-menu').map(id => ({ id, label: PAGE_LABELS[id] || id }))
 
   return (
     <div className="topbar">
@@ -172,6 +182,29 @@ function Topbar({ page, setPage }) {
         </button>
       ))}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        {isAdmin && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {isSimulating && (
+              <span style={{ fontSize: 11, background: '#f97316', color: '#fff', padding: '2px 10px', borderRadius: 20, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                👁 {PROFILE_LABELS[simulatedRole] || simulatedRole}
+              </span>
+            )}
+            <select
+              title="Simular perfil"
+              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg1)', color: isSimulating ? '#f97316' : 'var(--t1)', cursor: 'pointer' }}
+              value={simulatedRole || ''}
+              onChange={e => setSimulatedRole(e.target.value || null)}
+            >
+              <option value="">Admin (real)</option>
+              <option value="gestor">Gestor</option>
+              <option value="entregador">Entregador</option>
+              <option value="separador">Separador</option>
+              <option value="conferente">Conferente</option>
+              <option value="tecnico">Téc. Assistência</option>
+              <option value="atendente">Atendente</option>
+            </select>
+          </div>
+        )}
         <span style={{ fontSize: 12, color: 'var(--t3)' }}>{perfil?.full_name}</span>
         <button className="btn btn-g btn-ico btn-sm" onClick={logout} title="Sair"><Ic n="logout" /></button>
       </div>
@@ -4218,21 +4251,9 @@ function Configuracoes() {
 // ============================================================
 // BOTTOM NAV (mobile)
 // ============================================================
-function BottomNav({ page, setPage, isGestor }) {
-  const gestorItems = [
-    { id: 'dashboard', label: 'Painel', icon: '⊞' },
-    { id: 'pedidos', label: 'Pedidos', icon: '📦' },
-    { id: 'assistencia', label: 'Assistência', icon: '🔧' },
-    { id: 'roteiro', label: 'Roteiro', icon: '🗺' },
-    { id: 'mob-menu', label: 'Mais', icon: '☰' },
-  ]
-  const entregadorItems = [
-    { id: 'rota', label: 'Minha Rota', icon: '🚚' },
-    { id: 'ponto', label: 'Ponto', icon: '⏰' },
-    { id: 'separacao', label: 'Separação', icon: '✂' },
-    { id: 'mob-menu', label: 'Mais', icon: '☰' },
-  ]
-  const items = isGestor ? gestorItems : entregadorItems
+function BottomNav({ page, setPage }) {
+  const { effectiveRole } = useAuth()
+  const items = PROFILE_NAV[effectiveRole] || PROFILE_NAV.admin
   return (
     <div className="bottom-nav">
       {items.map(it => (
@@ -4245,21 +4266,44 @@ function BottomNav({ page, setPage, isGestor }) {
   )
 }
 
-function MobileMenu({ setPage, isGestor, perfil, logout }) {
-  const todos = isGestor
-    ? ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config']
-    : ['rota','ponto','separacao']
-  const labels = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações' }
+function MobileMenu({ setPage }) {
+  const { perfil, logout, effectiveRole, isAdmin, isSimulating, simulatedRole, setSimulatedRole } = useAuth()
+  const todos = PROFILE_PAGES[effectiveRole] || _ALL_PAGES
   return (
     <div className="page">
-      <div className="ph"><div><h1>Menu</h1><div className="ph-sub">{perfil?.full_name}</div></div>
+      <div className="ph">
+        <div>
+          <h1>Menu</h1>
+          <div className="ph-sub">{perfil?.full_name}</div>
+        </div>
         <button className="btn btn-g btn-sm" onClick={logout}>Sair</button>
       </div>
+      {isAdmin && (
+        <div style={{ background: isSimulating ? '#fff7ed' : 'var(--bg2)', border: `1px solid ${isSimulating ? '#fed7aa' : 'var(--border)'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--t2)', flexShrink: 0 }}>Visualizando como:</span>
+          <select
+            style={{ flex: 1, fontSize: 13, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg1)', color: isSimulating ? '#f97316' : 'var(--t1)' }}
+            value={simulatedRole || ''}
+            onChange={e => setSimulatedRole(e.target.value || null)}
+          >
+            <option value="">Admin (real)</option>
+            <option value="gestor">Gestor</option>
+            <option value="entregador">Entregador</option>
+            <option value="separador">Separador</option>
+            <option value="conferente">Conferente</option>
+            <option value="tecnico">Téc. Assistência</option>
+            <option value="atendente">Atendente</option>
+          </select>
+          {isSimulating && (
+            <button className="btn btn-g btn-sm" style={{ color: '#f97316', borderColor: '#fed7aa', flexShrink: 0 }} onClick={() => setSimulatedRole(null)}>✕ Sair</button>
+          )}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {todos.map(id => (
           <button key={id} className="btn" style={{ justifyContent: 'center', padding: 16, fontSize: 14 }}
             onClick={() => setPage(id)}>
-            {labels[id] || id}
+            {PAGE_LABELS[id] || id}
           </button>
         ))}
       </div>
@@ -4406,13 +4450,20 @@ function SolicitarAssistenciaPublica() {
 // APP ROOT
 // ============================================================
 function AppContent() {
-  const { perfil, loading, isGestor, isEntregador, logout } = useAuth()
+  const { perfil, loading, isGestor, isEntregador, simulatedRole, effectiveRole } = useAuth()
   const defaultPage = isEntregador && !isGestor ? 'rota' : 'dashboard'
   const [page, setPage] = useState(defaultPage)
 
+  // Ao fazer login: vai para a página padrão do perfil real
   useEffect(() => {
     if (perfil) setPage(isEntregador && !isGestor ? 'rota' : 'dashboard')
   }, [perfil?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ao mudar simulação: redireciona se a página atual não é permitida
+  useEffect(() => {
+    const allowed = PROFILE_PAGES[effectiveRole] || _ALL_PAGES
+    if (!allowed.includes(page)) setPage(allowed[0])
+  }, [simulatedRole]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -4423,8 +4474,6 @@ function AppContent() {
   }
 
   if (!perfil) return <Login />
-
-  const navPage = (id) => { setPage(id) }
 
   const PAGES = {
     dashboard: <Dashboard />,
@@ -4440,14 +4489,14 @@ function AppContent() {
     rota: <MinhaRota />,
     ponto: <Ponto />,
     config: <Configuracoes />,
-    'mob-menu': <MobileMenu setPage={navPage} isGestor={isGestor} perfil={perfil} logout={logout} />,
+    'mob-menu': <MobileMenu setPage={setPage} />,
   }
 
   return (
     <div className="app">
       <Topbar page={page} setPage={setPage} />
       <div className="main">{PAGES[page] || PAGES.dashboard}</div>
-      <BottomNav page={page} setPage={setPage} isGestor={isGestor} />
+      <BottomNav page={page} setPage={setPage} />
       <Toaster />
     </div>
   )
