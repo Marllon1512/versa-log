@@ -144,7 +144,7 @@ function Login() {
 
         {/* Logo block */}
         <div style={{ textAlign:'center', marginBottom:36 }}>
-          <div style={{ width:72, height:72, borderRadius:'50%', background:'var(--accent)', display:'inline-flex', alignItems:'center', justifyContent:'center', color:'#fff', marginBottom:16, boxShadow:'0 8px 24px rgba(110,110,240,0.4)' }}><Logo size={42} /></div>
+          <div style={{ width:72, height:72, borderRadius:'50%', background:'#000', display:'inline-flex', alignItems:'center', justifyContent:'center', color:'#fff', marginBottom:16 }}><Logo size={42} /></div>
           <div style={{ fontWeight:800, fontSize:22, letterSpacing:'.06em', color:'var(--t1)', marginBottom:4 }}>VERSA LOG</div>
           <div style={{ fontSize:13, color:'var(--t3)' }}>Sistema de Logística · ERP</div>
         </div>
@@ -234,7 +234,7 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobile
         {/* Header */}
         <div style={{ padding:'14px 12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap: collapsed ? 0 : 10, overflow:'hidden' }}>
-            <div style={{ width:36, height:36, borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', flexShrink:0 }}><Logo size={20} /></div>
+            <div style={{ width:36, height:36, borderRadius:'50%', background:'#000', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', flexShrink:0 }}><Logo size={20} /></div>
             {!collapsed && (
               <div style={{ overflow:'hidden', flex:1 }}>
                 <div style={{ fontWeight:700, fontSize:13, color:'var(--t1)', letterSpacing:'.05em', whiteSpace:'nowrap' }}>VERSA LOG</div>
