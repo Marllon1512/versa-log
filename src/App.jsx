@@ -11,12 +11,19 @@ import { toast, Toaster } from './lib/toast'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 import { pedidosService } from './services/pedidos'
+import {
+  produtosService, usuariosService, equipesService,
+  assistenciasService, conferenciasService, pontoService, assinaturasService,
+  clientesService, fornecedoresService, catalogoService, configSistemaService,
+  vendasService, comprasService, estoqueService, financeiroService,
+  dpService, ordensServicoService,
+} from './services/index'
 
 // ── Lojas do grupo (lista fixa) ───────────────────────────
 const LOJAS_GRUPO = ['Templum Comércio','Templum Minas','Movelaria Olga','Santa Comércio','Alpendre Mobiliário','Arca Garden','Feirão']
 
 // ── Permissões por perfil ─────────────────────────────────
-const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config']
+const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','dp','os','fila']
 const PROFILE_PAGES = {
   admin:     _ALL_PAGES,
   gestor:    _ALL_PAGES,
@@ -24,23 +31,23 @@ const PROFILE_PAGES = {
   motorista: ['rota','pedidos','ponto','ranking'],
   separador: ['separacao','pedidos','ponto'],
   conferente:['conferencia','pedidos','ponto'],
-  estoque:   ['separacao','pedidos','ponto'],
-  tecnico:   ['roteiro','assistencia','ponto'],
-  atendente: ['assistencia','pedidos','agenda','ponto'],
+  estoque:   ['separacao','pedidos','ponto','estoque'],
+  tecnico:   ['roteiro','assistencia','ponto','os'],
+  atendente: ['assistencia','pedidos','agenda','ponto','vendas','clientes'],
 }
 const PROFILE_NAV = {
-  admin:     [{id:'dashboard',label:'Painel',icon:'⊞'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'roteiro',label:'Roteiro',icon:'🗺'},{id:'mob-menu',label:'Mais',icon:'☰'}],
-  gestor:    [{id:'dashboard',label:'Painel',icon:'⊞'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'roteiro',label:'Roteiro',icon:'🗺'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  admin:     [{id:'dashboard',label:'Painel',icon:'⊞'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'vendas',label:'Vendas',icon:'💰'},{id:'financeiro',label:'Financeiro',icon:'💳'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  gestor:    [{id:'dashboard',label:'Painel',icon:'⊞'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'vendas',label:'Vendas',icon:'💰'},{id:'financeiro',label:'Financeiro',icon:'💳'},{id:'mob-menu',label:'Mais',icon:'☰'}],
   entregador:[{id:'rota',label:'Minha Rota',icon:'🚚'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'separacao',label:'Separação',icon:'✂'},{id:'mob-menu',label:'Mais',icon:'☰'}],
   motorista: [{id:'rota',label:'Minha Rota',icon:'🚚'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'separacao',label:'Separação',icon:'✂'},{id:'mob-menu',label:'Mais',icon:'☰'}],
   separador: [{id:'separacao',label:'Separação',icon:'✂'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
   conferente:[{id:'conferencia',label:'Conferência',icon:'📋'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
-  estoque:   [{id:'separacao',label:'Separação',icon:'✂'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
-  tecnico:   [{id:'roteiro',label:'Roteiro',icon:'🗺'},{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
-  atendente: [{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'pedidos',label:'Pedidos',icon:'📦'},{id:'agenda',label:'Agenda',icon:'📅'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  estoque:   [{id:'separacao',label:'Separação',icon:'✂'},{id:'estoque',label:'Estoque',icon:'🏪'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  tecnico:   [{id:'roteiro',label:'Roteiro',icon:'🗺'},{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'os',label:'O.S.',icon:'📋'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
+  atendente: [{id:'assistencia',label:'Assistência',icon:'🔧'},{id:'vendas',label:'Vendas',icon:'💰'},{id:'agenda',label:'Agenda',icon:'📅'},{id:'ponto',label:'Ponto',icon:'⏰'},{id:'mob-menu',label:'Mais',icon:'☰'}],
 }
 const PROFILE_LABELS = { admin:'Admin',gestor:'Gestor',entregador:'Entregador',motorista:'Motorista',separador:'Separador',conferente:'Conferente',estoque:'Estoque',tecnico:'Téc. Assistência',atendente:'Atendente' }
-const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações' }
+const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações',cadastros:'Cadastros',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Financeiro',dp:'Dep. Pessoal',os:'Ordens de Serviço',fila:'Fila Liberação' }
 
 function LojaSelect({ value, onChange, className, style, placeholder }) {
   const [outra, setOutra] = useState(() => !!(value && !LOJAS_GRUPO.includes(value)))
@@ -103,10 +110,6 @@ function LojaMultiSelect({ value, onChange }) {
     </div>
   )
 }
-import {
-  produtosService, usuariosService, equipesService,
-  assistenciasService, conferenciasService, pontoService
-} from './services/index'
 
 // ============================================================
 // LOGIN
@@ -4249,6 +4252,1495 @@ function Configuracoes() {
 }
 
 // ============================================================
+// CADASTROS
+// ============================================================
+function CadClientes() {
+  const { data: lista, loading, reload } = useData(() => clientesService.list(), [])
+  const [busca, setBusca] = useState('')
+  const [modal, setModal] = useState(null) // null | { mode:'new'|'edit', item }
+  const empty = { nome:'', cpf_cnpj:'', telefone:'', email:'', endereco:'', cidade:'', estado:'', cep:'', observacoes:'' }
+  const [form, setForm] = useState(empty)
+  const act = useAction()
+
+  const abrirNovo = () => { setForm(empty); setModal({ mode:'new' }) }
+  const abrirEdit = (it) => { setForm({ ...empty, ...it }); setModal({ mode:'edit', item: it }) }
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const salvar = async () => {
+    if (!form.nome.trim()) return toast.error('Nome obrigatório')
+    try {
+      if (modal.mode === 'new') await act.run(() => clientesService.create({ ...form }))
+      else await act.run(() => clientesService.update(modal.item.id, form))
+      toast.success('Salvo com sucesso')
+      setModal(null)
+      reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const excluir = async (id) => {
+    if (!confirm('Excluir cliente?')) return
+    try { await act.run(() => clientesService.remove(id)); reload() } catch (e) { toast.error(e.message) }
+  }
+
+  const filtrado = (lista || []).filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()) || c.cpf_cnpj?.includes(busca) || c.telefone?.includes(busca))
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
+        <input className="fi" style={{ flex:1 }} placeholder="Buscar cliente..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <button className="btn btn-p btn-sm" onClick={abrirNovo}>+ Novo</button>
+      </div>
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum cliente cadastrado" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {filtrado.map(c => (
+            <div key={c.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14 }}>{c.nome}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{[c.cpf_cnpj, c.telefone, c.cidade].filter(Boolean).join(' · ')}</div>
+              </div>
+              <button className="btn btn-s btn-sm" onClick={() => abrirEdit(c)}>Editar</button>
+              <button className="btn btn-g btn-sm" onClick={() => excluir(c.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={modal.mode === 'new' ? 'Novo Cliente' : 'Editar Cliente'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
+            <div className="fg"><label className="fl">CPF/CNPJ</label><input className="fi" value={form.cpf_cnpj} onChange={up('cpf_cnpj')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} inputMode="tel" /></div>
+            <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email} onChange={up('email')} inputMode="email" /></div>
+          </div>
+          <div className="fg"><label className="fl">Endereço</label><input className="fi" value={form.endereco} onChange={up('endereco')} /></div>
+          <div className="grid2">
+            <div className="fg"><label className="fl">Cidade</label><input className="fi" value={form.cidade} onChange={up('cidade')} /></div>
+            <div className="fg"><label className="fl">CEP</label><input className="fi" value={form.cep} onChange={up('cep')} /></div>
+          </div>
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes} onChange={up('observacoes')} rows={2} /></div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? 'Salvando...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function CadFornecedores() {
+  const { data: lista, loading, reload } = useData(() => fornecedoresService.list(), [])
+  const [busca, setBusca] = useState('')
+  const [modal, setModal] = useState(null)
+  const empty = { nome:'', cnpj:'', contato:'', telefone:'', email:'', categoria:'', observacoes:'' }
+  const [form, setForm] = useState(empty)
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const salvar = async () => {
+    if (!form.nome.trim()) return toast.error('Nome obrigatório')
+    try {
+      if (!modal.item) await act.run(() => fornecedoresService.create(form))
+      else await act.run(() => fornecedoresService.update(modal.item.id, form))
+      toast.success('Salvo'); setModal(null); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const excluir = async (id) => {
+    if (!confirm('Excluir fornecedor?')) return
+    try { await fornecedoresService.remove(id); reload() } catch (e) { toast.error(e.message) }
+  }
+
+  const filtrado = (lista || []).filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()))
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+        <input className="fi" style={{ flex:1 }} placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ Novo</button>
+      </div>
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum fornecedor" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {filtrado.map(f => (
+            <div key={f.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14 }}>{f.nome}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{[f.cnpj, f.categoria, f.telefone].filter(Boolean).join(' · ')}</div>
+              </div>
+              <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...f }); setModal({ item:f }) }}>Editar</button>
+              <button className="btn btn-g btn-sm" onClick={() => excluir(f.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={modal.item ? 'Editar Fornecedor' : 'Novo Fornecedor'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
+            <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj} onChange={up('cnpj')} /></div>
+            <div className="fg"><label className="fl">Contato</label><input className="fi" value={form.contato} onChange={up('contato')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email} onChange={up('email')} /></div>
+            <div className="fg"><label className="fl">Categoria</label><input className="fi" value={form.categoria} onChange={up('categoria')} placeholder="Ex: Móveis, Tecidos..." /></div>
+          </div>
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes} onChange={up('observacoes')} rows={2} /></div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function CadCatalogo() {
+  const { data: lista, loading, reload } = useData(() => catalogoService.list(), [])
+  const [busca, setBusca] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('')
+  const [modal, setModal] = useState(null)
+  const empty = { nome:'', tipo:'produto', referencia:'', preco_custo:'', preco_venda:'', unidade:'un', estoque_atual:0, estoque_minimo:0, descricao:'' }
+  const [form, setForm] = useState(empty)
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+  const TIPOS = ['produto','serviço','peça','matéria-prima']
+
+  const salvar = async () => {
+    if (!form.nome.trim()) return toast.error('Nome obrigatório')
+    try {
+      const payload = { ...form, preco_custo: parseFloat(form.preco_custo)||0, preco_venda: parseFloat(form.preco_venda)||0, estoque_atual: parseInt(form.estoque_atual)||0, estoque_minimo: parseInt(form.estoque_minimo)||0 }
+      if (!modal.item) await act.run(() => catalogoService.create(payload))
+      else await act.run(() => catalogoService.update(modal.item.id, payload))
+      toast.success('Salvo'); setModal(null); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const excluir = async (id) => {
+    if (!confirm('Excluir item?')) return
+    try { await catalogoService.remove(id); reload() } catch (e) { toast.error(e.message) }
+  }
+
+  const filtrado = (lista || []).filter(c =>
+    c.nome?.toLowerCase().includes(busca.toLowerCase()) &&
+    (!filtroTipo || c.tipo === filtroTipo)
+  )
+
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <input className="fi" style={{ flex:1, minWidth:140 }} placeholder="Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <select className="fi" style={{ width:'auto' }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
+          <option value="">Todos os tipos</option>
+          {TIPOS.map(t => <option key={t}>{t}</option>)}
+        </select>
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ Novo</button>
+      </div>
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum item no catálogo" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {filtrado.map(p => (
+            <div key={p.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontWeight:600, fontSize:14 }}>{p.nome}</span>
+                  <Badge variant="bg">{p.tipo}</Badge>
+                  {p.estoque_atual <= p.estoque_minimo && <Badge variant="bg-red">Estoque baixo</Badge>}
+                </div>
+                <div style={{ fontSize:12, color:'var(--t2)', marginTop:2 }}>
+                  Ref: {p.referencia || '—'} · Estoque: {p.estoque_atual} {p.unidade} · Venda: {fmtMoeda(p.preco_venda)}
+                </div>
+              </div>
+              <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...p }); setModal({ item:p }) }}>Editar</button>
+              <button className="btn btn-g btn-sm" onClick={() => excluir(p.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={modal.item ? 'Editar Item' : 'Novo Item do Catálogo'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
+            <div className="fg"><label className="fl">Referência</label><input className="fi" value={form.referencia} onChange={up('referencia')} /></div>
+            <div className="fg"><label className="fl">Tipo</label>
+              <select className="fi" value={form.tipo} onChange={up('tipo')}>
+                {TIPOS.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Unidade</label><input className="fi" value={form.unidade} onChange={up('unidade')} placeholder="un, m², kg..." /></div>
+            <div className="fg"><label className="fl">Preço de Custo (R$)</label><input className="fi" type="number" step="0.01" value={form.preco_custo} onChange={up('preco_custo')} /></div>
+            <div className="fg"><label className="fl">Preço de Venda (R$)</label><input className="fi" type="number" step="0.01" value={form.preco_venda} onChange={up('preco_venda')} /></div>
+            <div className="fg"><label className="fl">Estoque Atual</label><input className="fi" type="number" value={form.estoque_atual} onChange={up('estoque_atual')} /></div>
+            <div className="fg"><label className="fl">Estoque Mínimo</label><input className="fi" type="number" value={form.estoque_minimo} onChange={up('estoque_minimo')} /></div>
+          </div>
+          <div className="fg"><label className="fl">Descrição</label><textarea className="fi" value={form.descricao} onChange={up('descricao')} rows={2} /></div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function CadConfigSistema() {
+  const { data: cfg, loading, reload } = useData(() => configSistemaService.get(), [])
+  const [form, setForm] = useState({})
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  useEffect(() => { if (cfg) setForm(cfg) }, [cfg])
+
+  const salvar = async () => {
+    try {
+      await act.run(() => configSistemaService.save(form))
+      toast.success('Configurações salvas')
+      reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  if (loading) return <Spinner />
+  return (
+    <div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ fontWeight:600, marginBottom:12 }}>Limites de desconto</div>
+        <div className="grid2">
+          <div className="fg"><label className="fl">Desconto máx. vendedor (%)</label><input className="fi" type="number" step="0.1" value={form.desconto_max_vendedor||''} onChange={up('desconto_max_vendedor')} placeholder="Ex: 5" /></div>
+          <div className="fg"><label className="fl">Desconto máx. gestor (%)</label><input className="fi" type="number" step="0.1" value={form.desconto_max_gestor||''} onChange={up('desconto_max_gestor')} placeholder="Ex: 15" /></div>
+          <div className="fg"><label className="fl">Desconto máx. admin (%)</label><input className="fi" type="number" step="0.1" value={form.desconto_max_admin||''} onChange={up('desconto_max_admin')} placeholder="Ex: 30" /></div>
+        </div>
+      </div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ fontWeight:600, marginBottom:12 }}>Comissões</div>
+        <div className="grid2">
+          <div className="fg"><label className="fl">Comissão vendedor (%)</label><input className="fi" type="number" step="0.1" value={form.comissao_vendedor||''} onChange={up('comissao_vendedor')} placeholder="Ex: 3" /></div>
+          <div className="fg"><label className="fl">Comissão gerente (%)</label><input className="fi" type="number" step="0.1" value={form.comissao_gerente||''} onChange={up('comissao_gerente')} placeholder="Ex: 1" /></div>
+        </div>
+      </div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ fontWeight:600, marginBottom:12 }}>Informações da empresa</div>
+        <div className="grid2">
+          <div className="fg"><label className="fl">Razão social</label><input className="fi" value={form.razao_social||''} onChange={up('razao_social')} /></div>
+          <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj||''} onChange={up('cnpj')} /></div>
+          <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} /></div>
+          <div className="fg"><label className="fl">WhatsApp aprovação</label><input className="fi" value={form.whatsapp_aprovacao||''} onChange={up('whatsapp_aprovacao')} placeholder="5531..." /></div>
+        </div>
+      </div>
+      <button className="btn btn-p" onClick={salvar} disabled={act.loading}>{act.loading ? 'Salvando...' : 'Salvar Configurações'}</button>
+    </div>
+  )
+}
+
+function Cadastros() {
+  const [tab, setTab] = useState('clientes')
+  const TABS = [{ id:'clientes',label:'Clientes' },{ id:'fornecedores',label:'Fornecedores' },{ id:'catalogo',label:'Catálogo' },{ id:'config',label:'Config. Sistema' }]
+  return (
+    <div className="page">
+      <div className="ph"><h1>Cadastros</h1></div>
+      <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
+        {TABS.map(t => <button key={t.id} className={`btn btn-${tab===t.id?'p':'s'} btn-sm`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+      </div>
+      {tab === 'clientes' && <CadClientes />}
+      {tab === 'fornecedores' && <CadFornecedores />}
+      {tab === 'catalogo' && <CadCatalogo />}
+      {tab === 'config' && <CadConfigSistema />}
+    </div>
+  )
+}
+
+// ============================================================
+// VENDAS / PDV
+// ============================================================
+function Vendas() {
+  const { data: lista, loading, reload } = useData(() => vendasService.list(), [])
+  const [novaVenda, setNovaVenda] = useState(false)
+  const [detalhe, setDetalhe] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
+
+  const STATUS_COR = { pendente:'var(--amber)', aprovado:'var(--green)', cancelado:'var(--red)', entregue:'var(--blue)', aguardando_aprovacao:'#f97316' }
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+  const fmtData = (s) => s ? new Date(s).toLocaleDateString('pt-BR') : '—'
+
+  const filtrado = (lista || []).filter(v =>
+    (!filtroStatus || v.status === filtroStatus) &&
+    (!busca || v.cliente_nome?.toLowerCase().includes(busca.toLowerCase()) || String(v.numero||'').includes(busca))
+  )
+
+  if (novaVenda) return <NovaVenda onClose={() => { setNovaVenda(false); reload() }} />
+  if (detalhe) return <VendaDetalhe venda={detalhe} onClose={() => { setDetalhe(null); reload() }} />
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <h1>Vendas</h1>
+        <button className="btn btn-p btn-sm" onClick={() => setNovaVenda(true)}>+ Nova Venda</button>
+      </div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <input className="fi" style={{ flex:1, minWidth:140 }} placeholder="Buscar cliente ou nº..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <select className="fi" style={{ width:'auto' }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+          <option value="">Todos</option>
+          {['pendente','aprovado','aguardando_aprovacao','entregue','cancelado'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}
+        </select>
+      </div>
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhuma venda encontrada" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {filtrado.map(v => (
+            <div key={v.id} className="card" style={{ cursor:'pointer' }} onClick={() => setDetalhe(v)}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight:600 }}>{v.cliente_nome || 'Cliente não informado'}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>#{v.numero || v.id?.slice(0,8)} · {fmtData(v.created_at)} · Loja: {v.loja || '—'}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontWeight:700, color:'var(--green)' }}>{fmtMoeda(v.total)}</div>
+                  <span style={{ fontSize:11, background:STATUS_COR[v.status]||'var(--bg2)', color:'#fff', padding:'2px 8px', borderRadius:12, textTransform:'capitalize' }}>{(v.status||'').replace('_',' ')}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function NovaVenda({ onClose }) {
+  const { perfil } = useAuth()
+  const { data: cfgData } = useData(() => configSistemaService.get(), [])
+  const { data: clientes } = useData(() => clientesService.list(), [])
+  const { data: catalogo } = useData(() => catalogoService.list(), [])
+  const [step, setStep] = useState(1)
+  const [form, setForm] = useState({ cliente_id:'', cliente_nome:'', loja:'', vendedor_nome: perfil?.full_name || '', obs:'' })
+  const [itens, setItens] = useState([])
+  const [desconto, setDesconto] = useState(0)
+  const [motivo, setMotivo] = useState('')
+  const [pagamento, setPagamento] = useState({ forma:'', parcelas:1, entrada:0 })
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const subtotal = itens.reduce((s, i) => s + (i.preco_unitario * i.quantidade), 0)
+  const totalDesc = subtotal * (desconto / 100)
+  const total = subtotal - totalDesc
+
+  const addItem = (prod) => {
+    const exist = itens.find(i => i.catalogo_id === prod.id)
+    if (exist) setItens(p => p.map(i => i.catalogo_id === prod.id ? { ...i, quantidade: i.quantidade + 1 } : i))
+    else setItens(p => [...p, { catalogo_id: prod.id, nome: prod.nome, quantidade: 1, preco_unitario: prod.preco_venda || 0, unidade: prod.unidade || 'un' }])
+  }
+
+  const updItem = (idx, k, v) => setItens(p => p.map((it, i) => i === idx ? { ...it, [k]: v } : it))
+  const remItem = (idx) => setItens(p => p.filter((_, i) => i !== idx))
+
+  const cfg = cfgData || {}
+  const limiteDesc = perfil?.role === 'admin' ? (parseFloat(cfg.desconto_max_admin)||100)
+    : perfil?.role === 'gestor' ? (parseFloat(cfg.desconto_max_gestor)||30)
+    : (parseFloat(cfg.desconto_max_vendedor)||5)
+  const precisaAprovacao = desconto > limiteDesc
+
+  const confirmar = async () => {
+    try {
+      const status = precisaAprovacao ? 'aguardando_aprovacao' : 'aprovado'
+      const nova = await act.run(() => vendasService.create({
+        cliente_id: form.cliente_id || null,
+        cliente_nome: form.cliente_nome,
+        loja: form.loja,
+        vendedor_nome: form.vendedor_nome,
+        vendedor_id: perfil?.id,
+        subtotal, desconto_perc: desconto, desconto_valor: totalDesc, total,
+        motivo_desconto: motivo,
+        forma_pagamento: pagamento.forma,
+        parcelas: pagamento.parcelas,
+        entrada: parseFloat(pagamento.entrada)||0,
+        obs: form.obs,
+        status,
+      }))
+      if (itens.length) await vendasService.createItens(itens.map(it => ({ ...it, venda_id: nova.id })))
+      if (precisaAprovacao) {
+        const tel = cfg.whatsapp_aprovacao
+        if (tel) {
+          const msg = encodeURIComponent(`*APROVAÇÃO DE DESCONTO*\nVendedor: ${form.vendedor_nome}\nCliente: ${form.cliente_nome}\nTotal: R$ ${total.toFixed(2)}\nDesconto solicitado: ${desconto}%\nMotivo: ${motivo}`)
+          window.open(`https://wa.me/${tel}?text=${msg}`, '_blank')
+        }
+        toast.info('Venda aguardando aprovação de desconto')
+      } else {
+        toast.success('Venda registrada!')
+      }
+      onClose()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const FORMAS = ['Dinheiro','Cartão Débito','Cartão Crédito','PIX','Boleto','Financiamento']
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <div>
+          <h1>Nova Venda</h1>
+          <div className="ph-sub">Passo {step} de 5</div>
+        </div>
+        <button className="btn btn-s btn-sm" onClick={onClose}>Cancelar</button>
+      </div>
+      <div style={{ display:'flex', gap:4, marginBottom:20 }}>
+        {[1,2,3,4,5].map(s => (
+          <div key={s} style={{ flex:1, height:4, borderRadius:2, background: s<=step ? 'var(--accent)' : 'var(--border)' }} />
+        ))}
+      </div>
+
+      {step === 1 && (
+        <div className="card">
+          <div style={{ fontWeight:600, marginBottom:12 }}>1. Cliente</div>
+          <div className="fg">
+            <label className="fl">Selecionar cliente cadastrado</label>
+            <select className="fi" value={form.cliente_id} onChange={e => {
+              const c = (clientes||[]).find(x => x.id === e.target.value)
+              setForm(p => ({ ...p, cliente_id: e.target.value, cliente_nome: c?.nome || p.cliente_nome }))
+            }}>
+              <option value="">— Selecionar —</option>
+              {(clientes||[]).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div className="fg"><label className="fl">Ou digitar nome</label><input className="fi" value={form.cliente_nome} onChange={up('cliente_nome')} placeholder="Nome do cliente" /></div>
+          <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
+          <div className="fg"><label className="fl">Vendedor</label><input className="fi" value={form.vendedor_nome} onChange={up('vendedor_nome')} /></div>
+          <button className="btn btn-p" style={{ marginTop:8 }} disabled={!form.cliente_nome} onClick={() => setStep(2)}>Próximo →</button>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div>
+          <div className="card" style={{ marginBottom:12 }}>
+            <div style={{ fontWeight:600, marginBottom:10 }}>2. Produtos</div>
+            <input className="fi" placeholder="Buscar no catálogo..." style={{ marginBottom:8 }}
+              onChange={e => {
+                const q = e.target.value.toLowerCase()
+                const el = document.getElementById('cat-results')
+                if (!el) return
+                el.innerHTML = ''
+                if (!q) return
+                ;(catalogo||[]).filter(p => p.nome.toLowerCase().includes(q)).slice(0,8).forEach(p => {
+                  const btn = document.createElement('button')
+                  btn.className = 'btn btn-s btn-sm'
+                  btn.style.margin = '2px'
+                  btn.textContent = `${p.nome} — ${(parseFloat(p.preco_venda)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`
+                  btn.onclick = () => { addItem(p); e.target.value = ''; el.innerHTML = '' }
+                  el.appendChild(btn)
+                })
+              }}
+            />
+            <div id="cat-results" style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:8 }} />
+            {itens.length === 0 ? <div style={{ color:'var(--t2)', fontSize:13 }}>Nenhum item adicionado</div> : (
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {itens.map((it, idx) => (
+                  <div key={idx} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid var(--border)' }}>
+                    <div style={{ flex:1, fontSize:13 }}>{it.nome}</div>
+                    <input type="number" min={1} value={it.quantidade} style={{ width:60, padding:'4px 6px', border:'1px solid var(--border)', borderRadius:6, textAlign:'center' }} onChange={e => updItem(idx,'quantidade',parseInt(e.target.value)||1)} />
+                    <input type="number" step="0.01" value={it.preco_unitario} style={{ width:90, padding:'4px 6px', border:'1px solid var(--border)', borderRadius:6 }} onChange={e => updItem(idx,'preco_unitario',parseFloat(e.target.value)||0)} />
+                    <button className="btn btn-g btn-sm" onClick={() => remItem(idx)}>✕</button>
+                  </div>
+                ))}
+                <div style={{ textAlign:'right', fontWeight:600, fontSize:15, paddingTop:6 }}>Subtotal: {fmtMoeda(subtotal)}</div>
+              </div>
+            )}
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="btn btn-s" onClick={() => setStep(1)}>← Voltar</button>
+            <button className="btn btn-p" style={{ flex:1 }} disabled={itens.length===0} onClick={() => setStep(3)}>Próximo →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="card">
+          <div style={{ fontWeight:600, marginBottom:12 }}>3. Desconto</div>
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:13, color:'var(--t2)', marginBottom:4 }}>Subtotal: {fmtMoeda(subtotal)}</div>
+            <div style={{ fontSize:13, color:'var(--t2)', marginBottom:8 }}>Seu limite: {limiteDesc}%</div>
+          </div>
+          <div className="fg"><label className="fl">Desconto (%)</label><input className="fi" type="number" min={0} max={100} step="0.1" value={desconto} onChange={e => setDesconto(parseFloat(e.target.value)||0)} /></div>
+          {desconto > 0 && <div className="fg"><label className="fl">Motivo do desconto</label><input className="fi" value={motivo} onChange={e => setMotivo(e.target.value)} /></div>}
+          {precisaAprovacao && (
+            <Alert type="warning" style={{ marginTop:8 }}>Desconto acima do seu limite ({limiteDesc}%). Precisará de aprovação via WhatsApp.</Alert>
+          )}
+          <div style={{ marginTop:12, fontWeight:600, fontSize:16 }}>Total: {fmtMoeda(total)}</div>
+          <div style={{ display:'flex', gap:8, marginTop:16 }}>
+            <button className="btn btn-s" onClick={() => setStep(2)}>← Voltar</button>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={() => setStep(4)}>Próximo →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="card">
+          <div style={{ fontWeight:600, marginBottom:12 }}>4. Pagamento</div>
+          <div className="fg">
+            <label className="fl">Forma de pagamento</label>
+            <select className="fi" value={pagamento.forma} onChange={e => setPagamento(p => ({ ...p, forma: e.target.value }))}>
+              <option value="">Selecionar...</option>
+              {FORMAS.map(f => <option key={f}>{f}</option>)}
+            </select>
+          </div>
+          {pagamento.forma === 'Cartão Crédito' && (
+            <div className="fg"><label className="fl">Parcelas</label>
+              <select className="fi" value={pagamento.parcelas} onChange={e => setPagamento(p => ({ ...p, parcelas: parseInt(e.target.value) }))}>
+                {[1,2,3,4,5,6,10,12].map(n => <option key={n} value={n}>{n}x de {fmtMoeda(total/n)}</option>)}
+              </select>
+            </div>
+          )}
+          {pagamento.forma === 'Financiamento' && (
+            <div className="fg"><label className="fl">Entrada (R$)</label><input className="fi" type="number" step="0.01" value={pagamento.entrada} onChange={e => setPagamento(p => ({ ...p, entrada: e.target.value }))} /></div>
+          )}
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs} onChange={up('obs')} rows={2} /></div>
+          <div style={{ display:'flex', gap:8, marginTop:16 }}>
+            <button className="btn btn-s" onClick={() => setStep(3)}>← Voltar</button>
+            <button className="btn btn-p" style={{ flex:1 }} disabled={!pagamento.forma} onClick={() => setStep(5)}>Próximo →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 5 && (
+        <div className="card">
+          <div style={{ fontWeight:600, marginBottom:16 }}>5. Confirmação</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:6, fontSize:14, marginBottom:16 }}>
+            <div><span style={{ color:'var(--t2)' }}>Cliente:</span> {form.cliente_nome}</div>
+            <div><span style={{ color:'var(--t2)' }}>Loja:</span> {form.loja}</div>
+            <div><span style={{ color:'var(--t2)' }}>Itens:</span> {itens.length} produtos</div>
+            <div><span style={{ color:'var(--t2)' }}>Subtotal:</span> {fmtMoeda(subtotal)}</div>
+            {desconto > 0 && <div><span style={{ color:'var(--t2)' }}>Desconto:</span> {desconto}% ({fmtMoeda(totalDesc)})</div>}
+            <div style={{ fontWeight:700, fontSize:16 }}>Total: {fmtMoeda(total)}</div>
+            <div><span style={{ color:'var(--t2)' }}>Pagamento:</span> {pagamento.forma}{pagamento.parcelas > 1 ? ` em ${pagamento.parcelas}x` : ''}</div>
+            {precisaAprovacao && <Alert type="warning">Aguardará aprovação de desconto.</Alert>}
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="btn btn-s" onClick={() => setStep(4)}>← Voltar</button>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={confirmar} disabled={act.loading}>{act.loading ? 'Salvando...' : precisaAprovacao ? 'Enviar p/ Aprovação' : 'Confirmar Venda'}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VendaDetalhe({ venda, onClose }) {
+  const { data, reload } = useData(() => vendasService.getById(venda.id), [venda.id])
+  const act = useAction()
+  const v = data || venda
+  const fmtMoeda = (x) => (parseFloat(x)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  const STATUS = ['aprovado','entregue','cancelado','aguardando_aprovacao']
+
+  const atualizarStatus = async (status) => {
+    try { await act.run(() => vendasService.update(v.id, { status })); toast.success('Status atualizado'); reload() } catch (e) { toast.error(e.message) }
+  }
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <div>
+          <h1>Venda #{v.numero || v.id?.slice(0,8)}</h1>
+          <div className="ph-sub">{v.cliente_nome}</div>
+        </div>
+        <button className="btn btn-s btn-sm" onClick={onClose}>← Voltar</button>
+      </div>
+      <div className="card" style={{ marginBottom:12 }}>
+        <div className="grid2" style={{ fontSize:14, gap:8 }}>
+          <div><span style={{ color:'var(--t2)' }}>Loja:</span> {v.loja}</div>
+          <div><span style={{ color:'var(--t2)' }}>Vendedor:</span> {v.vendedor_nome}</div>
+          <div><span style={{ color:'var(--t2)' }}>Pagamento:</span> {v.forma_pagamento}</div>
+          <div><span style={{ color:'var(--t2)' }}>Status:</span> <span style={{ textTransform:'capitalize' }}>{(v.status||'').replace('_',' ')}</span></div>
+          <div><span style={{ color:'var(--t2)' }}>Subtotal:</span> {fmtMoeda(v.subtotal)}</div>
+          <div><span style={{ color:'var(--t2)' }}>Desconto:</span> {v.desconto_perc||0}% ({fmtMoeda(v.desconto_valor)})</div>
+          <div style={{ fontWeight:700, fontSize:16, gridColumn:'1/-1' }}>Total: {fmtMoeda(v.total)}</div>
+        </div>
+      </div>
+      {v.venda_itens?.length > 0 && (
+        <div className="card" style={{ marginBottom:12 }}>
+          <div style={{ fontWeight:600, marginBottom:8 }}>Itens</div>
+          {v.venda_itens.map((it, i) => (
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'4px 0', borderBottom:'1px solid var(--border)' }}>
+              <span>{it.nome} × {it.quantidade}</span>
+              <span>{fmtMoeda(it.preco_unitario * it.quantidade)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="card">
+        <div style={{ fontWeight:600, marginBottom:10 }}>Alterar Status</div>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {STATUS.map(s => (
+            <button key={s} className={`btn btn-${v.status===s?'p':'s'} btn-sm`} onClick={() => atualizarStatus(s)} disabled={v.status===s} style={{ textTransform:'capitalize' }}>{s.replace('_',' ')}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// COMPRAS
+// ============================================================
+function Compras() {
+  const { data: lista, loading, reload } = useData(() => comprasService.list(), [])
+  const [modal, setModal] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
+  const act = useAction()
+
+  const STATUS_COR = { rascunho:'var(--t2)', enviado:'var(--amber)', confirmado:'var(--green)', recebido:'var(--blue)', cancelado:'var(--red)' }
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  const filtrado = (lista||[]).filter(c =>
+    (!filtroStatus || c.status === filtroStatus) &&
+    (!busca || c.fornecedor_nome?.toLowerCase().includes(busca.toLowerCase()))
+  )
+
+  const atualizar = async (id, updates) => {
+    try { await act.run(() => comprasService.update(id, updates)); reload(); toast.success('Atualizado') } catch (e) { toast.error(e.message) }
+  }
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <h1>Compras</h1>
+        <button className="btn btn-p btn-sm" onClick={() => setModal({ mode:'new' })}>+ Novo Pedido</button>
+      </div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <input className="fi" style={{ flex:1, minWidth:140 }} placeholder="Buscar fornecedor..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <select className="fi" style={{ width:'auto' }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+          <option value="">Todos</option>
+          {['rascunho','enviado','confirmado','recebido','cancelado'].map(s => <option key={s}>{s}</option>)}
+        </select>
+      </div>
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum pedido de compra" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {filtrado.map(c => (
+            <div key={c.id} className="card">
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                <div>
+                  <div style={{ fontWeight:600 }}>{c.fornecedor_nome}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>{new Date(c.created_at).toLocaleDateString('pt-BR')} · {c.pedido_compra_itens?.length||0} itens</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontWeight:700 }}>{fmtMoeda(c.total)}</div>
+                  <span style={{ fontSize:11, background:STATUS_COR[c.status]||'var(--t2)', color:'#fff', padding:'2px 8px', borderRadius:12 }}>{c.status}</span>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {c.status === 'rascunho' && <button className="btn btn-p btn-sm" onClick={() => atualizar(c.id,{status:'enviado'})}>Enviar ao Fornecedor</button>}
+                {c.status === 'enviado' && <button className="btn btn-p btn-sm" onClick={() => atualizar(c.id,{status:'confirmado'})}>Marcar Confirmado</button>}
+                {c.status === 'confirmado' && <button className="btn btn-p btn-sm" onClick={() => atualizar(c.id,{status:'recebido', data_recebimento: new Date().toISOString().split('T')[0]})}>Recebido</button>}
+                <button className="btn btn-s btn-sm" onClick={() => setModal({ mode:'edit', item:c })}>Ver/Editar</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && <ModalCompra modal={modal} onClose={() => { setModal(null); reload() }} />}
+    </div>
+  )
+}
+
+function ModalCompra({ modal, onClose }) {
+  const { data: forns } = useData(() => fornecedoresService.list(), [])
+  const empty = { fornecedor_id:'', fornecedor_nome:'', data_prevista:'', obs:'', status:'rascunho' }
+  const [form, setForm] = useState(modal.item ? { ...empty, ...modal.item } : empty)
+  const [itens, setItens] = useState(modal.item?.pedido_compra_itens || [{ descricao:'', quantidade:1, preco_unitario:0, unidade:'un' }])
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+  const upItem = (idx, k, v) => setItens(p => p.map((it,i) => i===idx ? { ...it, [k]: v } : it))
+  const addItem = () => setItens(p => [...p, { descricao:'', quantidade:1, preco_unitario:0, unidade:'un' }])
+  const remItem = (idx) => setItens(p => p.filter((_,i) => i!==idx))
+  const total = itens.reduce((s,i) => s + ((parseFloat(i.preco_unitario)||0) * (parseInt(i.quantidade)||0)), 0)
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  const salvar = async () => {
+    if (!form.fornecedor_nome) return toast.error('Fornecedor obrigatório')
+    try {
+      const payload = { ...form, total }
+      if (modal.mode === 'new') {
+        const criado = await act.run(() => comprasService.create(payload))
+        const itensSave = itens.map(i => ({ ...i, pedido_compra_id: criado.id, quantidade: parseInt(i.quantidade)||1, preco_unitario: parseFloat(i.preco_unitario)||0 }))
+        await comprasService.createItens(itensSave)
+      } else {
+        await act.run(() => comprasService.update(modal.item.id, payload))
+      }
+      toast.success('Salvo'); onClose()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  return (
+    <Modal title={modal.mode === 'new' ? 'Novo Pedido de Compra' : 'Pedido de Compra'} onClose={onClose}>
+      <div className="grid2">
+        <div className="fg" style={{ gridColumn:'1/-1' }}>
+          <label className="fl">Fornecedor *</label>
+          <select className="fi" value={form.fornecedor_id} onChange={e => {
+            const f = (forns||[]).find(x => x.id === e.target.value)
+            setForm(p => ({ ...p, fornecedor_id: e.target.value, fornecedor_nome: f?.nome || p.fornecedor_nome }))
+          }}>
+            <option value="">Selecionar...</option>
+            {(forns||[]).map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+          {!form.fornecedor_id && <input className="fi" style={{ marginTop:4 }} value={form.fornecedor_nome} onChange={up('fornecedor_nome')} placeholder="Ou digitar nome" />}
+        </div>
+        <div className="fg"><label className="fl">Entrega prevista</label><input className="fi" type="date" value={form.data_prevista||''} onChange={up('data_prevista')} /></div>
+      </div>
+      <div style={{ fontWeight:600, margin:'12px 0 8px' }}>Itens</div>
+      {itens.map((it, idx) => (
+        <div key={idx} style={{ display:'flex', gap:6, marginBottom:6, alignItems:'center' }}>
+          <input className="fi" style={{ flex:2 }} placeholder="Descrição" value={it.descricao} onChange={e => upItem(idx,'descricao',e.target.value)} />
+          <input className="fi" style={{ width:60 }} type="number" min={1} value={it.quantidade} onChange={e => upItem(idx,'quantidade',e.target.value)} />
+          <input className="fi" style={{ width:90 }} type="number" step="0.01" value={it.preco_unitario} onChange={e => upItem(idx,'preco_unitario',e.target.value)} placeholder="R$" />
+          <button className="btn btn-g btn-sm" onClick={() => remItem(idx)}>✕</button>
+        </div>
+      ))}
+      <button className="btn btn-s btn-sm" onClick={addItem} style={{ marginBottom:8 }}>+ Item</button>
+      <div style={{ textAlign:'right', fontWeight:600, marginBottom:12 }}>Total: {fmtMoeda(total)}</div>
+      <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs||''} onChange={up('obs')} rows={2} /></div>
+      <div style={{ display:'flex', gap:8, marginTop:8 }}>
+        <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+        <button className="btn btn-s" onClick={onClose}>Cancelar</button>
+      </div>
+    </Modal>
+  )
+}
+
+// ============================================================
+// ESTOQUE
+// ============================================================
+function Estoque() {
+  const [tab, setTab] = useState('dashboard')
+  const TABS = [{ id:'dashboard',label:'Painel' },{ id:'nf',label:'Entradas NF' },{ id:'mov',label:'Movimentações' }]
+  return (
+    <div className="page">
+      <div className="ph"><h1>Estoque</h1></div>
+      <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
+        {TABS.map(t => <button key={t.id} className={`btn btn-${tab===t.id?'p':'s'} btn-sm`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+      </div>
+      {tab === 'dashboard' && <EstoqueDashboard />}
+      {tab === 'nf' && <EstoqueNF />}
+      {tab === 'mov' && <EstoqueMov />}
+    </div>
+  )
+}
+
+function EstoqueDashboard() {
+  const { data: itens, loading } = useData(() => estoqueService.list(), [])
+  if (loading) return <Spinner />
+  const total = (itens||[]).length
+  const baixo = (itens||[]).filter(i => (i.estoque_atual||0) <= (i.estoque_minimo||0)).length
+  const lojas = [...new Set((itens||[]).map(i => i.loja).filter(Boolean))]
+  return (
+    <div>
+      <div className="stats" style={{ marginBottom:16 }}>
+        <div className="stat"><div className="stat-n">{total}</div><div className="stat-l">Itens</div></div>
+        <div className="stat"><div className="stat-n" style={{ color:'var(--red)' }}>{baixo}</div><div className="stat-l">Estoque baixo</div></div>
+        <div className="stat"><div className="stat-n">{lojas.length}</div><div className="stat-l">Lojas</div></div>
+      </div>
+      {baixo > 0 && <Alert type="warning" style={{ marginBottom:12 }}>{baixo} item(ns) com estoque abaixo do mínimo</Alert>}
+      {(itens||[]).length === 0 ? <Empty text="Nenhum item no estoque" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {(itens||[]).map(i => (
+            <div key={i.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14 }}>{i.nome_produto}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{i.loja} · Ref: {i.referencia||'—'}</div>
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ fontWeight:700, color: (i.estoque_atual||0)<=(i.estoque_minimo||0) ? 'var(--red)' : 'var(--green)' }}>{i.estoque_atual||0} {i.unidade||'un'}</div>
+                <div style={{ fontSize:11, color:'var(--t2)' }}>mín: {i.estoque_minimo||0}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EstoqueNF() {
+  const { data: lista, loading, reload } = useData(() => estoqueService.listNFEntradas(), [])
+  const [modal, setModal] = useState(false)
+  const { data: forns } = useData(() => fornecedoresService.list(), [])
+  const [form, setForm] = useState({ fornecedor_nome:'', numero_nf:'', data_emissao:'', valor_total:'' })
+  const [itens, setItens] = useState([{ descricao:'', quantidade:1, preco_unitario:0 }])
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+  const upItem = (idx, k, v) => setItens(p => p.map((it,i) => i===idx ? { ...it, [k]: v } : it))
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  const salvar = async () => {
+    if (!form.fornecedor_nome || !form.numero_nf) return toast.error('Fornecedor e NF obrigatórios')
+    try {
+      const nf = await act.run(() => estoqueService.createNFEntrada({ ...form, valor_total: parseFloat(form.valor_total)||0, status:'pendente' }))
+      await estoqueService.createNFItens(itens.map(i => ({ ...i, nf_entrada_id: nf.id, quantidade: parseInt(i.quantidade)||1, preco_unitario: parseFloat(i.preco_unitario)||0 })))
+      toast.success('NF registrada'); setModal(false); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <button className="btn btn-p btn-sm" onClick={() => setModal(true)}>+ Entrada NF</button>
+      </div>
+      {loading ? <Spinner /> : (lista||[]).length === 0 ? <Empty text="Nenhuma NF registrada" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {(lista||[]).map(nf => (
+            <div key={nf.id} className="card" style={{ padding:'10px 14px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontWeight:600 }}>{nf.fornecedor_nome}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>NF {nf.numero_nf} · {new Date(nf.created_at).toLocaleDateString('pt-BR')} · {nf.nf_entrada_itens?.length||0} itens</div>
+                </div>
+                <div style={{ fontWeight:700 }}>{fmtMoeda(nf.valor_total)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title="Nova Entrada de NF" onClose={() => setModal(false)}>
+          <div className="grid2">
+            <div className="fg" style={{ gridColumn:'1/-1' }}>
+              <label className="fl">Fornecedor *</label>
+              <select className="fi" onChange={e => { const f=(forns||[]).find(x=>x.id===e.target.value); setForm(p=>({...p,fornecedor_id:e.target.value,fornecedor_nome:f?.nome||p.fornecedor_nome})) }}>
+                <option value="">Selecionar...</option>
+                {(forns||[]).map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+              <input className="fi" style={{ marginTop:4 }} value={form.fornecedor_nome} onChange={up('fornecedor_nome')} placeholder="Ou digitar fornecedor" />
+            </div>
+            <div className="fg"><label className="fl">Nº NF *</label><input className="fi" value={form.numero_nf} onChange={up('numero_nf')} /></div>
+            <div className="fg"><label className="fl">Data emissão</label><input className="fi" type="date" value={form.data_emissao} onChange={up('data_emissao')} /></div>
+            <div className="fg"><label className="fl">Valor total (R$)</label><input className="fi" type="number" step="0.01" value={form.valor_total} onChange={up('valor_total')} /></div>
+          </div>
+          <div style={{ fontWeight:600, margin:'12px 0 8px' }}>Itens</div>
+          {itens.map((it, idx) => (
+            <div key={idx} style={{ display:'flex', gap:6, marginBottom:6, alignItems:'center' }}>
+              <input className="fi" style={{ flex:2 }} placeholder="Descrição" value={it.descricao} onChange={e => upItem(idx,'descricao',e.target.value)} />
+              <input className="fi" style={{ width:60 }} type="number" value={it.quantidade} onChange={e => upItem(idx,'quantidade',e.target.value)} />
+              <input className="fi" style={{ width:80 }} type="number" step="0.01" value={it.preco_unitario} onChange={e => upItem(idx,'preco_unitario',e.target.value)} placeholder="R$" />
+              <button className="btn btn-g btn-sm" onClick={() => setItens(p => p.filter((_,i)=>i!==idx))}>✕</button>
+            </div>
+          ))}
+          <button className="btn btn-s btn-sm" onClick={() => setItens(p => [...p, { descricao:'', quantidade:1, preco_unitario:0 }])}>+ Item</button>
+          <div style={{ display:'flex', gap:8, marginTop:12 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Registrar NF'}</button>
+            <button className="btn btn-s" onClick={() => setModal(false)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function EstoqueMov() {
+  const { data: lista, loading, reload } = useData(() => estoqueService.listMovimentacoes(), [])
+  const { data: estoqueItens } = useData(() => estoqueService.list(), [])
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({ tipo:'entrada', descricao:'', quantidade:1, loja:'', referencia:'' })
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const registrar = async () => {
+    if (!form.descricao || !form.quantidade) return toast.error('Preencha todos os campos')
+    try {
+      await act.run(() => estoqueService.createMovimentacao({ ...form, quantidade: parseInt(form.quantidade), data: new Date().toISOString().split('T')[0] }))
+      toast.success('Movimentação registrada'); setModal(false); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <button className="btn btn-p btn-sm" onClick={() => setModal(true)}>+ Movimentação</button>
+      </div>
+      {loading ? <Spinner /> : (lista||[]).length === 0 ? <Empty text="Nenhuma movimentação" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {(lista||[]).map(m => (
+            <div key={m.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <span style={{ fontSize:18 }}>{m.tipo === 'entrada' ? '↑' : '↓'}</span>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14 }}>{m.descricao}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{m.loja} · {new Date(m.created_at).toLocaleDateString('pt-BR')}</div>
+              </div>
+              <div style={{ fontWeight:700, color: m.tipo==='entrada' ? 'var(--green)' : 'var(--red)' }}>
+                {m.tipo==='entrada'?'+':'-'}{m.quantidade}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title="Nova Movimentação" onClose={() => setModal(false)}>
+          <div className="fg">
+            <label className="fl">Tipo</label>
+            <select className="fi" value={form.tipo} onChange={up('tipo')}>
+              <option value="entrada">Entrada</option>
+              <option value="saida">Saída</option>
+              <option value="ajuste">Ajuste</option>
+            </select>
+          </div>
+          <div className="fg"><label className="fl">Descrição / Produto</label><input className="fi" value={form.descricao} onChange={up('descricao')} /></div>
+          <div className="grid2">
+            <div className="fg"><label className="fl">Quantidade</label><input className="fi" type="number" value={form.quantidade} onChange={up('quantidade')} /></div>
+            <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={registrar} disabled={act.loading}>{act.loading ? '...' : 'Registrar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(false)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// FINANCEIRO
+// ============================================================
+function Financeiro() {
+  const [tab, setTab] = useState('resumo')
+  const TABS = [{ id:'resumo',label:'Resumo' },{ id:'receber',label:'A Receber' },{ id:'pagar',label:'A Pagar' }]
+  return (
+    <div className="page">
+      <div className="ph"><h1>Financeiro</h1></div>
+      <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
+        {TABS.map(t => <button key={t.id} className={`btn btn-${tab===t.id?'p':'s'} btn-sm`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+      </div>
+      {tab === 'resumo' && <FinanceiroResumo />}
+      {tab === 'receber' && <FinanceiroLista tipo="receber" />}
+      {tab === 'pagar' && <FinanceiroLista tipo="pagar" />}
+    </div>
+  )
+}
+
+function FinanceiroResumo() {
+  const { data: receber } = useData(() => financeiroService.listReceber(), [])
+  const { data: pagar } = useData(() => financeiroService.listPagar(), [])
+  const hoje = new Date().toISOString().split('T')[0]
+  const totalReceber = (receber||[]).filter(r => r.status !== 'pago').reduce((s,r) => s + (parseFloat(r.valor)||0), 0)
+  const totalPagar   = (pagar||[]).filter(p => p.status !== 'pago').reduce((s,p) => s + (parseFloat(p.valor)||0), 0)
+  const vencidosRec  = (receber||[]).filter(r => r.status !== 'pago' && r.vencimento < hoje).length
+  const vencidosPag  = (pagar||[]).filter(p => p.status !== 'pago' && p.vencimento < hoje).length
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+  return (
+    <div>
+      <div className="stats" style={{ marginBottom:16 }}>
+        <div className="stat"><div className="stat-n" style={{ color:'var(--green)' }}>{fmtMoeda(totalReceber)}</div><div className="stat-l">A Receber</div></div>
+        <div className="stat"><div className="stat-n" style={{ color:'var(--red)' }}>{fmtMoeda(totalPagar)}</div><div className="stat-l">A Pagar</div></div>
+        <div className="stat"><div className="stat-n" style={{ color:'var(--accent)' }}>{fmtMoeda(totalReceber - totalPagar)}</div><div className="stat-l">Saldo</div></div>
+      </div>
+      {(vencidosRec + vencidosPag) > 0 && (
+        <Alert type="error" style={{ marginBottom:12 }}>
+          {vencidosRec > 0 && `${vencidosRec} recebimento(s) vencido(s). `}
+          {vencidosPag > 0 && `${vencidosPag} pagamento(s) vencido(s).`}
+        </Alert>
+      )}
+      <div className="grid2">
+        <div className="card">
+          <div style={{ fontWeight:600, marginBottom:8, color:'var(--green)' }}>Próximos recebimentos</div>
+          {(receber||[]).filter(r => r.status !== 'pago').slice(0,5).map(r => (
+            <div key={r.id} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'4px 0', borderBottom:'1px solid var(--border)' }}>
+              <span style={{ color: r.vencimento < hoje ? 'var(--red)' : 'var(--t1)' }}>{r.descricao}</span>
+              <span>{fmtMoeda(r.valor)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="card">
+          <div style={{ fontWeight:600, marginBottom:8, color:'var(--red)' }}>Próximos pagamentos</div>
+          {(pagar||[]).filter(p => p.status !== 'pago').slice(0,5).map(p => (
+            <div key={p.id} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'4px 0', borderBottom:'1px solid var(--border)' }}>
+              <span style={{ color: p.vencimento < hoje ? 'var(--red)' : 'var(--t1)' }}>{p.descricao}</span>
+              <span>{fmtMoeda(p.valor)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FinanceiroLista({ tipo }) {
+  const { data: lista, loading, reload } = useData(() => tipo === 'receber' ? financeiroService.listReceber() : financeiroService.listPagar(), [tipo])
+  const [modal, setModal] = useState(null)
+  const empty = { descricao:'', valor:'', vencimento:'', categoria:'', cliente_fornecedor:'', status:'pendente', obs:'' }
+  const [form, setForm] = useState(empty)
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+  const hoje = new Date().toISOString().split('T')[0]
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  const salvar = async () => {
+    if (!form.descricao || !form.valor || !form.vencimento) return toast.error('Preencha os campos obrigatórios')
+    try {
+      const payload = { ...form, valor: parseFloat(form.valor) }
+      if (!modal.item) {
+        if (tipo === 'receber') await act.run(() => financeiroService.createReceber(payload))
+        else await act.run(() => financeiroService.createPagar(payload))
+      } else {
+        if (tipo === 'receber') await act.run(() => financeiroService.updateReceber(modal.item.id, payload))
+        else await act.run(() => financeiroService.updatePagar(modal.item.id, payload))
+      }
+      toast.success('Salvo'); setModal(null); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const marcarPago = async (item) => {
+    try {
+      if (tipo === 'receber') await financeiroService.updateReceber(item.id, { status:'pago', data_pagamento: hoje })
+      else await financeiroService.updatePagar(item.id, { status:'pago', data_pagamento: hoje })
+      toast.success('Marcado como pago'); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const CATS_REC = ['Venda','Serviço','Aluguel','Outros']
+  const CATS_PAG = ['Fornecedor','Aluguel','Salário','Impostos','Serviços','Outros']
+  const CATS = tipo === 'receber' ? CATS_REC : CATS_PAG
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ {tipo === 'receber' ? 'Nova Conta a Receber' : 'Nova Conta a Pagar'}</button>
+      </div>
+      {loading ? <Spinner /> : (lista||[]).length === 0 ? <Empty text="Nenhum lançamento" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {(lista||[]).map(item => (
+            <div key={item.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', opacity: item.status === 'pago' ? 0.6 : 1 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:6 }}>
+                  {item.descricao}
+                  {item.status === 'pago' && <Badge variant="bg-green">Pago</Badge>}
+                  {item.status !== 'pago' && item.vencimento < hoje && <Badge variant="bg-red">Vencido</Badge>}
+                </div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{item.cliente_fornecedor} · Venc: {item.vencimento ? new Date(item.vencimento+'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ fontWeight:700 }}>{fmtMoeda(item.valor)}</div>
+                {item.status !== 'pago' && <button className="btn btn-p btn-sm" style={{ marginTop:4 }} onClick={() => marcarPago(item)}>Pagar</button>}
+              </div>
+              <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...item }); setModal({ item }) }}>✎</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={tipo === 'receber' ? 'Conta a Receber' : 'Conta a Pagar'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Descrição *</label><input className="fi" value={form.descricao} onChange={up('descricao')} /></div>
+            <div className="fg"><label className="fl">Valor (R$) *</label><input className="fi" type="number" step="0.01" value={form.valor} onChange={up('valor')} /></div>
+            <div className="fg"><label className="fl">Vencimento *</label><input className="fi" type="date" value={form.vencimento} onChange={up('vencimento')} /></div>
+            <div className="fg"><label className="fl">{tipo==='receber'?'Cliente':'Fornecedor'}</label><input className="fi" value={form.cliente_fornecedor} onChange={up('cliente_fornecedor')} /></div>
+            <div className="fg"><label className="fl">Categoria</label>
+              <select className="fi" value={form.categoria} onChange={up('categoria')}>
+                <option value="">—</option>
+                {CATS.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Status</label>
+              <select className="fi" value={form.status} onChange={up('status')}>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
+          </div>
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs} onChange={up('obs')} rows={2} /></div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// DEPARTAMENTO PESSOAL
+// ============================================================
+function DP() {
+  const { isAdmin } = useAuth()
+  const [tab, setTab] = useState('funcionarios')
+  const TABS = [{ id:'funcionarios',label:'Funcionários' },{ id:'folha',label:'Folha de Pagamento' },{ id:'banco',label:'Banco de Horas' }]
+  return (
+    <div className="page">
+      <div className="ph"><h1>Dep. Pessoal</h1></div>
+      <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
+        {TABS.map(t => <button key={t.id} className={`btn btn-${tab===t.id?'p':'s'} btn-sm`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+      </div>
+      {tab === 'funcionarios' && <DPFuncionarios />}
+      {tab === 'folha' && <DPFolha />}
+      {tab === 'banco' && <DPBancoHoras />}
+    </div>
+  )
+}
+
+function DPFuncionarios() {
+  const { data: lista, loading, reload } = useData(() => dpService.listFuncionarios(), [])
+  const [modal, setModal] = useState(null)
+  const empty = { nome:'', cpf:'', cargo:'', departamento:'', admissao:'', salario:'', status:'ativo', email:'', telefone:'' }
+  const [form, setForm] = useState(empty)
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const salvar = async () => {
+    if (!form.nome || !form.cargo) return toast.error('Nome e cargo obrigatórios')
+    try {
+      const payload = { ...form, salario: parseFloat(form.salario)||0 }
+      if (!modal.item) await act.run(() => dpService.createFuncionario(payload))
+      else await act.run(() => dpService.updateFuncionario(modal.item.id, payload))
+      toast.success('Salvo'); setModal(null); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ Novo Funcionário</button>
+      </div>
+      {loading ? <Spinner /> : (lista||[]).length === 0 ? <Empty text="Nenhum funcionário" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {(lista||[]).map(f => (
+            <div key={f.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0 }}>{f.nome?.[0]?.toUpperCase()}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14 }}>{f.nome}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{f.cargo} · {f.departamento} · {fmtMoeda(f.salario)}</div>
+              </div>
+              <Badge variant={f.status==='ativo'?'bg-green':'bg'}>{f.status}</Badge>
+              <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...f }); setModal({ item:f }) }}>Editar</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={modal.item ? 'Editar Funcionário' : 'Novo Funcionário'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
+            <div className="fg"><label className="fl">CPF</label><input className="fi" value={form.cpf} onChange={up('cpf')} /></div>
+            <div className="fg"><label className="fl">Cargo *</label><input className="fi" value={form.cargo} onChange={up('cargo')} /></div>
+            <div className="fg"><label className="fl">Departamento</label><input className="fi" value={form.departamento} onChange={up('departamento')} /></div>
+            <div className="fg"><label className="fl">Admissão</label><input className="fi" type="date" value={form.admissao} onChange={up('admissao')} /></div>
+            <div className="fg"><label className="fl">Salário (R$)</label><input className="fi" type="number" step="0.01" value={form.salario} onChange={up('salario')} /></div>
+            <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email} onChange={up('email')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Status</label>
+              <select className="fi" value={form.status} onChange={up('status')}>
+                <option value="ativo">Ativo</option>
+                <option value="inativo">Inativo</option>
+                <option value="ferias">Férias</option>
+                <option value="afastado">Afastado</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function DPFolha() {
+  const mesAtual = new Date().toISOString().slice(0,7)
+  const [mes, setMes] = useState(mesAtual)
+  const { data: funcionarios } = useData(() => dpService.listFuncionarios(), [])
+  const { data: folha, loading, reload } = useData(() => dpService.listFolha(mes), [mes])
+  const act = useAction()
+
+  const calcINSS = (sal) => {
+    const s = parseFloat(sal)||0
+    if (s <= 1412) return s * 0.075
+    if (s <= 2666.68) return s * 0.09
+    if (s <= 4000.03) return s * 0.12
+    if (s <= 7786.02) return s * 0.14
+    return 908.86
+  }
+
+  const calcIRRF = (base) => {
+    const b = parseFloat(base)||0
+    if (b <= 2259.20) return 0
+    if (b <= 2826.65) return b * 0.075 - 169.44
+    if (b <= 3751.05) return b * 0.15 - 381.44
+    if (b <= 4664.68) return b * 0.225 - 662.77
+    return b * 0.275 - 896.00
+  }
+
+  const gerarFolha = async () => {
+    const ativos = (funcionarios||[]).filter(f => f.status === 'ativo')
+    try {
+      for (const f of ativos) {
+        const sal = parseFloat(f.salario)||0
+        const inss = calcINSS(sal)
+        const irrf = calcIRRF(sal - inss)
+        const liquido = sal - inss - irrf
+        await dpService.upsertFolha({ funcionario_id: f.id, funcionario_nome: f.nome, cargo: f.cargo, mes, salario_bruto: sal, inss, irrf, outros_descontos: 0, liquido, status: 'gerado' })
+      }
+      toast.success(`Folha gerada para ${ativos.length} funcionários`)
+      reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
+        <input className="fi" type="month" value={mes} onChange={e => setMes(e.target.value)} style={{ width:'auto' }} />
+        <button className="btn btn-p btn-sm" onClick={gerarFolha}>Gerar Folha</button>
+      </div>
+      {loading ? <Spinner /> : (folha||[]).length === 0 ? <Empty text="Nenhuma folha gerada para este mês" /> : (
+        <div>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:'var(--t2)', fontWeight:600, padding:'6px 14px', borderBottom:'1px solid var(--border)', marginBottom:4 }}>
+            <span>Funcionário</span><span>Bruto / INSS / IRRF / Líquido</span>
+          </div>
+          {(folha||[]).map(f => (
+            <div key={f.id} className="card" style={{ display:'flex', alignItems:'center', padding:'10px 14px', marginBottom:6 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14 }}>{f.funcionario_nome}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{f.cargo}</div>
+              </div>
+              <div style={{ fontSize:12, textAlign:'right', display:'flex', flexDirection:'column', gap:2 }}>
+                <span>Bruto: {fmtMoeda(f.salario_bruto)}</span>
+                <span style={{ color:'var(--red)' }}>INSS: -{fmtMoeda(f.inss)}</span>
+                <span style={{ color:'var(--red)' }}>IRRF: -{fmtMoeda(f.irrf)}</span>
+                <span style={{ fontWeight:700, color:'var(--green)' }}>Líq: {fmtMoeda(f.liquido)}</span>
+              </div>
+            </div>
+          ))}
+          <div className="card" style={{ textAlign:'right', fontWeight:700 }}>
+            Total a pagar: {fmtMoeda((folha||[]).reduce((s,f) => s + (parseFloat(f.liquido)||0), 0))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DPBancoHoras() {
+  const { data: pontos, loading } = useData(() => pontoService.listAllHoje(), [])
+  return (
+    <div>
+      <div style={{ color:'var(--t2)', fontSize:14, marginBottom:12 }}>Registros de hoje</div>
+      {loading ? <Spinner /> : (pontos||[]).length === 0 ? <Empty text="Nenhum ponto hoje" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {(pontos||[]).map((p, i) => (
+            <div key={i} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14 }}>{p.usuario_nome}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{p.tipo} · {new Date(p.data_hora).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}</div>
+              </div>
+              <Badge variant={p.tipo==='entrada'?'bg-green':'bg'}>{p.tipo}</Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// ORDENS DE SERVIÇO
+// ============================================================
+function OrdensServico() {
+  const { data: lista, loading, reload } = useData(() => ordensServicoService.list(), [])
+  const [modal, setModal] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
+  const act = useAction()
+
+  const STATUS_COR = { aberta:'var(--amber)', em_andamento:'var(--blue)', concluida:'var(--green)', cancelada:'var(--red)' }
+  const PRIORIDADES = ['baixa','normal','alta','urgente']
+
+  const empty = { titulo:'', cliente:'', telefone:'', descricao:'', tecnico_responsavel:'', prioridade:'normal', status:'aberta', loja:'', previsao_conclusao:'', valor_orcamento:'', obs:'' }
+  const [form, setForm] = useState(empty)
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const salvar = async () => {
+    if (!form.titulo || !form.cliente) return toast.error('Título e cliente obrigatórios')
+    try {
+      const payload = { ...form, valor_orcamento: parseFloat(form.valor_orcamento)||0 }
+      if (!modal.item) await act.run(() => ordensServicoService.create(payload))
+      else await act.run(() => ordensServicoService.update(modal.item.id, payload))
+      toast.success('OS salva'); setModal(null); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const atualizarStatus = async (id, status) => {
+    try { await ordensServicoService.update(id, { status }); reload(); toast.success('Status atualizado') } catch (e) { toast.error(e.message) }
+  }
+
+  const filtrado = (lista||[]).filter(os =>
+    (!filtroStatus || os.status === filtroStatus) &&
+    (!busca || os.titulo?.toLowerCase().includes(busca.toLowerCase()) || os.cliente?.toLowerCase().includes(busca.toLowerCase()))
+  )
+
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <h1>Ordens de Serviço</h1>
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ Nova O.S.</button>
+      </div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <input className="fi" style={{ flex:1, minWidth:140 }} placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <select className="fi" style={{ width:'auto' }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+          <option value="">Todos</option>
+          {['aberta','em_andamento','concluida','cancelada'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}
+        </select>
+      </div>
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhuma O.S. encontrada" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {filtrado.map(os => (
+            <div key={os.id} className="card">
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                <div>
+                  <div style={{ fontWeight:600 }}>{os.titulo}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>{os.cliente} · {os.loja} · {os.tecnico_responsavel || 'Sem técnico'}</div>
+                  {os.valor_orcamento > 0 && <div style={{ fontSize:12, color:'var(--accent)', fontWeight:600 }}>{fmtMoeda(os.valor_orcamento)}</div>}
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
+                  <span style={{ fontSize:11, background:STATUS_COR[os.status]||'var(--t2)', color:'#fff', padding:'2px 8px', borderRadius:12 }}>{(os.status||'').replace('_',' ')}</span>
+                  <span style={{ fontSize:11, color:'var(--t2)' }}>{os.prioridade}</span>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {os.status === 'aberta' && <button className="btn btn-p btn-sm" onClick={() => atualizarStatus(os.id,'em_andamento')}>Iniciar</button>}
+                {os.status === 'em_andamento' && <button className="btn btn-p btn-sm" onClick={() => atualizarStatus(os.id,'concluida')}>Concluir</button>}
+                <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...os }); setModal({ item:os }) }}>Editar</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={modal.item ? 'Editar O.S.' : 'Nova Ordem de Serviço'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Título *</label><input className="fi" value={form.titulo} onChange={up('titulo')} /></div>
+            <div className="fg"><label className="fl">Cliente *</label><input className="fi" value={form.cliente} onChange={up('cliente')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
+            <div className="fg"><label className="fl">Técnico</label><input className="fi" value={form.tecnico_responsavel} onChange={up('tecnico_responsavel')} /></div>
+            <div className="fg"><label className="fl">Prioridade</label>
+              <select className="fi" value={form.prioridade} onChange={up('prioridade')}>
+                {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Status</label>
+              <select className="fi" value={form.status} onChange={up('status')}>
+                {['aberta','em_andamento','concluida','cancelada'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Previsão</label><input className="fi" type="date" value={form.previsao_conclusao} onChange={up('previsao_conclusao')} /></div>
+            <div className="fg"><label className="fl">Orçamento (R$)</label><input className="fi" type="number" step="0.01" value={form.valor_orcamento} onChange={up('valor_orcamento')} /></div>
+          </div>
+          <div className="fg"><label className="fl">Descrição</label><textarea className="fi" value={form.descricao} onChange={up('descricao')} rows={3} /></div>
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs} onChange={up('obs')} rows={2} /></div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// FILA DE LIBERAÇÃO
+// ============================================================
+function FilaLiberacao() {
+  const { data: pedidos, loading, reload } = useData(async () => {
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select('*, produtos(*), assinaturas(*)')
+      .in('status', ['conferido','separado','pronto'])
+      .order('data_entrega')
+    if (error) throw error
+    return data || []
+  }, [])
+
+  const [busca, setBusca] = useState('')
+  const act = useAction()
+
+  const filtrado = (pedidos||[]).filter(p =>
+    !busca ||
+    p.numero_pedido?.toString().includes(busca) ||
+    p.cliente?.toLowerCase().includes(busca.toLowerCase())
+  )
+
+  const liberarParaEntrega = async (pedido) => {
+    try {
+      await act.run(() => pedidosService.update(pedido.id, { status: 'liberado', data_liberacao: new Date().toISOString() }))
+      toast.success(`Pedido #${pedido.numero_pedido} liberado para entrega`)
+      reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const verificarCondicoes = (pedido) => {
+    const itens = pedido.produtos || []
+    const separado = itens.every(i => i.separado || i.foto_separacao)
+    const assinado = pedido.assinaturas?.length > 0 || pedido.assinatura_confirmada
+    const conferido = pedido.status === 'conferido' || pedido.conferido
+    return { separado, assinado, conferido, ok: separado }
+  }
+
+  const fmtData = (s) => s ? new Date(s+'T12:00').toLocaleDateString('pt-BR') : '—'
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <h1>Fila de Liberação</h1>
+        <button className="btn btn-s btn-sm" onClick={reload}>↻</button>
+      </div>
+      <div style={{ color:'var(--t2)', fontSize:13, marginBottom:12 }}>
+        Pedidos prontos para revisão antes da entrega
+      </div>
+      <input className="fi" style={{ marginBottom:12 }} placeholder="Buscar pedido ou cliente..." value={busca} onChange={e => setBusca(e.target.value)} />
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum pedido na fila de liberação" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {filtrado.map(p => {
+            const cond = verificarCondicoes(p)
+            return (
+              <div key={p.id} className="card">
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                  <div>
+                    <div style={{ fontWeight:700 }}>Pedido #{p.numero_pedido}</div>
+                    <div style={{ fontSize:13, color:'var(--t2)' }}>{p.cliente} · {p.loja}</div>
+                    <div style={{ fontSize:12, color:'var(--t2)' }}>Entrega: {fmtData(p.data_entrega)}</div>
+                  </div>
+                  <Badge variant={p.status==='liberado'?'bg-green':'bg-amber'}>{p.status}</Badge>
+                </div>
+                <div style={{ display:'flex', gap:12, fontSize:13, marginBottom:10 }}>
+                  <span style={{ color: cond.separado ? 'var(--green)' : 'var(--red)' }}>{cond.separado ? '✓' : '✗'} Separação</span>
+                  <span style={{ color: cond.conferido ? 'var(--green)' : 'var(--amber)' }}>{cond.conferido ? '✓' : '○'} Conferência</span>
+                </div>
+                {p.status !== 'liberado' && (
+                  <button
+                    className="btn btn-p btn-sm"
+                    disabled={!cond.ok || act.loading}
+                    onClick={() => liberarParaEntrega(p)}
+                  >
+                    {cond.ok ? 'Liberar para Entrega' : 'Pendências em aberto'}
+                  </button>
+                )}
+                {p.status === 'liberado' && <Badge variant="bg-green">Liberado ✓</Badge>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
 // BOTTOM NAV (mobile)
 // ============================================================
 function BottomNav({ page, setPage }) {
@@ -4489,6 +5981,14 @@ function AppContent() {
     rota: <MinhaRota />,
     ponto: <Ponto />,
     config: <Configuracoes />,
+    cadastros: <Cadastros />,
+    vendas: <Vendas />,
+    compras: <Compras />,
+    estoque: <Estoque />,
+    financeiro: <Financeiro />,
+    dp: <DP />,
+    os: <OrdensServico />,
+    fila: <FilaLiberacao />,
     'mob-menu': <MobileMenu setPage={setPage} />,
   }
 

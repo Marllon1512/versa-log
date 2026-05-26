@@ -234,3 +234,283 @@ export const assinaturasService = {
     return data
   },
 }
+
+// ── Clientes ──────────────────────────────────────────────
+export const clientesService = {
+  async list() {
+    const { data, error } = await supabase.from('clientes').select('*').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async getById(id) {
+    const { data, error } = await supabase.from('clientes').select('*').eq('id', id).single()
+    if (error) throw error
+    return data
+  },
+  async create(c) {
+    const { data, error } = await supabase.from('clientes').insert(c).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('clientes').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async remove(id) {
+    const { error } = await supabase.from('clientes').delete().eq('id', id)
+    if (error) throw error
+    return true
+  },
+}
+
+// ── Fornecedores ──────────────────────────────────────────
+export const fornecedoresService = {
+  async list() {
+    const { data, error } = await supabase.from('fornecedores').select('*').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async create(f) {
+    const { data, error } = await supabase.from('fornecedores').insert(f).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('fornecedores').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async remove(id) {
+    const { error } = await supabase.from('fornecedores').delete().eq('id', id)
+    if (error) throw error
+    return true
+  },
+}
+
+// ── Catálogo ──────────────────────────────────────────────
+export const catalogoService = {
+  async list() {
+    const { data, error } = await supabase.from('catalogo').select('*').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async create(p) {
+    const { data, error } = await supabase.from('catalogo').insert(p).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('catalogo').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async remove(id) {
+    const { error } = await supabase.from('catalogo').delete().eq('id', id)
+    if (error) throw error
+    return true
+  },
+}
+
+// ── Configurações do Sistema ──────────────────────────────
+export const configSistemaService = {
+  async get() {
+    const { data } = await supabase.from('configuracoes_sistema').select('*').limit(1).single()
+    return data || {}
+  },
+  async save(updates) {
+    const { data: existing } = await supabase.from('configuracoes_sistema').select('id').limit(1).single()
+    if (existing?.id) {
+      const { data, error } = await supabase.from('configuracoes_sistema').update(updates).eq('id', existing.id).select().single()
+      if (error) throw error
+      return data
+    }
+    const { data, error } = await supabase.from('configuracoes_sistema').insert(updates).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Vendas ────────────────────────────────────────────────
+export const vendasService = {
+  async list() {
+    const { data, error } = await supabase.from('vendas').select('*, venda_itens(*)').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async getById(id) {
+    const { data, error } = await supabase.from('vendas').select('*, venda_itens(*)').eq('id', id).single()
+    if (error) throw error
+    return data
+  },
+  async create(venda) {
+    const { data, error } = await supabase.from('vendas').insert(venda).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('vendas').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async createItens(itens) {
+    const { data, error } = await supabase.from('venda_itens').insert(itens).select()
+    if (error) throw error
+    return data || []
+  },
+}
+
+// ── Compras ───────────────────────────────────────────────
+export const comprasService = {
+  async list() {
+    const { data, error } = await supabase.from('pedidos_compra').select('*, pedido_compra_itens(*)').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async getById(id) {
+    const { data, error } = await supabase.from('pedidos_compra').select('*, pedido_compra_itens(*)').eq('id', id).single()
+    if (error) throw error
+    return data
+  },
+  async create(compra) {
+    const { data, error } = await supabase.from('pedidos_compra').insert(compra).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('pedidos_compra').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async createItens(itens) {
+    const { data, error } = await supabase.from('pedido_compra_itens').insert(itens).select()
+    if (error) throw error
+    return data || []
+  },
+}
+
+// ── Estoque ───────────────────────────────────────────────
+export const estoqueService = {
+  async list() {
+    const { data, error } = await supabase.from('estoque').select('*').order('nome_produto')
+    if (error) throw error
+    return data || []
+  },
+  async listNFEntradas() {
+    const { data, error } = await supabase.from('nf_entradas').select('*, nf_entrada_itens(*)').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async createNFEntrada(nf) {
+    const { data, error } = await supabase.from('nf_entradas').insert(nf).select().single()
+    if (error) throw error
+    return data
+  },
+  async updateNFEntrada(id, updates) {
+    const { data, error } = await supabase.from('nf_entradas').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async createNFItens(itens) {
+    const { data, error } = await supabase.from('nf_entrada_itens').insert(itens).select()
+    if (error) throw error
+    return data || []
+  },
+  async listMovimentacoes() {
+    const { data, error } = await supabase.from('movimentacoes_estoque').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async createMovimentacao(mov) {
+    const { data, error } = await supabase.from('movimentacoes_estoque').insert(mov).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Financeiro ────────────────────────────────────────────
+export const financeiroService = {
+  async listReceber() {
+    const { data, error } = await supabase.from('financeiro_receber').select('*').order('vencimento')
+    if (error) throw error
+    return data || []
+  },
+  async listPagar() {
+    const { data, error } = await supabase.from('financeiro_pagar').select('*').order('vencimento')
+    if (error) throw error
+    return data || []
+  },
+  async createReceber(rec) {
+    const { data, error } = await supabase.from('financeiro_receber').insert(rec).select().single()
+    if (error) throw error
+    return data
+  },
+  async createPagar(pag) {
+    const { data, error } = await supabase.from('financeiro_pagar').insert(pag).select().single()
+    if (error) throw error
+    return data
+  },
+  async updateReceber(id, updates) {
+    const { data, error } = await supabase.from('financeiro_receber').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async updatePagar(id, updates) {
+    const { data, error } = await supabase.from('financeiro_pagar').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Departamento Pessoal ──────────────────────────────────
+export const dpService = {
+  async listFuncionarios() {
+    const { data, error } = await supabase.from('funcionarios').select('*').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async createFuncionario(f) {
+    const { data, error } = await supabase.from('funcionarios').insert(f).select().single()
+    if (error) throw error
+    return data
+  },
+  async updateFuncionario(id, updates) {
+    const { data, error } = await supabase.from('funcionarios').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async listFolha(mes) {
+    const { data, error } = await supabase.from('folha_pagamento').select('*').eq('mes', mes).order('funcionario_nome')
+    if (error) throw error
+    return data || []
+  },
+  async upsertFolha(folha) {
+    const { data, error } = await supabase.from('folha_pagamento').upsert(folha, { onConflict: 'funcionario_id,mes' }).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Ordens de Serviço ─────────────────────────────────────
+export const ordensServicoService = {
+  async list() {
+    const { data, error } = await supabase.from('ordens_servico').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async getById(id) {
+    const { data, error } = await supabase.from('ordens_servico').select('*').eq('id', id).single()
+    if (error) throw error
+    return data
+  },
+  async create(os) {
+    const { data, error } = await supabase.from('ordens_servico').insert(os).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('ordens_servico').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+}
