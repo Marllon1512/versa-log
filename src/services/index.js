@@ -514,3 +514,109 @@ export const ordensServicoService = {
     return data
   },
 }
+
+// ── Lojas ─────────────────────────────────────────────────
+export const lojasService = {
+  async list() {
+    const { data, error } = await supabase.from('lojas').select('*').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async create(loja) {
+    const { data, error } = await supabase.from('lojas').insert(loja).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('lojas').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async upsertByNome(lojas) {
+    const { error } = await supabase.from('lojas').upsert(lojas, { onConflict: 'nome', ignoreDuplicates: true })
+    if (error) throw error
+  },
+}
+
+// ── Decoradores ───────────────────────────────────────────
+export const decoradoresService = {
+  async list() {
+    const { data, error } = await supabase.from('decoradores').select('*').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async create(d) {
+    const { data, error } = await supabase.from('decoradores').insert(d).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('decoradores').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── CRM ───────────────────────────────────────────────────
+export const crmService = {
+  async list() {
+    const { data, error } = await supabase.from('crm_leads').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async create(lead) {
+    const { data, error } = await supabase.from('crm_leads').insert(lead).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('crm_leads').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async remove(id) {
+    const { error } = await supabase.from('crm_leads').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Orçamentos ────────────────────────────────────────────
+export const orcamentosService = {
+  async list() {
+    const { data, error } = await supabase.from('orcamentos').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async create(orc) {
+    const { data, error } = await supabase.from('orcamentos').insert(orc).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('orcamentos').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Metas ─────────────────────────────────────────────────
+export const metasService = {
+  async list(mes, ano) {
+    let q = supabase.from('metas').select('*')
+    if (mes) q = q.eq('mes', mes)
+    if (ano) q = q.eq('ano', ano)
+    const { data, error } = await q.order('referencia_nome')
+    if (error) throw error
+    return data || []
+  },
+  async upsert(meta) {
+    const { data, error } = await supabase.from('metas').upsert(meta, { onConflict: 'tipo,referencia_id,mes,ano' }).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('metas').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+}
