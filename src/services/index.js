@@ -599,6 +599,119 @@ export const orcamentosService = {
   },
 }
 
+// ── NPS ───────────────────────────────────────────────────
+export const npsService = {
+  async list() {
+    const { data, error } = await supabase.from('nps_respostas').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async create(row) {
+    const { data, error } = await supabase.from('nps_respostas').insert(row).select().single()
+    if (error) throw error
+    return data
+  },
+  async getByToken(token) {
+    const { data, error } = await supabase.from('nps_respostas').select('*').eq('token', token).single()
+    if (error) throw error
+    return data
+  },
+  async respond(token, nota, comentario) {
+    const classificacao = nota <= 6 ? 'detrator' : nota <= 8 ? 'neutro' : 'promotor'
+    const { data, error } = await supabase.from('nps_respostas').update({ nota, comentario, classificacao, respondido_em: new Date().toISOString() }).eq('token', token).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Devoluções ────────────────────────────────────────────
+export const devolucoesService = {
+  async list() {
+    const { data, error } = await supabase.from('devolucoes').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async create(dev) {
+    const { data, error } = await supabase.from('devolucoes').insert(dev).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Localizações equipe ───────────────────────────────────
+export const localizacoesService = {
+  async upsert(userId, nome, lat, lng, status, pedidoId) {
+    const { error } = await supabase.from('localizacoes_equipe').upsert(
+      { usuario_id: userId, usuario_nome: nome, latitude: lat, longitude: lng, status, pedido_atual_id: pedidoId || null, updated_at: new Date().toISOString() },
+      { onConflict: 'usuario_id' }
+    )
+    if (error) throw error
+  },
+  async list() {
+    const cutoff = new Date(Date.now() - 15 * 60000).toISOString()
+    const { data, error } = await supabase.from('localizacoes_equipe').select('*').gte('updated_at', cutoff)
+    if (error) throw error
+    return data || []
+  },
+}
+
+// ── Consignações ──────────────────────────────────────────
+export const consignacoesService = {
+  async list() {
+    const { data, error } = await supabase.from('consignacoes').select('*').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async create(c) {
+    const { data, error } = await supabase.from('consignacoes').insert(c).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('consignacoes').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Acabamentos ───────────────────────────────────────────
+export const acabamentosService = {
+  async list() {
+    const { data, error } = await supabase.from('acabamentos').select('*').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async create(a) {
+    const { data, error } = await supabase.from('acabamentos').insert(a).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, u) {
+    const { data, error } = await supabase.from('acabamentos').update(u).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Tecidos ───────────────────────────────────────────────
+export const tecidosService = {
+  async list() {
+    const { data, error } = await supabase.from('tecidos').select('*').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async create(t) {
+    const { data, error } = await supabase.from('tecidos').insert(t).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, u) {
+    const { data, error } = await supabase.from('tecidos').update(u).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+}
+
 // ── Metas ─────────────────────────────────────────────────
 export const metasService = {
   async list(mes, ano) {
