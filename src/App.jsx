@@ -5737,13 +5737,17 @@ function CRMVisitas() {
   )
 }
 
-function CRMKanban() {
+function CRMKanban({ openNew, onOpenNewConsumed }) {
   const { data: leads, loading, reload } = useData(() => crmService.list(), [])
   const [modal, setModal] = useState(null)
   const empty = { nome:'', telefone:'', email:'', loja:'', responsavel:'', estagio:'lead', valor_estimado:0, proxima_visita:'', obs:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  useEffect(() => {
+    if (openNew) { setForm(empty); setModal({}); onOpenNewConsumed?.() }
+  }, [openNew])
 
   const mover = async (id, estagio) => {
     try { await act.run(() => crmService.update(id, { estagio })); reload() } catch (e) { toast.error(e.message) }
@@ -5829,15 +5833,21 @@ function CRMKanban() {
 
 function CRM() {
   const [tab, setTab] = useState('kanban')
-  const [modal, setModal] = useState(null)
+  const [openNew, setOpenNew] = useState(false)
   const { data: leads } = useData(() => crmService.list(), [])
   const totalValor = (leads||[]).filter(l => !['perdido'].includes(l.estagio)).reduce((s,l) => s + (parseFloat(l.valor_estimado)||0), 0)
   const fechados = (leads||[]).filter(l => l.estagio === 'fechado').length
+
+  const handleNovoLead = () => {
+    if (tab !== 'kanban') setTab('kanban')
+    setOpenNew(true)
+  }
+
   return (
     <div className="page">
       <div className="ph">
         <h1>CRM — Funil de Vendas</h1>
-        <button className="btn btn-p btn-sm" onClick={() => setModal(true)}>+ Novo Lead</button>
+        <button className="btn btn-p btn-sm" onClick={handleNovoLead}>+ Novo Lead</button>
       </div>
       <div className="stats" style={{ marginBottom:16 }}>
         <div className="stat"><div className="stat-n">{(leads||[]).length}</div><div className="stat-l">Leads</div></div>
@@ -5848,7 +5858,7 @@ function CRM() {
         <button className={`btn btn-${tab==='kanban'?'p':'s'} btn-sm`} onClick={()=>setTab('kanban')}>🎯 Kanban</button>
         <button className={`btn btn-${tab==='visitas'?'p':'s'} btn-sm`} onClick={()=>setTab('visitas')}>📅 Agenda Visitas</button>
       </div>
-      {tab === 'kanban' && <CRMKanban />}
+      {tab === 'kanban' && <CRMKanban openNew={openNew} onOpenNewConsumed={() => setOpenNew(false)} />}
       {tab === 'visitas' && <CRMVisitas />}
     </div>
   )
