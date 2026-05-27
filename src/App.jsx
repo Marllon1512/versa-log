@@ -696,17 +696,17 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
         nivel_peso: prod._peso,
         foto_separacao: prod._foto || null,
       })
-      // Atualiza local
-      setProdutos(prev => prev.map(p => p.id === prod.id ? { ...p, status_produto: 'Separado' } : p))
+      const updated = produtos.map(p => p.id === prod.id ? { ...p, status_produto: 'Separado', _foto: prod._foto } : p)
+      setProdutos(updated)
       setSucesso(prod.id)
       setTimeout(() => setSucesso(''), 2000)
 
-      // Verifica se todos foram separados
-      const todos = produtos.map(p => p.id === prod.id ? { ...p, status_produto: 'Separado' } : p)
-      const allDone = todos.every(p => p.status_produto === 'Separado')
+      const allDone = updated.every(p => p.status_produto === 'Separado')
       if (allDone) {
-        await pedidosService.update(pedidoId, { status: 'Pronto para Rota' })
-        await pedidosService.addHistorico(pedidoId, 'Pronto para Rota', 'Todos os produtos separados. Pedido pronto para rota.', perfil)
+        const fotos = updated.map(p => p._foto || p.foto_separacao).filter(Boolean)
+        await pedidosService.registrarSeparacao(pedidoId, perfil, {
+          fotos, numeroPedido: pedido?.numero_pedido, loja: pedido?.local_separacao,
+        })
         reload()
       }
     })
@@ -731,7 +731,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
       </div>
 
       {todosSeparados && (
-        <Alert type="success" style={{ marginBottom: 16 }}>✓ Todos os produtos separados! Pedido marcado como Pronto para Rota.</Alert>
+        <Alert type="success" style={{ marginBottom: 16 }}>✓ Todos os produtos separados! Status do fluxo atualizado para separado.</Alert>
       )}
 
       <div style={{ fontWeight: 600, marginBottom: 12 }}>Produtos ({produtos.length})</div>
@@ -3745,7 +3745,16 @@ function Conferencia() {
 
   const handleCreate = async (dados) => {
     try {
-      await conferenciasService.create({ ...dados, conferente_nome: perfil?.full_name, data_hora: new Date().toISOString() })
+      const { pedido_id, ...dadosConf } = dados
+      await conferenciasService.create({ ...dadosConf, conferente_nome: perfil?.full_name, data_hora: new Date().toISOString() })
+      if (pedido_id) {
+        const fotosArr = Object.values(dadosConf.fotos || {}).filter(Boolean)
+        try {
+          await pedidosService.registrarRecebimentoProduto(pedido_id, perfil, {
+            fotos: fotosArr, numeroPedido: dadosConf.numero_pedido, loja: perfil?.loja,
+          })
+        } catch {}
+      }
       await reload()
       setShowNew(false)
       toast.success('Conferência salva com sucesso!')
@@ -3876,7 +3885,7 @@ function ConferenciaDetalhe({ id, onBack, onEncaminharAssistencia }) {
       </div>
       {Object.values(fotos).some(Boolean) && (
         <div className="card">
-          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 10 }}>Fotos do produto</div>
+          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 10 }}>Fotos da Conferência</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
             {slots.map(([k, lbl]) => fotos[k] ? (
               <div key={k} style={{ textAlign: 'center' }}>
@@ -3920,11 +3929,34 @@ function NovaConferenciaModal({ onClose, onSave }) {
   const [form, setForm] = useState({ numero_pedido: '', numero_nf: '', produto: '', fornecedor: '', resultado: '', motivo_reprovacao: '', descricao_reprovacao: '' })
   const [fotos, setFotos] = useState({ frente: null, costas: null, ladoEsq: null, ladoDir: null })
   const [saveErr, setSaveErr] = useState('')
+  const [buscaPedido, setBuscaPedido] = useState('')
+  const [pedidoSelecionado, setPedidoSelecionado] = useState(null)
+  const [pedidoProdutos, setPedidoProdutos] = useState([])
+  const [showDrop, setShowDrop] = useState(false)
   const { run, loading } = useAction()
+  const { data: pedidos } = useData(() => pedidosService.list(), [])
   const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
   const setFoto = (k) => (v) => setFotos(prev => ({ ...prev, [k]: v }))
   const todasFotos = fotos.frente && fotos.costas && fotos.ladoEsq && fotos.ladoDir
   const canSave = form.numero_pedido && form.produto && form.fornecedor && form.numero_nf && form.resultado && todasFotos
+
+  const pedidosFiltrados = buscaPedido.length > 1
+    ? (pedidos || []).filter(p =>
+        p.numero_pedido?.includes(buscaPedido) ||
+        p.cliente?.toLowerCase().includes(buscaPedido.toLowerCase())
+      ).slice(0, 8)
+    : []
+
+  const selecionarPedido = async (p) => {
+    setPedidoSelecionado(p)
+    setForm(prev => ({ ...prev, numero_pedido: p.numero_pedido }))
+    setBuscaPedido(`#${p.numero_pedido} — ${p.cliente}`)
+    setShowDrop(false)
+    try {
+      const full = await pedidosService.getById(p.id)
+      setPedidoProdutos(full?.produtos || [])
+    } catch { setPedidoProdutos([]) }
+  }
 
   const handleSave = async () => {
     setSaveErr('')
@@ -3943,7 +3975,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
       } catch {}
     }
     try {
-      await onSave({ ...form, fotos: fotoUrls })
+      await onSave({ ...form, fotos: fotoUrls, pedido_id: pedidoSelecionado?.id || null })
       toast.success('Conferência salva!')
     } catch (e) {
       setSaveErr(e.message || 'Erro ao salvar. Tente novamente.')
@@ -3966,10 +3998,41 @@ function NovaConferenciaModal({ onClose, onSave }) {
       }
     >
       {saveErr && <Alert type="error" style={{ marginBottom: 12 }}>{saveErr}</Alert>}
-      <div className="grid2">
-        <div className="fg"><label className="fl">Nº Pedido *</label><input className="fi" value={form.numero_pedido} onChange={up('numero_pedido')} /></div>
-        <div className="fg"><label className="fl">Nota Fiscal *</label><input className="fi" value={form.numero_nf} onChange={up('numero_nf')} /></div>
+      <div className="fg" style={{ position: 'relative', marginBottom: 8 }}>
+        <label className="fl">Buscar pedido *</label>
+        <input className="fi"
+          value={buscaPedido}
+          onChange={e => {
+            setBuscaPedido(e.target.value); setShowDrop(true)
+            if (!e.target.value) { setPedidoSelecionado(null); setPedidoProdutos([]); setForm(prev => ({ ...prev, numero_pedido: '' })) }
+          }}
+          placeholder="Digite número ou nome do cliente..."
+          onFocus={() => setShowDrop(true)}
+          onBlur={() => setTimeout(() => setShowDrop(false), 200)}
+        />
+        {showDrop && pedidosFiltrados.length > 0 && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 100, maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,.25)' }}>
+            {pedidosFiltrados.map(p => (
+              <div key={p.id} onMouseDown={() => selecionarPedido(p)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <span style={{ fontWeight: 600 }}>#{p.numero_pedido}</span> — {p.cliente}
+                {p.local_separacao && <span style={{ color: 'var(--t3)', marginLeft: 6, fontSize: 11 }}>{p.local_separacao}</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+      {pedidoProdutos.length > 0 && (
+        <div style={{ background: 'var(--adim)', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--t2)' }}>Produtos do pedido</div>
+          {pedidoProdutos.map(pr => (
+            <div key={pr.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
+              <span>{pr.nome_produto}</span>
+              <span style={{ color: 'var(--t2)' }}>Qtd: {pr.quantidade}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="fg"><label className="fl">Nota Fiscal *</label><input className="fi" value={form.numero_nf} onChange={up('numero_nf')} /></div>
       <div className="fg"><label className="fl">Produto *</label><input className="fi" value={form.produto} onChange={up('produto')} /></div>
       <div className="fg"><label className="fl">Fornecedor *</label><input className="fi" value={form.fornecedor} onChange={up('fornecedor')} /></div>
       <div className="fg">
@@ -4221,6 +4284,7 @@ function gerarPDFRoteiro(roteiro, itens) {
 
 function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
   const { data: assistencias } = useData(() => assistenciasService.list(), [])
+  const { data: pedidos } = useData(() => pedidosService.list(), [])
   const [form, setForm] = useState({ data: new Date().toISOString().split('T')[0], motorista_nome: '' })
   const [entregadores, setEntregadores] = useState(['', '', '', '', ''])
   const [itens, setItens] = useState([])
@@ -4231,9 +4295,29 @@ function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
   const upEnt = (i, v) => setEntregadores(prev => prev.map((e, idx) => idx === i ? v : e))
   const TIPOS_SERVICO = ['Coleta', 'Vistoria', 'Retoque', 'Visita Técnica', 'Entrega e Instalação', 'Troca', 'Outros']
 
+  const separadosAgendados = (pedidos || []).filter(p => p.status_fluxo === 'separado' && p.data_entrega_agendada === form.data)
+  const separadosSemData = (pedidos || []).filter(p => p.status_fluxo === 'separado' && !p.data_entrega_agendada)
+
+  const irParaStep1 = () => {
+    if (tipo === 'entregas' && separadosAgendados.length > 0) {
+      setItens(prev => {
+        const existingRefs = new Set(prev.map(it => it.pedido_ref).filter(Boolean))
+        const novos = separadosAgendados
+          .filter(p => !existingRefs.has(p.numero_pedido))
+          .map(p => ({ assistencia_id: null, pedido_ref: p.numero_pedido, cliente: p.cliente, loja: p.local_separacao || '', bairro: p.cidade || '', status_servico: 'Entrega e Instalação' }))
+        return [...prev, ...novos]
+      })
+    }
+    setStep(1)
+  }
+
   const addAssistencia = (a) => {
     if (itens.find(it => it.assistencia_id === a.id)) return
     setItens(prev => [...prev, { assistencia_id: a.id, cliente: a.cliente, pedido_ref: a.pedido_ref || '', loja: a.loja || '', bairro: '', status_servico: 'Visita Técnica' }])
+  }
+  const addSeparado = (p) => {
+    if (itens.find(it => it.pedido_ref === p.numero_pedido)) return
+    setItens(prev => [...prev, { assistencia_id: null, pedido_ref: p.numero_pedido, cliente: p.cliente, loja: p.local_separacao || '', bairro: p.cidade || '', status_servico: 'Entrega e Instalação' }])
   }
   const addManual = () => setItens(prev => [...prev, { assistencia_id: null, cliente: '', pedido_ref: '', loja: '', bairro: '', status_servico: tipo === 'entregas' ? 'Entrega e Instalação' : 'Visita Técnica' }])
 
@@ -4257,7 +4341,7 @@ function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
         <>
           {step > 0 && <Btn variant="secondary" onClick={() => setStep(0)}>← Voltar</Btn>}
           <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-          {step === 0 && <Btn disabled={!form.data || !form.motorista_nome || !entregadores[0]} onClick={() => setStep(1)}>Continuar →</Btn>}
+          {step === 0 && <Btn disabled={!form.data || !form.motorista_nome || !entregadores[0]} onClick={irParaStep1}>Continuar →</Btn>}
           {step === 1 && <Btn disabled={itens.length === 0} loading={loading} onClick={() => {
             const ents = entregadores.filter(Boolean)
             const saveData = { ...form, montador_nome: ents[0] || '', entregadores_extra: ents.slice(1).join(' / ') || '', itens }
@@ -4295,6 +4379,25 @@ function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
                         {a.pedido_ref && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>#{a.pedido_ref}</span>}
                       </div>
                       <Btn size="sm" variant={adicionada ? 'secondary' : 'primary'} onClick={() => addAssistencia(a)} disabled={adicionada}>{adicionada ? '✓' : '+'}</Btn>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+          {tipo === 'entregas' && separadosSemData.length > 0 && (
+            <>
+              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8, color: 'var(--amber)' }}>⚠ Separados sem data agendada</div>
+              <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8, marginBottom: 12 }}>
+                {separadosSemData.map(p => {
+                  const adicionado = !!itens.find(it => it.pedido_ref === p.numero_pedido)
+                  return (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 4px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 12 }}>
+                        <span style={{ fontWeight: 500 }}>#{p.numero_pedido}</span> — {p.cliente}
+                        {p.local_separacao && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>{p.local_separacao}</span>}
+                      </div>
+                      <Btn size="sm" variant={adicionado ? 'secondary' : 'primary'} onClick={() => addSeparado(p)} disabled={adicionado}>{adicionado ? '✓' : '+'}</Btn>
                     </div>
                   )
                 })}
