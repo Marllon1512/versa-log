@@ -776,3 +776,51 @@ export const auditLog = {
     } catch (_) { /* audit_log pode não existir ainda */ }
   },
 }
+
+// ── Perfis de Acesso ──────────────────────────────────────
+// SQL para rodar no Supabase Dashboard (Bloco 1):
+// ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS perfil TEXT DEFAULT 'vendedor';
+// ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS loja_id UUID REFERENCES lojas(id);
+// ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permissoes_extras JSONB DEFAULT '{}';
+// CREATE TABLE IF NOT EXISTS perfis_acesso (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   perfil TEXT NOT NULL UNIQUE, label TEXT NOT NULL,
+//   modulos TEXT[] NOT NULL DEFAULT '{}',
+//   pode_ver_todas_lojas BOOLEAN DEFAULT FALSE,
+//   pode_ver_financeiro BOOLEAN DEFAULT FALSE,
+//   pode_ver_vendas BOOLEAN DEFAULT FALSE,
+//   pode_ver_metas BOOLEAN DEFAULT FALSE,
+//   pode_editar_permissoes BOOLEAN DEFAULT FALSE,
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// );
+// INSERT INTO perfis_acesso (perfil,label,modulos,pode_ver_todas_lojas,pode_ver_financeiro,pode_ver_vendas,pode_ver_metas,pode_editar_permissoes) VALUES
+// ('admin','Administrador',ARRAY['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','dp','os','crm','nps','devolucao','relatorios','fila','catalogo','nf'],true,true,true,true,true),
+// ('diretor','Diretor',ARRAY['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','cadastros','vendas','compras','estoque','financeiro','dp','os','crm','nps','devolucao','relatorios','fila'],true,true,true,true,false),
+// ('gerente','Gerente de Loja',ARRAY['dashboard','pedidos','agenda','assistencia','conferencia','equipe','ranking','ponto','cadastros','vendas','estoque','os','crm','nps'],false,false,true,true,false),
+// ('assistente_admin','Assistente Administrativa',ARRAY['dashboard','pedidos','agenda','ponto','cadastros','compras','estoque','dp','financeiro_loja'],false,false,false,false,false),
+// ('vendedor','Vendedor',ARRAY['dashboard','vendas','cadastros','ponto','crm','ranking'],false,false,true,true,false),
+// ('gerente_logistica','Gerente de Logística',ARRAY['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque','equipe','ranking'],true,false,false,false,false),
+// ('supervisor_logistica','Supervisor de Logística',ARRAY['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque'],true,false,false,false,false),
+// ('expedidor','Expedição',ARRAY['dashboard','separacao','conferencia','ponto'],false,false,false,false,false),
+// ('entregador','Entregador',ARRAY['dashboard','rota','pedidos','ponto','ranking'],false,false,false,false,false),
+// ('separador','Separador',ARRAY['dashboard','separacao','pedidos','ponto'],false,false,false,false,false),
+// ('conferente','Conferente',ARRAY['dashboard','conferencia','pedidos','ponto'],false,false,false,false,false),
+// ('tecnico','Técnico',ARRAY['dashboard','assistencia','roteiro','ponto'],false,false,false,false,false),
+// ('atendente','Atendente',ARRAY['dashboard','assistencia','pedidos','agenda','ponto'],false,false,false,false,false),
+// ('contador','Contador',ARRAY['financeiro','dp','relatorios'],true,true,false,false,false)
+// ON CONFLICT (perfil) DO NOTHING;
+export const perfisAcessoService = {
+  async list() {
+    try {
+      const { data, error } = await supabase.from('perfis_acesso').select('*').order('label')
+      if (error) throw error
+      return data || []
+    } catch { return [] }
+  },
+  async getByPerfil(perfilNome) {
+    try {
+      const { data } = await supabase.from('perfis_acesso').select('*').eq('perfil', perfilNome).single()
+      return data || null
+    } catch { return null }
+  },
+}

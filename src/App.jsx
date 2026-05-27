@@ -20,6 +20,7 @@ import {
   lojasService, decoradoresService, crmService, orcamentosService, metasService,
   npsService, devolucoesService, localizacoesService, consignacoesService,
   acabamentosService, tecidosService, representantesService, auditLog,
+  perfisAcessoService,
 } from './services/index'
 
 // ── Filtro global de loja ─────────────────────────────────
