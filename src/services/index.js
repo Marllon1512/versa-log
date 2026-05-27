@@ -397,17 +397,17 @@ export const estoqueService = {
     return data || []
   },
   async listNFEntradas() {
-    const { data, error } = await supabase.from('nf_entradas').select('*, nf_entrada_itens(*)').order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('nf_entrada').select('*, nf_entrada_itens(*)').order('created_at', { ascending: false })
     if (error) throw error
     return data || []
   },
   async createNFEntrada(nf) {
-    const { data, error } = await supabase.from('nf_entradas').insert(nf).select().single()
+    const { data, error } = await supabase.from('nf_entrada').insert(nf).select().single()
     if (error) throw error
     return data
   },
   async updateNFEntrada(id, updates) {
-    const { data, error } = await supabase.from('nf_entradas').update(updates).eq('id', id).select().single()
+    const { data, error } = await supabase.from('nf_entrada').update(updates).eq('id', id).select().single()
     if (error) throw error
     return data
   },
@@ -417,12 +417,12 @@ export const estoqueService = {
     return data || []
   },
   async listMovimentacoes() {
-    const { data, error } = await supabase.from('movimentacoes_estoque').select('*').order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('movimentos_estoque').select('*').order('created_at', { ascending: false })
     if (error) throw error
     return data || []
   },
   async createMovimentacao(mov) {
-    const { data, error } = await supabase.from('movimentacoes_estoque').insert(mov).select().single()
+    const { data, error } = await supabase.from('movimentos_estoque').insert(mov).select().single()
     if (error) throw error
     return data
   },
