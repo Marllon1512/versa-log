@@ -1169,7 +1169,7 @@ export const cercasVirtuaisService = {
     return data || []
   },
   async listAll() {
-    const { data, error } = await supabase.from('cercas_virtuais').select('*, lojas(nome)').order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('cercas_virtuais').select('*').order('created_at', { ascending: false })
     if (error) throw error
     return data || []
   },

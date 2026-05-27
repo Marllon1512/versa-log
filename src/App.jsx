@@ -4888,6 +4888,42 @@ const PONTO_LABELS = { entrada: 'Entrada', saida_almoco: 'Saída Almoço', retor
 const PONTO_COLORS = { entrada: 'var(--green)', saida_almoco: 'var(--amber)', retorno_almoco: 'var(--blue)', saida: 'var(--red)' }
 const PONTO_BG    = { entrada: 'var(--gdim)',  saida_almoco: 'var(--adim2)', retorno_almoco: 'var(--bdim)', saida: 'var(--rdim)' }
 
+async function gerarOcorrenciaPonto(tipo_marcacao, dataHora, escala, usuarioId, lojaId) {
+  if (!escala || !usuarioId) return
+  const hoje = dataHora.toISOString().split('T')[0]
+  const horaAtual = dataHora.getHours() * 60 + dataHora.getMinutes()
+  const parseHora = (h) => { if (!h) return null; const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm }
+  const tolerancia = escala.tolerancia_minutos || 10
+  if (tipo_marcacao === 'entrada' && escala.hora_entrada) {
+    const previsto = parseHora(escala.hora_entrada)
+    if (previsto !== null && horaAtual > previsto + tolerancia) {
+      await pontoOcorrenciasService.create({
+        usuario_id: usuarioId, loja_id: lojaId || null, data: hoje, tipo: 'atraso',
+        descricao: `Entrada às ${dataHora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}, previsto ${escala.hora_entrada}`,
+        minutos: horaAtual - previsto, status: 'pendente',
+      })
+    }
+  }
+  if (tipo_marcacao === 'saida' && escala.hora_saida) {
+    const previsto = parseHora(escala.hora_saida)
+    if (previsto !== null) {
+      if (horaAtual < previsto - tolerancia) {
+        await pontoOcorrenciasService.create({
+          usuario_id: usuarioId, loja_id: lojaId || null, data: hoje, tipo: 'saida_antecipada',
+          descricao: `Saída às ${dataHora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}, previsto ${escala.hora_saida}`,
+          minutos: previsto - horaAtual, status: 'pendente',
+        })
+      } else if (horaAtual > previsto + 15) {
+        await pontoOcorrenciasService.create({
+          usuario_id: usuarioId, loja_id: lojaId || null, data: hoje, tipo: 'hora_extra',
+          descricao: `Saída às ${dataHora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}, previsto ${escala.hora_saida}`,
+          minutos: horaAtual - previsto, status: 'pendente',
+        })
+      }
+    }
+  }
+}
+
 function normTipoMarcacao(p) {
   const t = p.tipo_marcacao || p.tipo || ''
   if (t === 'Entrada') return 'entrada'
@@ -5000,6 +5036,7 @@ function Ponto() {
         device_info:          navigator.userAgent?.slice(0, 200) || null,
       })
 
+      if (escala) await gerarOcorrenciaPonto(proximoTipo, now, escala, perfil?.id, perfil?.loja_id).catch(() => {})
       await reload()
       if (isGestor) await reTodos()
       setComprovante({ tipo: proximoTipo, horario: now, dentroCerca, distancia, geo })
@@ -8060,7 +8097,7 @@ function FinanceiroLista({ tipo }) {
 function DP() {
   const [tab, setTab] = useState('funcionarios')
   const [lojaFiltroDP, setLojaFiltroDP] = useState('')
-  const TABS = [{ id:'funcionarios',label:'Funcionários' },{ id:'folha',label:'Folha de Pagamento' },{ id:'banco',label:'Banco de Horas' }]
+  const TABS = [{ id:'funcionarios',label:'Funcionários' },{ id:'folha',label:'Folha de Pagamento' },{ id:'banco',label:'Banco de Horas' },{ id:'controle_ponto',label:'Controle de Ponto' }]
   return (
     <div className="page">
       <div className="ph">
@@ -8076,6 +8113,7 @@ function DP() {
       {tab === 'funcionarios' && <DPFuncionarios lojaFiltro={lojaFiltroDP} />}
       {tab === 'folha' && <DPFolha lojaFiltro={lojaFiltroDP} />}
       {tab === 'banco' && <DPBancoHoras />}
+      {tab === 'controle_ponto' && <DPControlePonto lojaFiltro={lojaFiltroDP} />}
     </div>
   )
 }
@@ -8247,6 +8285,344 @@ function DPBancoHoras() {
                 <div style={{ fontSize:12, color:'var(--t2)' }}>{p.tipo} · {new Date(p.data_hora).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}</div>
               </div>
               <Badge variant={p.tipo==='entrada'?'bg-green':'bg'}>{p.tipo}</Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DPControlePonto({ lojaFiltro }) {
+  const [subTab, setSubTab] = useState('espelho')
+  const SUB = [
+    { id:'espelho',     label:'Espelho de Ponto' },
+    { id:'ocorrencias', label:'Ocorrências' },
+    { id:'escalas',     label:'Escalas' },
+    { id:'cerca',       label:'Cerca Virtual' },
+    { id:'relatorio',   label:'Relatório de Presença' },
+  ]
+  return (
+    <div>
+      <div style={{ display:'flex', gap:4, marginBottom:14, flexWrap:'wrap' }}>
+        {SUB.map(t => <button key={t.id} className={`btn btn-${subTab===t.id?'p':'s'} btn-sm`} onClick={() => setSubTab(t.id)}>{t.label}</button>)}
+      </div>
+      {subTab === 'espelho'     && <DPEspelhoPonto />}
+      {subTab === 'ocorrencias' && <DPOcorrencias />}
+      {subTab === 'escalas'     && <DPEscalas />}
+      {subTab === 'cerca'       && <DPCercaVirtual />}
+      {subTab === 'relatorio'   && <DPRelatorioPresenca />}
+    </div>
+  )
+}
+
+function DPEspelhoPonto() {
+  const mesAtual = new Date().toISOString().slice(0,7)
+  const [mes, setMes] = useState(mesAtual)
+  const [usuarioId, setUsuarioId] = useState('')
+  const { data: usuarios } = useData(() => usuariosService.list(), [])
+  const { data: pontos, loading } = useData(
+    () => usuarioId ? pontoService.listMes(usuarioId, mes) : Promise.resolve([]),
+    [usuarioId, mes]
+  )
+  const porDia = {}
+  for (const p of pontos || []) { if (!porDia[p.data]) porDia[p.data] = []; porDia[p.data].push(p) }
+  const dias = Object.keys(porDia).sort()
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <select className="fi" style={{ flex:1 }} value={usuarioId} onChange={e => setUsuarioId(e.target.value)}>
+          <option value="">Selecione colaborador...</option>
+          {(usuarios||[]).map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+        </select>
+        <input className="fi" type="month" style={{ width:'auto' }} value={mes} onChange={e => setMes(e.target.value)} />
+      </div>
+      {!usuarioId ? <Empty text="Selecione um colaborador" /> :
+       loading ? <Spinner /> :
+       dias.length === 0 ? <Empty text="Sem registros no período" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {dias.map(dia => (
+            <div key={dia} className="card" style={{ padding:'10px 14px' }}>
+              <div style={{ fontWeight:600, fontSize:13, marginBottom:6 }}>
+                {new Date(dia+'T12:00').toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'})}
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {porDia[dia].map((p, i) => {
+                  const tm = normTipoMarcacao(p)
+                  return (
+                    <span key={i} style={{ fontSize:12, padding:'3px 8px', borderRadius:8, background:PONTO_BG[tm]||'var(--bg3)', color:PONTO_COLORS[tm]||'var(--t2)', fontWeight:600 }}>
+                      {PONTO_LABELS[tm]||p.tipo}: {new Date(p.data_hora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}
+                      {p.dentro_cerca === false && ' ⚠️'}
+                    </span>
+                  )
+                })}
+              </div>
+              {(() => { const s = calcSaldoHoras(porDia[dia]); return s ? <div style={{ fontSize:12, color:'var(--t2)', marginTop:4 }}>⏱ {s}</div> : null })()}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DPOcorrencias() {
+  const [filtroStatus, setFiltroStatus] = useState('pendente')
+  const [filtroTipo, setFiltroTipo] = useState('')
+  const { data: lista, loading, reload } = useData(
+    () => pontoOcorrenciasService.list({ status: filtroStatus || undefined }),
+    [filtroStatus]
+  )
+  const { perfil } = useAuth()
+  const act = useAction()
+  const TIPO_COR = { atraso:'var(--amber)', saida_antecipada:'var(--amber)', falta:'var(--red)', hora_extra:'var(--blue)', esquecimento_ponto:'var(--red)', marcacao_fora_cerca:'var(--red)' }
+  const filtrado = (lista||[]).filter(oc => !filtroTipo || oc.tipo === filtroTipo)
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <select className="fi" style={{ flex:1 }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+          <option value="">Todos status</option>
+          {['pendente','aprovado','rejeitado'].map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="fi" style={{ flex:1 }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
+          <option value="">Todos tipos</option>
+          {['atraso','saida_antecipada','falta','hora_extra','esquecimento_ponto','marcacao_fora_cerca'].map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+        </select>
+      </div>
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhuma ocorrência" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {filtrado.map(oc => (
+            <div key={oc.id} className="card" style={{ padding:'10px 14px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:13 }}>{oc.usuarios?.full_name || oc.usuario_id}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>{new Date(oc.data+'T12:00').toLocaleDateString('pt-BR')}{oc.minutos ? ` · ${oc.minutos}min` : ''}</div>
+                </div>
+                <span style={{ fontSize:11, background:TIPO_COR[oc.tipo]||'var(--t2)', color:'#fff', padding:'2px 8px', borderRadius:12 }}>{(oc.tipo||'').replace(/_/g,' ')}</span>
+              </div>
+              {oc.descricao && <div style={{ fontSize:12, color:'var(--t2)', marginBottom:6 }}>{oc.descricao}</div>}
+              {oc.status === 'pendente' ? (
+                <div style={{ display:'flex', gap:6 }}>
+                  <button className="btn btn-p btn-sm" onClick={async () => { try { await act.run(() => pontoOcorrenciasService.aprovar(oc.id, perfil?.id)); reload(); toast.success('Aprovada') } catch(e) { toast.error(e.message) } }} disabled={act.loading}>Aprovar</button>
+                  <button className="btn btn-s btn-sm" onClick={async () => { try { await act.run(() => pontoOcorrenciasService.rejeitar(oc.id)); reload(); toast.success('Rejeitada') } catch(e) { toast.error(e.message) } }} disabled={act.loading}>Rejeitar</button>
+                </div>
+              ) : <Badge variant={oc.status==='aprovado'?'bg-green':'bg'}>{oc.status}</Badge>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DPEscalas() {
+  const [usuarioId, setUsuarioId] = useState('')
+  const { data: usuarios } = useData(() => usuariosService.list(), [])
+  const { data: escalas, reload } = useData(() => escalasTrabalhoService.list(usuarioId || undefined), [usuarioId])
+  const [modal, setModal] = useState(null)
+  const emptyE = { usuario_id:'', dia_semana:'', hora_entrada:'', hora_saida_almoco:'', hora_retorno_almoco:'', hora_saida:'', tolerancia_minutos:10, ativo:true }
+  const [form, setForm] = useState(emptyE)
+  const act = useAction()
+  const up = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+  const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
+
+  const salvar = async () => {
+    if (!form.usuario_id || !form.hora_entrada || !form.hora_saida) return toast.error('Colaborador, entrada e saída são obrigatórios')
+    try {
+      const payload = { ...form, dia_semana: form.dia_semana === '' ? null : Number(form.dia_semana), tolerancia_minutos: Number(form.tolerancia_minutos)||10 }
+      if (!modal.item) await act.run(() => escalasTrabalhoService.create(payload))
+      else await act.run(() => escalasTrabalhoService.update(modal.item.id, payload))
+      toast.success('Salvo'); setModal(null); reload()
+    } catch(e) { toast.error(e.message) }
+  }
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center', flexWrap:'wrap' }}>
+        <select className="fi" style={{ flex:1 }} value={usuarioId} onChange={e => setUsuarioId(e.target.value)}>
+          <option value="">Todos colaboradores</option>
+          {(usuarios||[]).map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+        </select>
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(emptyE); setModal({}) }}>+ Nova Escala</button>
+      </div>
+      {(escalas||[]).length === 0 ? <Empty text="Nenhuma escala cadastrada" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {(escalas||[]).map(e => (
+            <div key={e.id} className="card" style={{ padding:'10px 14px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:13 }}>{(usuarios||[]).find(u => u.id === e.usuario_id)?.full_name || e.usuario_id}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>{e.dia_semana !== null && e.dia_semana !== undefined ? DIAS[e.dia_semana] : 'Todos os dias'} · Entrada: {e.hora_entrada} · Saída: {e.hora_saida}</div>
+                  {e.hora_saida_almoco && <div style={{ fontSize:12, color:'var(--t2)' }}>Almoço: {e.hora_saida_almoco} - {e.hora_retorno_almoco}</div>}
+                  <div style={{ fontSize:12, color:'var(--t3)' }}>Tolerância: {e.tolerancia_minutos}min</div>
+                </div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...emptyE, ...e, dia_semana: e.dia_semana ?? '' }); setModal({ item:e }) }}>Editar</button>
+                  <button className="btn btn-s btn-sm" style={{ color:'var(--red)' }} onClick={async () => { try { await escalasTrabalhoService.remove(e.id); reload(); toast.success('Removida') } catch(ex) { toast.error(ex.message) } }}>×</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={modal.item ? 'Editar Escala' : 'Nova Escala'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg" style={{ gridColumn:'1/-1' }}>
+              <label className="fl">Colaborador *</label>
+              <select className="fi" value={form.usuario_id} onChange={up('usuario_id')}>
+                <option value="">Selecione...</option>
+                {(usuarios||[]).map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              </select>
+            </div>
+            <div className="fg">
+              <label className="fl">Dia da Semana</label>
+              <select className="fi" value={form.dia_semana} onChange={up('dia_semana')}>
+                <option value="">Todos os dias</option>
+                {DIAS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Tolerância (min)</label><input className="fi" type="number" value={form.tolerancia_minutos} onChange={up('tolerancia_minutos')} /></div>
+            <div className="fg"><label className="fl">Entrada *</label><input className="fi" type="time" value={form.hora_entrada} onChange={up('hora_entrada')} /></div>
+            <div className="fg"><label className="fl">Saída *</label><input className="fi" type="time" value={form.hora_saida} onChange={up('hora_saida')} /></div>
+            <div className="fg"><label className="fl">Saída Almoço</label><input className="fi" type="time" value={form.hora_saida_almoco} onChange={up('hora_saida_almoco')} /></div>
+            <div className="fg"><label className="fl">Retorno Almoço</label><input className="fi" type="time" value={form.hora_retorno_almoco} onChange={up('hora_retorno_almoco')} /></div>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function DPCercaVirtual() {
+  const { data: lojas } = useData(() => lojasService.list(), [])
+  const { data: cercas, reload } = useData(() => cercasVirtuaisService.listAll(), [])
+  const [modal, setModal] = useState(null)
+  const emptyC = { loja_id:'', nome:'', latitude:'', longitude:'', raio_metros:200, ativo:true }
+  const [form, setForm] = useState(emptyC)
+  const act = useAction()
+  const up = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const salvar = async () => {
+    if (!form.nome || !form.latitude || !form.longitude) return toast.error('Nome, latitude e longitude são obrigatórios')
+    try {
+      const payload = { ...form, latitude: Number(form.latitude), longitude: Number(form.longitude), raio_metros: Number(form.raio_metros)||200, loja_id: form.loja_id || null }
+      if (!modal.item) await act.run(() => cercasVirtuaisService.create(payload))
+      else await act.run(() => cercasVirtuaisService.update(modal.item.id, payload))
+      toast.success('Salvo'); setModal(null); reload()
+    } catch(e) { toast.error(e.message) }
+  }
+
+  const capturarGPS = () => {
+    if (!navigator.geolocation) return toast.error('GPS não disponível')
+    navigator.geolocation.getCurrentPosition(
+      pos => setForm(p => ({ ...p, latitude: pos.coords.latitude.toFixed(7), longitude: pos.coords.longitude.toFixed(7) })),
+      () => toast.error('Não foi possível obter localização'),
+      { timeout: 8000 }
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(emptyC); setModal({}) }}>+ Nova Cerca</button>
+      </div>
+      {(cercas||[]).length === 0 ? <Empty text="Nenhuma cerca virtual cadastrada" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {(cercas||[]).map(c => (
+            <div key={c.id} className="card" style={{ padding:'10px 14px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:13 }}>{c.nome}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>{(lojas||[]).find(l => l.id === c.loja_id)?.nome || 'Sem loja'} · Raio: {c.raio_metros}m</div>
+                  <div style={{ fontSize:12, color:'var(--t3)' }}>{Number(c.latitude).toFixed(5)}, {Number(c.longitude).toFixed(5)}</div>
+                </div>
+                <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                  <Badge variant={c.ativo?'bg-green':'bg'}>{c.ativo?'Ativa':'Inativa'}</Badge>
+                  <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...emptyC, ...c, loja_id: c.loja_id||'' }); setModal({ item:c }) }}>Editar</button>
+                  <button className="btn btn-s btn-sm" style={{ color:'var(--red)' }} onClick={async () => { try { await cercasVirtuaisService.remove(c.id); reload(); toast.success('Removida') } catch(ex) { toast.error(ex.message) } }}>×</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={modal.item ? 'Editar Cerca Virtual' : 'Nova Cerca Virtual'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
+            <div className="fg" style={{ gridColumn:'1/-1' }}>
+              <label className="fl">Loja</label>
+              <select className="fi" value={form.loja_id} onChange={up('loja_id')}>
+                <option value="">Sem loja específica</option>
+                {(lojas||[]).map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Latitude *</label><input className="fi" type="number" step="any" value={form.latitude} onChange={up('latitude')} /></div>
+            <div className="fg"><label className="fl">Longitude *</label><input className="fi" type="number" step="any" value={form.longitude} onChange={up('longitude')} /></div>
+            <div className="fg"><label className="fl">Raio (metros)</label><input className="fi" type="number" value={form.raio_metros} onChange={up('raio_metros')} /></div>
+            <div className="fg" style={{ display:'flex', alignItems:'flex-end' }}>
+              <button className="btn btn-s" style={{ width:'100%' }} onClick={capturarGPS}>📍 Usar minha localização</button>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function DPRelatorioPresenca() {
+  const mesAtual = new Date().toISOString().slice(0,7)
+  const [mes, setMes] = useState(mesAtual)
+  const { data: todosPontos, loading } = useData(async () => {
+    const { data, error } = await supabase
+      .from('pontos').select('*')
+      .gte('data', `${mes}-01`).lte('data', `${mes}-31`)
+      .order('usuario_nome').order('data_hora')
+    if (error) throw error
+    return data || []
+  }, [mes])
+
+  const resumo = {}
+  for (const p of todosPontos || []) {
+    if (!resumo[p.usuario_id]) resumo[p.usuario_id] = { nome: p.usuario_nome, diasPresente: new Set(), pontos: [] }
+    resumo[p.usuario_id].diasPresente.add(p.data)
+    resumo[p.usuario_id].pontos.push(p)
+  }
+  const linhas = Object.values(resumo).map(r => ({ nome: r.nome, dias: r.diasPresente.size, horas: calcSaldoHoras(r.pontos) || '0h' }))
+
+  const exportarExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(linhas.map(l => ({ 'Colaborador': l.nome, 'Dias presentes': l.dias, 'Horas trabalhadas': l.horas })))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Presença')
+    XLSX.writeFile(wb, `presenca_${mes}.xlsx`)
+  }
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center', flexWrap:'wrap' }}>
+        <input className="fi" type="month" style={{ flex:1 }} value={mes} onChange={e => setMes(e.target.value)} />
+        <button className="btn btn-s btn-sm" onClick={exportarExcel} disabled={linhas.length === 0}>Excel</button>
+        <button className="btn btn-s btn-sm" onClick={() => window.print()} disabled={linhas.length === 0}>PDF</button>
+      </div>
+      {loading ? <Spinner /> : linhas.length === 0 ? <Empty text="Sem dados no período" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {linhas.map((l, i) => (
+            <div key={i} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <div style={{ width:32, height:32, borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0 }}>{l.nome?.[0]?.toUpperCase()}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:13 }}>{l.nome}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{l.dias} dias presentes · {l.horas}</div>
+              </div>
             </div>
           ))}
         </div>
@@ -8747,6 +9123,31 @@ function useVerificarLembretesPonto() {
       await checar('saida',         'Saída',   escala.hora_saida,
         'Lembrete: registre sua saída',
         `Seu horário de saída era ${fmt(escala.hora_saida)}. Não esqueça de registrar seu ponto.`)
+
+      // Verificar esquecimento de ponto do dia anterior
+      const ontem = new Date(agora)
+      ontem.setDate(ontem.getDate() - 1)
+      const ontemStr = ontem.toISOString().split('T')[0]
+      const { data: escalasOntem } = await supabase
+        .from('escalas_trabalho').select('*').eq('usuario_id', perfil.id).eq('ativo', true)
+        .or(`dia_semana.eq.${ontem.getDay()},dia_semana.is.null`).limit(1)
+      if (escalasOntem?.[0]) {
+        const { data: pontosOntem } = await supabase.from('pontos').select('tipo_marcacao,tipo')
+          .eq('usuario_id', perfil.id).eq('data', ontemStr)
+        if ((pontosOntem||[]).length > 0) {
+          const regOntem = new Set((pontosOntem||[]).map(p => p.tipo_marcacao || p.tipo))
+          if (!regOntem.has('saida') && !regOntem.has('Saída')) {
+            const { data: jaOc } = await supabase.from('ponto_ocorrencias').select('id')
+              .eq('usuario_id', perfil.id).eq('data', ontemStr).eq('tipo', 'esquecimento_ponto').limit(1)
+            if (!jaOc?.length) {
+              await pontoOcorrenciasService.create({
+                usuario_id: perfil.id, data: ontemStr, tipo: 'esquecimento_ponto',
+                descricao: 'Entrada registrada sem saída correspondente', status: 'pendente',
+              })
+            }
+          }
+        }
+      }
     } catch (e) {
       console.warn('[LembretePonto]', e?.message)
     }
