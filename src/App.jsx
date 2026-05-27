@@ -19,7 +19,7 @@ import {
   dpService, ordensServicoService,
   lojasService, decoradoresService, crmService, orcamentosService, metasService,
   npsService, devolucoesService, localizacoesService, consignacoesService,
-  acabamentosService, tecidosService,
+  acabamentosService, tecidosService, representantesService,
 } from './services/index'
 
 // ── Filtro global de loja ─────────────────────────────────
@@ -4937,8 +4937,10 @@ function CadClientes() {
 
 function CadFornecedores() {
   const { data: lista, loading, reload } = useData(() => fornecedoresService.list(), [])
+  const { data: todosReps } = useData(() => representantesService.list(), [])
   const [busca, setBusca] = useState('')
   const [modal, setModal] = useState(null)
+  const [vincModal, setVincModal] = useState(null)
   const empty = { nome:'', cnpj:'', contato:'', telefone:'', email:'', categoria:'', observacoes:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
@@ -4956,6 +4958,13 @@ function CadFornecedores() {
   const excluir = async (id) => {
     if (!confirm('Excluir fornecedor?')) return
     try { await fornecedoresService.remove(id); reload() } catch (e) { toast.error(e.message) }
+  }
+
+  const vincularRep = async (repId) => {
+    try {
+      await representantesService.update(repId, { fornecedor_id: vincModal.id })
+      toast.success('Representante vinculado'); setVincModal(null)
+    } catch (e) { toast.error(e.message) }
   }
 
   const filtrado = (lista || []).filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()))
@@ -4984,17 +4993,50 @@ function CadFornecedores() {
         <Modal title={modal.item ? 'Editar Fornecedor' : 'Novo Fornecedor'} onClose={() => setModal(null)}>
           <div className="grid2">
             <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
-            <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj} onChange={up('cnpj')} /></div>
-            <div className="fg"><label className="fl">Contato</label><input className="fi" value={form.contato} onChange={up('contato')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
-            <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email} onChange={up('email')} /></div>
-            <div className="fg"><label className="fl">Categoria</label><input className="fi" value={form.categoria} onChange={up('categoria')} placeholder="Ex: Móveis, Tecidos..." /></div>
+            <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj||''} onChange={up('cnpj')} /></div>
+            <div className="fg"><label className="fl">Contato</label><input className="fi" value={form.contato||''} onChange={up('contato')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email||''} onChange={up('email')} /></div>
+            <div className="fg"><label className="fl">Categoria</label><input className="fi" value={form.categoria||''} onChange={up('categoria')} placeholder="Ex: Móveis, Tecidos..." /></div>
           </div>
-          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes} onChange={up('observacoes')} rows={2} /></div>
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes||''} onChange={up('observacoes')} rows={2} /></div>
+          {modal.item && (
+            <div style={{ marginTop:16 }}>
+              <div style={{ fontWeight:600, fontSize:13, marginBottom:8 }}>Representantes vinculados</div>
+              {(todosReps||[]).filter(r => r.fornecedor_id === modal.item.id).length === 0
+                ? <div style={{ fontSize:12, color:'var(--t3)', marginBottom:8 }}>Nenhum representante vinculado</div>
+                : (todosReps||[]).filter(r => r.fornecedor_id === modal.item.id).map(r => (
+                  <div key={r.id} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, fontSize:13 }}>
+                    <span>{r.nome}</span>
+                    {r.telefone && <span style={{ color:'var(--t3)', fontSize:11 }}>{r.telefone}</span>}
+                  </div>
+                ))
+              }
+              <button className="btn btn-s btn-sm" onClick={() => setVincModal(modal.item)}>+ Vincular Representante</button>
+            </div>
+          )}
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
             <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
             <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
           </div>
+        </Modal>
+      )}
+      {vincModal && (
+        <Modal title="Vincular Representante" onClose={() => setVincModal(null)}>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {(todosReps||[]).filter(r => !r.fornecedor_id || r.fornecedor_id !== vincModal.id).map(r => (
+              <div key={r.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer' }} onClick={() => vincularRep(r.id)}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:600 }}>{r.nome}</div>
+                  {r.telefone && <div style={{ fontSize:12, color:'var(--t2)' }}>{r.telefone}</div>}
+                </div>
+              </div>
+            ))}
+            {(todosReps||[]).filter(r => !r.fornecedor_id || r.fornecedor_id !== vincModal.id).length === 0 && (
+              <Empty text="Nenhum representante disponível" />
+            )}
+          </div>
+          <button className="btn btn-s" style={{ marginTop:8 }} onClick={() => setVincModal(null)}>Fechar</button>
         </Modal>
       )}
     </div>
@@ -5516,12 +5558,111 @@ function CadTecidos() {
   )
 }
 
+function CadRepresentantes() {
+  const { data: lista, loading, reload } = useData(() => representantesService.list(), [])
+  const { data: forns } = useData(() => fornecedoresService.list(), [])
+  const [busca, setBusca] = useState('')
+  const [filtroForn, setFiltroForn] = useState('')
+  const [filtroAtivo, setFiltroAtivo] = useState('')
+  const [modal, setModal] = useState(null)
+  const empty = { nome:'', cpf:'', telefone:'', email:'', fornecedor_id:'', comissao_percent:'', regiao:'', observacoes:'', ativo:true }
+  const [form, setForm] = useState(empty)
+  const act = useAction()
+  const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const salvar = async () => {
+    if (!form.nome.trim()) return toast.error('Nome obrigatório')
+    try {
+      const payload = { ...form, comissao_percent: parseFloat(form.comissao_percent)||0, fornecedor_id: form.fornecedor_id || null }
+      if (!modal.item) await act.run(() => representantesService.create(payload))
+      else await act.run(() => representantesService.update(modal.item.id, payload))
+      toast.success('Salvo'); setModal(null); reload()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const excluir = async (id) => {
+    if (!confirm('Excluir representante?')) return
+    try { await representantesService.remove(id); reload() } catch (e) { toast.error(e.message) }
+  }
+
+  const filtrado = (lista || []).filter(r =>
+    r.nome?.toLowerCase().includes(busca.toLowerCase()) &&
+    (!filtroForn || r.fornecedor_id === filtroForn) &&
+    (filtroAtivo === '' || String(r.ativo) === filtroAtivo)
+  )
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <input className="fi" style={{ flex:1, minWidth:140 }} placeholder="Buscar representante..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <select className="fi" style={{ width:'auto' }} value={filtroForn} onChange={e => setFiltroForn(e.target.value)}>
+          <option value="">Todos fornecedores</option>
+          {(forns||[]).map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+        </select>
+        <select className="fi" style={{ width:'auto' }} value={filtroAtivo} onChange={e => setFiltroAtivo(e.target.value)}>
+          <option value="">Todos</option>
+          <option value="true">Ativos</option>
+          <option value="false">Inativos</option>
+        </select>
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ Novo</button>
+      </div>
+      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum representante" /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {filtrado.map(r => (
+            <div key={r.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontWeight:600, fontSize:14 }}>{r.nome}</span>
+                  <span className={`badge ${r.ativo ? 'bg-green' : 'bg'}`}>{r.ativo ? 'Ativo' : 'Inativo'}</span>
+                </div>
+                <div style={{ fontSize:12, color:'var(--t2)', marginTop:2 }}>
+                  {[r.telefone, r.fornecedores?.nome, r.comissao_percent ? `${r.comissao_percent}%` : null].filter(Boolean).join(' · ')}
+                </div>
+              </div>
+              <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...r }); setModal({ item:r }) }}>Editar</button>
+              <button className="btn btn-g btn-sm" onClick={() => excluir(r.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title={modal.item ? 'Editar Representante' : 'Novo Representante'} onClose={() => setModal(null)}>
+          <div className="grid2">
+            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
+            <div className="fg"><label className="fl">CPF</label><input className="fi" value={form.cpf||''} onChange={up('cpf')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Email</label><input className="fi" type="email" value={form.email||''} onChange={up('email')} /></div>
+            <div className="fg"><label className="fl">Fornecedor vinculado</label>
+              <select className="fi" value={form.fornecedor_id||''} onChange={up('fornecedor_id')}>
+                <option value="">Nenhum</option>
+                {(forns||[]).map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Comissão (%)</label><input className="fi" type="number" step="0.01" value={form.comissao_percent||''} onChange={up('comissao_percent')} /></div>
+            <div className="fg"><label className="fl">Região de atuação</label><input className="fi" value={form.regiao||''} onChange={up('regiao')} /></div>
+            <div className="fg" style={{ display:'flex', alignItems:'center', gap:8, paddingTop:24 }}>
+              <input type="checkbox" id="ativo-rep" checked={!!form.ativo} onChange={e => setForm(p => ({ ...p, ativo: e.target.checked }))} />
+              <label htmlFor="ativo-rep" style={{ fontSize:13 }}>Ativo</label>
+            </div>
+          </div>
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes||''} onChange={up('observacoes')} rows={2} /></div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 function Cadastros() {
   const [tab, setTab] = useState('clientes')
   const TABS = [
     { id:'clientes',label:'Clientes' },
     { id:'fornecedores',label:'Fornecedores' },
     { id:'catalogo',label:'Catálogo' },
+    { id:'representantes',label:'Representantes' },
     { id:'lojas',label:'Lojas' },
     { id:'decoradores',label:'Decoradores' },
     { id:'acabamentos',label:'Acabamentos' },
@@ -5537,6 +5678,7 @@ function Cadastros() {
       {tab === 'clientes' && <CadClientes />}
       {tab === 'fornecedores' && <CadFornecedores />}
       {tab === 'catalogo' && <CadCatalogo />}
+      {tab === 'representantes' && <CadRepresentantes />}
       {tab === 'lojas' && <CadLojas />}
       {tab === 'decoradores' && <CadDecoradores />}
       {tab === 'acabamentos' && <CadAcabamentos />}

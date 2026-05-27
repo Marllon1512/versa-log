@@ -741,3 +741,27 @@ export const metasService = {
     return data
   },
 }
+
+// ── Representantes ────────────────────────────────────────
+export const representantesService = {
+  async list() {
+    const { data, error } = await supabase.from('representantes').select('*, fornecedores(nome)').order('nome')
+    if (error) throw error
+    return data || []
+  },
+  async create(r) {
+    const { data, error } = await supabase.from('representantes').insert(r).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('representantes').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async remove(id) {
+    const { error } = await supabase.from('representantes').delete().eq('id', id)
+    if (error) throw error
+    return true
+  },
+}
