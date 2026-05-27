@@ -8672,10 +8672,100 @@ function NPSPublico({ token }) {
 }
 
 // ============================================================
+// LEMBRETES DE PONTO
+// ============================================================
+function useVerificarLembretesPonto() {
+  const { perfil } = useAuth()
+
+  const verificar = useCallback(async () => {
+    if (!perfil?.id) return
+    try {
+      const agora     = new Date()
+      const hoje      = agora.toISOString().split('T')[0]
+      const diaSemana = agora.getDay()
+
+      const { data: escalas } = await supabase
+        .from('escalas_trabalho')
+        .select('*')
+        .eq('usuario_id', perfil.id)
+        .eq('ativo', true)
+        .or(`dia_semana.eq.${diaSemana},dia_semana.is.null`)
+        .order('dia_semana', { nullsFirst: false })
+        .limit(1)
+
+      const escala = escalas?.[0]
+      if (!escala) return
+
+      const { data: pontos } = await supabase
+        .from('pontos')
+        .select('tipo_marcacao, tipo')
+        .eq('usuario_id', perfil.id)
+        .eq('data', hoje)
+
+      const registrados = new Set((pontos || []).map(p => p.tipo_marcacao || p.tipo))
+
+      const passou10 = (hora) => {
+        if (!hora) return false
+        const [h, m] = hora.split(':').map(Number)
+        const limite = new Date(agora)
+        limite.setHours(h, m + 10, 0, 0)
+        return agora >= limite
+      }
+
+      const jaFeito = (tipo, oldTipo) => registrados.has(tipo) || registrados.has(oldTipo)
+      const fmt     = (hora) => (hora || '').slice(0, 5)
+
+      const checar = async (tipo, oldTipo, horaEscala, titulo, mensagem) => {
+        if (!horaEscala || !passou10(horaEscala) || jaFeito(tipo, oldTipo)) return
+        const { data: ja } = await supabase
+          .from('notificacoes')
+          .select('id')
+          .eq('usuario_id', perfil.id)
+          .eq('tipo', 'lembrete_ponto')
+          .eq('titulo', titulo)
+          .gte('created_at', `${hoje}T00:00:00`)
+          .limit(1)
+        if (ja?.length) return
+        await supabase.from('notificacoes').insert({
+          usuario_id: perfil.id,
+          tipo: 'lembrete_ponto',
+          titulo,
+          mensagem,
+          lida: false,
+        })
+      }
+
+      await checar('entrada',       'Entrada', escala.hora_entrada,
+        'Lembrete: bata seu ponto de entrada',
+        `Seu horário de entrada era ${fmt(escala.hora_entrada)}. Não esqueça de registrar seu ponto.`)
+      await checar('saida_almoco',  'Almoço',  escala.hora_saida_almoco,
+        'Lembrete: registre sua saída para almoço',
+        `Seu horário de saída para almoço era ${fmt(escala.hora_saida_almoco)}. Não esqueça de registrar seu ponto.`)
+      await checar('retorno_almoco','Retorno',  escala.hora_retorno_almoco,
+        'Lembrete: registre seu retorno do almoço',
+        `Seu horário de retorno do almoço era ${fmt(escala.hora_retorno_almoco)}. Não esqueça de registrar seu ponto.`)
+      await checar('saida',         'Saída',   escala.hora_saida,
+        'Lembrete: registre sua saída',
+        `Seu horário de saída era ${fmt(escala.hora_saida)}. Não esqueça de registrar seu ponto.`)
+    } catch (e) {
+      console.warn('[LembretePonto]', e?.message)
+    }
+  }, [perfil?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!perfil?.id) return
+    verificar()
+    const id = setInterval(verificar, 10 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [perfil?.id, verificar])
+}
+
+// ============================================================
 // APP ROOT
 // ============================================================
 function AppContent() {
   const { perfil, loading, isGestor, isEntregador, simulatedRole, effectiveRole, modulosPermitidos } = useAuth()
+  useVerificarLembretesPonto()
   const defaultPage = isEntregador && !isGestor ? 'rota' : 'dashboard'
   const [page, setPage] = useState(defaultPage)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sb_collapsed') === 'true')
