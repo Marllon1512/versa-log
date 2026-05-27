@@ -5503,12 +5503,11 @@ function CRMKanban() {
 
   return (
     <div>
-      <div style={{ overflowX:'auto', paddingBottom:8 }}>
-        <div style={{ display:'flex', gap:10, minWidth: CRM_COLUNAS.length * 220 }}>
+      <div className="kanban-board" style={{ overflowX:'auto', paddingBottom:8, display:'flex', flexDirection:'row', gap:10, WebkitOverflowScrolling:'touch' }}>
           {CRM_COLUNAS.map(col => {
             const items = (leads||[]).filter(l => l.estagio === col.id)
             return (
-              <div key={col.id} style={{ width:210, flexShrink:0 }}>
+              <div key={col.id} className="kanban-col" style={{ width:210, minWidth:280, flexShrink:0 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                     <div style={{ width:10, height:10, borderRadius:'50%', background:col.cor }} />
@@ -5535,7 +5534,6 @@ function CRMKanban() {
               </div>
             )
           })}
-        </div>
       </div>
       {modal && (
         <Modal title={modal.item ? 'Editar Lead' : 'Novo Lead'} onClose={() => setModal(null)}>

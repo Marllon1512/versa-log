@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 // ── Button ────────────────────────────────────────────────
 export function Btn({ children, variant = 'primary', size = 'md', disabled, loading, onClick, style, type = 'button' }) {
   const cls = {
@@ -38,6 +40,11 @@ export function Badge({ status, children, style }) {
 
 // ── Modal ─────────────────────────────────────────────────
 export function Modal({ title, subtitle, onClose, children, footer, size = 'md' }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose?.()}>
       <div className={`modal ${size === 'lg' ? 'modal-lg' : ''}`}>

@@ -163,14 +163,19 @@ textarea.fi { resize: vertical; min-height: 80px; }
 .overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.75);
   display: flex; align-items: center; justify-content: center;
-  z-index: 200; padding: 16px;
+  z-index: 1000; padding: 16px;
 }
 .modal {
   background: var(--bg1); border: 1px solid var(--border);
-  border-radius: 16px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+  border-radius: 16px; width: 100%; max-width: 520px; max-height: 90vh;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 .modal-lg { max-width: 700px; }
-.mh { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.mh {
+  padding: 18px 22px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; background: var(--bg1); z-index: 1;
+}
 .mh h2 { font-size: 16px; font-weight: 600; }
 .mb { padding: 18px 22px; }
 .mf { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
@@ -245,19 +250,56 @@ textarea.fi { resize: vertical; min-height: 80px; }
   .sb-overlay { display: block; }
   .sb-mobile-btn { display: flex !important; }
   body { font-size: 14px; }
-  .page { padding: 14px; }
+  .page { padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .content-topbar { padding-top: env(safe-area-inset-top); }
   .stats { grid-template-columns: 1fr 1fr; }
   .grid2, .grid3 { grid-template-columns: 1fr; }
   .map-layout { grid-template-columns: 1fr; grid-template-rows: 280px 1fr; }
   .search { width: 100%; }
-  .fi { min-height: 44px; font-size: 14px; }
-  .btn { min-height: 44px; padding: 10px 18px; }
-  .btn.btn-sm, .btn.btn-s { min-height: 36px; }
+  .fi { min-height: 48px; font-size: 16px !important; }
+  select.fi { font-size: 16px !important; }
+  textarea.fi { font-size: 16px !important; }
+  .btn { min-height: 48px; padding: 10px 18px; }
+  .btn.btn-sm { min-height: 36px; }
   .btn.btn-ico { min-height: 36px; }
   .tbl thead { display: none; }
   .tbl tr { display: block; margin-bottom: 8px; background: var(--bg2); border-radius: 8px; padding: 10px; border: 1px solid var(--border); }
   .tbl td { display: block; padding: 3px 0; font-size: 13px; }
   .tbl td[data-label]::before { content: attr(data-label); font-size: 10px; color: var(--t3); display: block; margin-bottom: 1px; }
+
+  /* Modal bottom-sheet no mobile */
+  .overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal {
+    border-radius: 16px 16px 0 0;
+    max-height: 90vh;
+    max-width: 100%;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-bottom: none;
+    animation: slideUp 0.3s ease;
+  }
+  .modal-lg { max-width: 100%; }
+  .mh { border-radius: 16px 16px 0 0; }
+
+  /* Kanban CRM mobile */
+  .kanban-board {
+    display: flex; flex-direction: row;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    gap: 12px; padding-bottom: 16px;
+  }
+  .kanban-col { min-width: 280px; flex-shrink: 0; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Global: font-size 16px mínimo em inputs para evitar zoom no iOS */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: 16px !important; }
 }
 
 /* ── Toast ──────────────────────────────────────────────── */
