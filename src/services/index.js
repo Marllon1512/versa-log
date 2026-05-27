@@ -372,8 +372,10 @@ export const vendasService = {
 
 // ── Compras ───────────────────────────────────────────────
 export const comprasService = {
-  async list() {
-    const { data, error } = await supabase.from('pedidos_compra').select('*, pedido_compra_itens(*)').order('created_at', { ascending: false })
+  async list(lojaFiltro) {
+    let q = supabase.from('pedidos_compra').select('*, pedido_compra_itens(*)').order('created_at', { ascending: false })
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q
     if (error) throw error
     return data || []
   },
@@ -401,8 +403,10 @@ export const comprasService = {
 
 // ── Estoque ───────────────────────────────────────────────
 export const estoqueService = {
-  async list() {
-    const { data, error } = await supabase.from('estoque').select('*').order('nome_produto')
+  async list(lojaFiltro) {
+    let q = supabase.from('estoque').select('*').order('nome_produto')
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q
     if (error) throw error
     return data || []
   },
@@ -440,13 +444,17 @@ export const estoqueService = {
 
 // ── Financeiro ────────────────────────────────────────────
 export const financeiroService = {
-  async listReceber() {
-    const { data, error } = await supabase.from('financeiro_receber').select('*').order('vencimento')
+  async listReceber(lojaFiltro) {
+    let q = supabase.from('financeiro_receber').select('*').order('vencimento')
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q
     if (error) throw error
     return data || []
   },
-  async listPagar() {
-    const { data, error } = await supabase.from('financeiro_pagar').select('*').order('vencimento')
+  async listPagar(lojaFiltro) {
+    let q = supabase.from('financeiro_pagar').select('*').order('vencimento')
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q
     if (error) throw error
     return data || []
   },
@@ -474,8 +482,10 @@ export const financeiroService = {
 
 // ── Departamento Pessoal ──────────────────────────────────
 export const dpService = {
-  async listFuncionarios() {
-    const { data, error } = await supabase.from('funcionarios').select('*').order('nome')
+  async listFuncionarios(lojaFiltro) {
+    let q = supabase.from('funcionarios').select('*').order('nome')
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q
     if (error) throw error
     return data || []
   },
@@ -569,8 +579,10 @@ export const decoradoresService = {
 
 // ── CRM ───────────────────────────────────────────────────
 export const crmService = {
-  async list() {
-    const { data, error } = await supabase.from('crm_leads').select('*').order('created_at', { ascending: false })
+  async list(lojaFiltro) {
+    let q = supabase.from('crm_leads').select('*').order('created_at', { ascending: false })
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q
     if (error) throw error
     return data || []
   },

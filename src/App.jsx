@@ -27,6 +27,14 @@ import {
 const LojaCtx = createContext({ lojaFiltro: '', setLojaFiltro: () => {} })
 export const useLojaFiltro = () => useContext(LojaCtx)
 
+// Retorna filtro de loja efetivo: automático para usuários sem acesso global
+function useEffectiveLoja() {
+  const { perfil, podeVerTodasLojas } = useAuth()
+  const { lojaFiltro } = useLojaFiltro()
+  if (podeVerTodasLojas) return lojaFiltro || null
+  return perfil?.loja || null
+}
+
 // ── Lojas do grupo (lista fixa) ───────────────────────────
 const LOJAS_GRUPO = ['Templum Comércio','Templum Minas','Movelaria Olga','Santa Comércio','Alpendre Mobiliário','Arca Garden','Feirão']
 
@@ -5763,7 +5771,8 @@ function CRMVisitas() {
 }
 
 function CRMKanban({ openNew, onOpenNewConsumed }) {
-  const { data: leads, loading, reload } = useData(() => crmService.list(), [])
+  const lojaEf = useEffectiveLoja()
+  const { data: leads, loading, reload } = useData(() => crmService.list(lojaEf), [lojaEf])
   const [modal, setModal] = useState(null)
   const empty = { nome:'', telefone:'', email:'', loja:'', responsavel:'', estagio:'lead', valor_estimado:0, proxima_visita:'', obs:'' }
   const [form, setForm] = useState(empty)
@@ -5857,9 +5866,10 @@ function CRMKanban({ openNew, onOpenNewConsumed }) {
 }
 
 function CRM() {
+  const lojaEf = useEffectiveLoja()
   const [tab, setTab] = useState('kanban')
   const [openNew, setOpenNew] = useState(false)
-  const { data: leads } = useData(() => crmService.list(), [])
+  const { data: leads } = useData(() => crmService.list(lojaEf), [lojaEf])
   const totalValor = (leads||[]).filter(l => !['perdido'].includes(l.estagio)).reduce((s,l) => s + (parseFloat(l.valor_estimado)||0), 0)
   const fechados = (leads||[]).filter(l => l.estagio === 'fechado').length
 
@@ -5969,7 +5979,8 @@ function CatalogoPub() {
 // VENDAS / PDV
 // ============================================================
 function VendasLista({ onNovaVenda }) {
-  const { data: lista, loading, reload } = useData(() => vendasService.list(), [])
+  const lojaEf = useEffectiveLoja()
+  const { data: lista, loading, reload } = useData(() => vendasService.list(lojaEf), [lojaEf])
   const [detalhe, setDetalhe] = useState(null)
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
@@ -6158,14 +6169,15 @@ function Vendas() {
 }
 
 function NovaVenda({ onClose }) {
-  const { perfil } = useAuth()
+  const { perfil, podeVerTodasLojas } = useAuth()
+  const lojaEf = useEffectiveLoja()
   const { data: cfgData } = useData(() => configSistemaService.get(), [])
   const { data: clientes } = useData(() => clientesService.list(), [])
   const { data: catalogo } = useData(() => catalogoService.list(), [])
   const { data: acabamentos } = useData(() => acabamentosService.list(), [])
   const { data: tecidos } = useData(() => tecidosService.list(), [])
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ cliente_id:'', cliente_nome:'', loja:'', vendedor_nome: perfil?.full_name || '', obs:'' })
+  const [form, setForm] = useState({ cliente_id:'', cliente_nome:'', loja: lojaEf || '', vendedor_nome: perfil?.full_name || '', obs:'' })
   const [itens, setItens] = useState([])
   const [desconto, setDesconto] = useState(0)
   const [motivo, setMotivo] = useState('')
@@ -6294,7 +6306,10 @@ function NovaVenda({ onClose }) {
             </select>
           </div>
           <div className="fg"><label className="fl">Ou digitar nome</label><input className="fi" value={form.cliente_nome} onChange={up('cliente_nome')} placeholder="Nome do cliente" /></div>
-          <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
+          {podeVerTodasLojas
+            ? <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
+            : <div className="fg"><label className="fl">Loja</label><input className="fi" value={form.loja} readOnly style={{ background:'var(--bg3)', color:'var(--t2)' }} /></div>
+          }
           <div className="fg"><label className="fl">Vendedor</label><input className="fi" value={form.vendedor_nome} onChange={up('vendedor_nome')} /></div>
           <button className="btn btn-p" style={{ marginTop:8 }} disabled={!form.cliente_nome} onClick={() => setStep(2)}>Próximo →</button>
         </div>
@@ -6497,8 +6512,9 @@ function VendaDetalhe({ venda, onClose }) {
 // COMPRAS
 // ============================================================
 function ComprasPrevisao() {
-  const { data: estoque } = useData(() => estoqueService.list(), [])
-  const { data: compras } = useData(() => comprasService.list(), [])
+  const lojaEf = useEffectiveLoja()
+  const { data: estoque } = useData(() => estoqueService.list(lojaEf), [lojaEf])
+  const { data: compras } = useData(() => comprasService.list(lojaEf), [lojaEf])
   const fmtM = (v) => (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
 
   const emCompra = new Set()
@@ -6547,7 +6563,8 @@ function ComprasPrevisao() {
 }
 
 function Compras() {
-  const { data: lista, loading, reload } = useData(() => comprasService.list(), [])
+  const lojaEf = useEffectiveLoja()
+  const { data: lista, loading, reload } = useData(() => comprasService.list(lojaEf), [lojaEf])
   const [modal, setModal] = useState(null)
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
@@ -6774,7 +6791,8 @@ function ConsignacaoTab() {
 }
 
 function InventarioTab() {
-  const { data: itens, loading } = useData(() => estoqueService.list(), [])
+  const lojaEf = useEffectiveLoja()
+  const { data: itens, loading } = useData(() => estoqueService.list(lojaEf), [lojaEf])
   const [contagem, setContagem] = useState({})
   const [iniciado, setIniciado] = useState(false)
   const [busca, setBusca] = useState('')
@@ -6835,7 +6853,8 @@ function InventarioTab() {
 }
 
 function EstoqueEtiquetas() {
-  const { data: itens, loading } = useData(() => estoqueService.list(), [])
+  const lojaEf = useEffectiveLoja()
+  const { data: itens, loading } = useData(() => estoqueService.list(lojaEf), [lojaEf])
   const [selecionados, setSelecionados] = useState([])
   const [copias, setCopias] = useState(1)
   const toggle = (id) => setSelecionados(p => p.includes(id) ? p.filter(x => x!==id) : [...p, id])
@@ -6911,7 +6930,8 @@ function Estoque() {
 }
 
 function EstoqueDashboard() {
-  const { data: itens, loading } = useData(() => estoqueService.list(), [])
+  const lojaEf = useEffectiveLoja()
+  const { data: itens, loading } = useData(() => estoqueService.list(lojaEf), [lojaEf])
   if (loading) return <Spinner />
   const total = (itens||[]).length
   const baixo = (itens||[]).filter(i => (i.estoque_atual||0) <= (i.estoque_minimo||0)).length
@@ -7026,8 +7046,9 @@ function EstoqueNF() {
 }
 
 function EstoqueMov() {
+  const lojaEf = useEffectiveLoja()
   const { data: lista, loading, reload } = useData(() => estoqueService.listMovimentacoes(), [])
-  const { data: estoqueItens } = useData(() => estoqueService.list(), [])
+  const { data: estoqueItens } = useData(() => estoqueService.list(lojaEf), [lojaEf])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ tipo:'entrada', descricao:'', quantidade:1, loja:'', referencia:'' })
   const act = useAction()
@@ -7332,11 +7353,11 @@ function Financeiro() {
 }
 
 function FinanceiroResumo() {
-  const { lojaFiltro } = useLojaFiltro()
-  const { data: receberRaw } = useData(() => financeiroService.listReceber(), [])
-  const { data: pagarRaw } = useData(() => financeiroService.listPagar(), [])
-  const receber = lojaFiltro ? (receberRaw||[]).filter(x => !x.loja || x.loja === lojaFiltro) : receberRaw
-  const pagar = lojaFiltro ? (pagarRaw||[]).filter(x => !x.loja || x.loja === lojaFiltro) : pagarRaw
+  const lojaEf = useEffectiveLoja()
+  const { data: receberRaw } = useData(() => financeiroService.listReceber(lojaEf), [lojaEf])
+  const { data: pagarRaw } = useData(() => financeiroService.listPagar(lojaEf), [lojaEf])
+  const receber = receberRaw
+  const pagar = pagarRaw
   const hoje = new Date().toISOString().split('T')[0]
   const totalReceber = (receber||[]).filter(r => r.status !== 'pago').reduce((s,r) => s + (parseFloat(r.valor)||0), 0)
   const totalPagar   = (pagar||[]).filter(p => p.status !== 'pago').reduce((s,p) => s + (parseFloat(p.valor)||0), 0)
@@ -7381,9 +7402,8 @@ function FinanceiroResumo() {
 }
 
 function FinanceiroLista({ tipo }) {
-  const { lojaFiltro } = useLojaFiltro()
-  const { data: listaRaw, loading, reload } = useData(() => tipo === 'receber' ? financeiroService.listReceber() : financeiroService.listPagar(), [tipo])
-  const lista = lojaFiltro ? (listaRaw||[]).filter(x => !x.loja || x.loja === lojaFiltro) : listaRaw
+  const lojaEf = useEffectiveLoja()
+  const { data: lista, loading, reload } = useData(() => tipo === 'receber' ? financeiroService.listReceber(lojaEf) : financeiroService.listPagar(lojaEf), [tipo, lojaEf])
   const [modal, setModal] = useState(null)
   const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...LOJAS_GRUPO]
   const empty = { descricao:'', valor:'', vencimento:'', categoria:'', cliente_fornecedor:'', status:'pendente', obs:'', loja:'', centro_custo:'' }
@@ -7512,8 +7532,9 @@ function DP() {
 }
 
 function DPFuncionarios({ lojaFiltro }) {
-  const { data: todos, loading, reload } = useData(() => dpService.listFuncionarios(), [])
-  const lista = lojaFiltro ? (todos||[]).filter(f => f.loja === lojaFiltro) : todos
+  const lojaEf = useEffectiveLoja()
+  const filtroAtivo = lojaEf || lojaFiltro || null
+  const { data: lista, loading, reload } = useData(() => dpService.listFuncionarios(filtroAtivo), [filtroAtivo])
   const [modal, setModal] = useState(null)
   const empty = { nome:'', cpf:'', cargo:'', departamento:'', admissao:'', salario:'', status:'ativo', email:'', telefone:'', loja:'' }
   const [form, setForm] = useState(empty)
@@ -7584,10 +7605,11 @@ function DPFuncionarios({ lojaFiltro }) {
 }
 
 function DPFolha({ lojaFiltro }) {
+  const lojaEf = useEffectiveLoja()
+  const filtroAtivo = lojaEf || lojaFiltro || null
   const mesAtual = new Date().toISOString().slice(0,7)
   const [mes, setMes] = useState(mesAtual)
-  const { data: todosFuncionarios } = useData(() => dpService.listFuncionarios(), [])
-  const funcionarios = lojaFiltro ? (todosFuncionarios||[]).filter(f => f.loja === lojaFiltro) : todosFuncionarios
+  const { data: funcionarios } = useData(() => dpService.listFuncionarios(filtroAtivo), [filtroAtivo])
   const { data: folha, loading, reload } = useData(() => dpService.listFolha(mes), [mes])
   const act = useAction()
 
