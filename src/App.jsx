@@ -1213,10 +1213,11 @@ function ModalDevolucao({ pedido, onClose, onConfirm }) {
 // PEDIDOS
 // ============================================================
 function Pedidos() {
-  const { perfil, isGestor } = useAuth()
+  const { perfil, isGestor, effectiveRole, podeVerFinanceiro } = useAuth()
   const [search, setSearch] = useState('')
   const [statusFil, setStatusFil] = useState('Todos')
   const [lojasFil, setLojasFil] = useState([])
+  const [fluxoFil, setFluxoFil] = useState(null)
   const [selected, setSelected] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -1227,12 +1228,30 @@ function Pedidos() {
   const { data: pedidos, loading, reload } = useData(() => pedidosService.list(), [])
 
   const statuses = ['Todos', 'Pendente', 'Separando', 'Pronto para Rota', 'Em Rota', 'Entregue', 'Aguardando Montagem', 'Problema', 'Remarcado', 'Cancelado']
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  const pIsGerente = effectiveRole === 'gerente'
+  const pIsFinanceiro = ['diretor','admin'].includes(effectiveRole) || (effectiveRole === 'assistente_admin' && podeVerFinanceiro)
+  const pIsLogistica = ['gerente_logistica','admin','diretor'].includes(effectiveRole)
+
+  const fluxoFiltros = []
+  if (pIsGerente) fluxoFiltros.push({ label: 'Aguardando minha aprovação', value: 'aguardando_gerente' })
+  if (pIsFinanceiro) fluxoFiltros.push({ label: 'Aguardando aprovação financeira', value: 'aguardando_financeiro' })
+  if (pIsLogistica) {
+    fluxoFiltros.push({ label: 'Aprovados para agendar', value: 'aprovado_agendar' })
+    fluxoFiltros.push({ label: 'Separados para entregar hoje', value: 'separados_hoje' })
+  }
 
   const filtered = (pedidos || []).filter(p => {
     const mSearch = !search || p.cliente?.toLowerCase().includes(search.toLowerCase()) || p.numero_pedido?.includes(search)
     const mStatus = statusFil === 'Todos' || p.status === statusFil
     const mLoja = lojasFil.length === 0 || lojasFil.includes(p.local_separacao)
-    return mSearch && mStatus && mLoja
+    let mFluxo = true
+    if (fluxoFil === 'aguardando_gerente') mFluxo = p.status_fluxo === 'aguardando_gerente'
+    else if (fluxoFil === 'aguardando_financeiro') mFluxo = p.status_fluxo === 'aguardando_financeiro'
+    else if (fluxoFil === 'aprovado_agendar') mFluxo = p.status_fluxo === 'aprovado_entrega' && !p.data_entrega_agendada
+    else if (fluxoFil === 'separados_hoje') mFluxo = p.status_fluxo === 'separado' && p.data_entrega_agendada === todayStr
+    return mSearch && mStatus && mLoja && mFluxo
   })
 
   // Mapeia campos da UI para colunas reais da tabela pedidos
@@ -1354,6 +1373,15 @@ function Pedidos() {
         ))}
       </div>
 
+      {fluxoFiltros.length > 0 && (
+        <div className="filters">
+          <button className={`fb${!fluxoFil ? ' on' : ''}`} onClick={() => setFluxoFil(null)}>Todos</button>
+          {fluxoFiltros.map(f => (
+            <button key={f.value} className={`fb${fluxoFil === f.value ? ' on' : ''}`} onClick={() => setFluxoFil(fluxoFil === f.value ? null : f.value)}>{f.label}</button>
+          ))}
+        </div>
+      )}
+
       {loading ? <Spinner /> : filtered.length === 0 ? <Empty icon="📦" /> :
         filtered.map(p => (
           <PedidoCard key={p.id} pedido={p} onClick={() => setSelected(p.id)}
@@ -1443,7 +1471,7 @@ const TIMELINE_COLORS = {
 
 // ── Pedido Detalhe ────────────────────────────────────────
 function PedidoDetalhe({ pedidoId, onBack }) {
-  const { perfil, isGestor } = useAuth()
+  const { perfil, isGestor, effectiveRole, podeVerFinanceiro } = useAuth()
   const { openChatWith } = useContext(AppCtx)
   const [showEdit, setShowEdit] = useState(false)
   const [showTroca, setShowTroca] = useState(false)
@@ -1456,6 +1484,10 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   const [textoFollowUp, setTextoFollowUp] = useState('')
   const [filesFollowUp, setFilesFollowUp] = useState([])
   const [loadingFollowUp, setLoadingFollowUp] = useState(false)
+  const [dataAgendamento, setDataAgendamento] = useState('')
+  const [showRejeitar, setShowRejeitar] = useState(false)
+  const [motivoRejeicao, setMotivoRejeicao] = useState('')
+  const [tipoRejeicao, setTipoRejeicao] = useState('')
   const followUpFileRef = useRef()
   const { run: runAction, loading: actionLoading } = useAction()
 
@@ -1473,6 +1505,11 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   const FLOW = { Pendente: 'Separando', Separando: 'Pronto para Rota', 'Pronto para Rota': 'Em Rota', 'Em Rota': 'Entregue', 'Aguardando Montagem': 'Entregue' }
   const canRota = pedido?.entregador_id && pedido?.entregador_nome
   const proximoStatus = FLOW[pedido?.status]
+  const isGerente = effectiveRole === 'gerente'
+  const isFinanceiro = ['diretor','admin'].includes(effectiveRole) || (effectiveRole === 'assistente_admin' && podeVerFinanceiro)
+  const isLogistica = ['gerente_logistica','admin','diretor'].includes(effectiveRole)
+  const isSeparador = effectiveRole === 'separador'
+  const todayStr = new Date().toISOString().slice(0, 10)
 
   const avancar = async () => {
     if (!proximoStatus) return
@@ -1540,6 +1577,58 @@ function PedidoDetalhe({ pedidoId, onBack }) {
       toast.success('Follow-up adicionado!')
     } catch (e) { toast.error('Erro: ' + e.message) }
     finally { setLoadingFollowUp(false) }
+  }
+
+  const handleAprovarGerente = async () => {
+    try {
+      await runAction(() => pedidosService.aprovarGerente(pedidoId, perfil, { loja: pedido.local_separacao, numeroPedido: pedido.numero_pedido }))
+      reload(); reloadTimeline()
+      toast.success('Pedido aprovado!')
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const handleRejeitarGerente = async () => {
+    if (!motivoRejeicao.trim()) return
+    try {
+      await runAction(() => pedidosService.rejeitarGerente(pedidoId, perfil, { motivo: motivoRejeicao, numeroPedido: pedido.numero_pedido, vendedorId: pedido.vendedor_id }))
+      setShowRejeitar(false); setMotivoRejeicao(''); reload(); reloadTimeline()
+      toast.success('Pedido rejeitado.')
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const handleAprovarFinanceiro = async () => {
+    const link = `${window.location.origin}/#/confirmar-compra/${pedidoId}`
+    try {
+      await runAction(() => pedidosService.aprovarFinanceiro(pedidoId, perfil, { loja: pedido.local_separacao, numeroPedido: pedido.numero_pedido, telefonesFabrica: [], linkConfirmacao: link }))
+      reload(); reloadTimeline()
+      toast.success('Aprovado financeiramente!')
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const handleRejeitarFinanceiro = async () => {
+    if (!motivoRejeicao.trim()) return
+    try {
+      await runAction(() => pedidosService.rejeitarFinanceiro(pedidoId, perfil, { motivo: motivoRejeicao, numeroPedido: pedido.numero_pedido, vendedorId: pedido.vendedor_id, loja: pedido.local_separacao }))
+      setShowRejeitar(false); setMotivoRejeicao(''); reload(); reloadTimeline()
+      toast.success('Pedido rejeitado.')
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const handleAgendarEntrega = async () => {
+    if (!dataAgendamento) { toast.error('Selecione uma data.'); return }
+    try {
+      await runAction(() => pedidosService.agendarEntrega(pedidoId, perfil, { dataEntrega: dataAgendamento, telefoneCliente: pedido.telefone, nomeCliente: pedido.cliente, numeroPedido: pedido.numero_pedido, vendedorId: pedido.vendedor_id }))
+      reload(); reloadTimeline()
+      toast.success('Entrega agendada!')
+    } catch (e) { toast.error(e.message) }
+  }
+
+  const handleIniciarSeparacao = async () => {
+    try {
+      await runAction(() => pedidosService.registrarSeparacao(pedidoId, perfil, { fotos: [], numeroPedido: pedido.numero_pedido, loja: pedido.local_separacao }))
+      reload(); reloadTimeline()
+      toast.success('Separação iniciada!')
+    } catch (e) { toast.error(e.message) }
   }
 
   const handleRemarcar = async ({ novaData, motivo }) => {
@@ -1632,6 +1721,40 @@ function PedidoDetalhe({ pedidoId, onBack }) {
             <Btn size="sm" onClick={() => { setCorrigirMode(true); setShowEdit(true) }}>✏️ Corrigir e Reenviar</Btn>
           )}
         </div>
+      )}
+
+      {isGerente && pedido.status_fluxo === 'aguardando_gerente' && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <Btn style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }} loading={actionLoading} onClick={handleAprovarGerente}>✅ Aprovar</Btn>
+          <Btn variant="secondary" style={{ flex: 1, justifyContent: 'center', color: 'var(--red)' }} onClick={() => { setTipoRejeicao('gerente'); setShowRejeitar(true) }}>❌ Rejeitar</Btn>
+        </div>
+      )}
+
+      {isFinanceiro && pedido.status_fluxo === 'aguardando_financeiro' && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <Btn style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }} loading={actionLoading} onClick={handleAprovarFinanceiro}>✅ Aprovar Financeiro</Btn>
+          <Btn variant="secondary" style={{ flex: 1, justifyContent: 'center', color: 'var(--red)' }} onClick={() => { setTipoRejeicao('financeiro'); setShowRejeitar(true) }}>❌ Rejeitar</Btn>
+        </div>
+      )}
+
+      {isLogistica && pedido.status_fluxo === 'aprovado_entrega' && !pedido.data_entrega_agendada && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, marginBottom: 10 }}>Agendar Entrega</div>
+          <input type="date" className="fi" value={dataAgendamento} min={todayStr} onChange={e => setDataAgendamento(e.target.value)} />
+          <Btn style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} loading={actionLoading} onClick={handleAgendarEntrega}>📅 Confirmar Agendamento</Btn>
+        </div>
+      )}
+
+      {isSeparador && pedido.status_fluxo === 'aprovado_entrega' && pedido.data_entrega_agendada === todayStr && (
+        <Btn style={{ width: '100%', justifyContent: 'center', marginBottom: 16, background: 'var(--amber)', color: '#fff', borderColor: 'var(--amber)' }} loading={actionLoading} onClick={handleIniciarSeparacao}>📋 Iniciar Separação</Btn>
+      )}
+
+      {showRejeitar && (
+        <Modal title={tipoRejeicao === 'gerente' ? 'Rejeitar Pedido' : 'Rejeitar — Financeiro'} onClose={() => { setShowRejeitar(false); setMotivoRejeicao('') }}
+          footer={<><Btn variant="ghost" onClick={() => { setShowRejeitar(false); setMotivoRejeicao('') }}>Cancelar</Btn><Btn style={{ background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }} disabled={!motivoRejeicao.trim()} loading={actionLoading} onClick={tipoRejeicao === 'gerente' ? handleRejeitarGerente : handleRejeitarFinanceiro}>Rejeitar</Btn></>}>
+          <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 10 }}>Informe o motivo. O vendedor será notificado.</div>
+          <textarea className="fi" rows={3} value={motivoRejeicao} onChange={e => setMotivoRejeicao(e.target.value)} placeholder="Ex: prazo inviável, margem insuficiente..." />
+        </Modal>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
@@ -9654,6 +9777,107 @@ function useVerificarLembretesPonto() {
 }
 
 // ============================================================
+// PÁGINA PÚBLICA — CONFIRMAÇÃO DE COMPRA (FÁBRICA)
+// ============================================================
+function ConfirmarCompraPublica({ token }) {
+  const [pedido, setPedido] = useState(null)
+  const [loadingP, setLoadingP] = useState(true)
+  const [erro, setErro] = useState(false)
+  const [arquivo, setArquivo] = useState(null)
+  const [enviando, setEnviando] = useState(false)
+  const [enviado, setEnviado] = useState(false)
+  const fileRef = useRef()
+
+  useEffect(() => {
+    supabase.from('pedidos').select('*').eq('id', token).single()
+      .then(({ data, error }) => {
+        if (error || !data) setErro(true)
+        else setPedido(data)
+        setLoadingP(false)
+      })
+  }, [token])
+
+  const confirmar = async () => {
+    setEnviando(true)
+    try {
+      let docUrl = null
+      if (arquivo) {
+        const ext = arquivo.name.split('.').pop()
+        const path = `${token}/confirmacao_fabrica_${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage.from('pedidos-anexos').upload(path, arquivo)
+        if (!upErr) {
+          const { data: pub } = supabase.storage.from('pedidos-anexos').getPublicUrl(path)
+          docUrl = pub.publicUrl
+        }
+      }
+      await pedidosService.registrarConfirmacaoFabrica(token, { id: null, full_name: 'Fábrica', email: 'fabrica' }, {
+        doc: docUrl, numeroPedido: pedido.numero_pedido, vendedorId: pedido.vendedor_id, loja: pedido.local_separacao,
+      })
+      setEnviado(true)
+    } catch (e) { alert('Erro ao confirmar. Tente novamente.') }
+    setEnviando(false)
+  }
+
+  if (loadingP) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#6366f1', fontSize: 24 }}>Carregando...</div></div>
+  if (erro || !pedido) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 48 }}>😕</div>
+        <div style={{ fontWeight: 600, fontSize: 18, margin: '12px 0 8px' }}>Link inválido</div>
+        <div style={{ color: '#64748b', fontSize: 14 }}>Verifique o link recebido.</div>
+      </div>
+    </div>
+  )
+  if (enviado || pedido.confirmado_fabrica_em) return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#f8fafc,#eff6ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,.1)' }}>
+        <div style={{ fontSize: 56, marginBottom: 12 }}>✅</div>
+        <h2 style={{ color: '#1e293b', marginBottom: 8 }}>Confirmação registrada!</h2>
+        <p style={{ color: '#64748b', fontSize: 14 }}>Pedido #{pedido.numero_pedido} confirmado com sucesso. Obrigado!</p>
+      </div>
+    </div>
+  )
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#f8fafc,#eff6ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '28px 24px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.1)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ width: 44, height: 44, background: '#6366f1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 18, flexShrink: 0 }}>V</div>
+          <div>
+            <div style={{ fontWeight: 700, color: '#1e293b' }}>VERSA LOG</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>Confirmação de Pedido — Fábrica</div>
+          </div>
+        </div>
+        <div style={{ fontWeight: 600, fontSize: 17, color: '#1e293b', marginBottom: 4 }}>Pedido #{pedido.numero_pedido}</div>
+        <div style={{ color: '#64748b', fontSize: 14, marginBottom: 2 }}>Cliente: {pedido.cliente}</div>
+        {pedido.local_separacao && <div style={{ color: '#64748b', fontSize: 14, marginBottom: 16 }}>Loja: {pedido.local_separacao}</div>}
+        <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 14px', marginBottom: 20, fontSize: 13, color: '#475569' }}>
+          Ao confirmar você está informando que este pedido está em produção e será entregue conforme combinado.
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 13, color: '#475569', marginBottom: 8, fontWeight: 500 }}>Documento de confirmação <span style={{ color: '#94a3b8', fontWeight: 400 }}>(opcional)</span></div>
+          <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => setArquivo(e.target.files[0] || null)} />
+          {arquivo ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, background: '#f1f5f9', padding: '8px 12px', borderRadius: 8 }}>
+              📎 {arquivo.name}
+              <button onClick={() => { setArquivo(null); fileRef.current.value = '' }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', marginLeft: 'auto', fontSize: 18, lineHeight: 1 }}>×</button>
+            </div>
+          ) : (
+            <button onClick={() => fileRef.current?.click()}
+              style={{ width: '100%', padding: '12px 14px', border: '2px dashed #cbd5e1', borderRadius: 10, background: 'transparent', color: '#64748b', fontSize: 13, cursor: 'pointer', textAlign: 'center' }}>
+              📎 Clique para anexar PDF ou imagem
+            </button>
+          )}
+        </div>
+        <button disabled={enviando} onClick={confirmar}
+          style={{ width: '100%', padding: 14, background: enviando ? '#e2e8f0' : '#6366f1', color: enviando ? '#94a3b8' : '#fff', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: enviando ? 'default' : 'pointer', transition: 'all .2s' }}>
+          {enviando ? 'Confirmando...' : '✅ Confirmar Pedido'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
 // APP ROOT
 // ============================================================
 function AppContent() {
@@ -9762,6 +9986,7 @@ export default function App() {
   const hash = window.location.hash
   if (hash === '#/solicitar') return <SolicitarAssistenciaPublica />
   if (hash.startsWith('#/nps/')) return <NPSPublico token={hash.replace('#/nps/','')} />
+  if (hash.startsWith('#/confirmar-compra/')) return <ConfirmarCompraPublica token={hash.replace('#/confirmar-compra/','')} />
   return (
     <AuthProvider>
       <AppContent />
