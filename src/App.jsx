@@ -1427,6 +1427,20 @@ function gerarPDFSimples(pedido, produtos) {
   w.document.close()
 }
 
+const TIMELINE_ICONS = {
+  criacao:'📄', aprovacao:'✅', rejeicao:'❌', envio_fabrica:'📤',
+  confirmacao_fabrica:'🏭', recebimento_produto:'📦', conferencia:'🔍',
+  separacao:'📋', agendamento:'📅', agendamento_entrega:'📅',
+  entrega:'🏠', follow_up:'💬', anexo:'📎', edicao:'✏️',
+}
+const TIMELINE_COLORS = {
+  criacao:'var(--accent)', aprovacao:'var(--green)', rejeicao:'var(--red)',
+  envio_fabrica:'var(--blue)', confirmacao_fabrica:'var(--blue)',
+  recebimento_produto:'var(--amber)', conferencia:'var(--accent)',
+  separacao:'var(--amber)', agendamento:'var(--green)', agendamento_entrega:'var(--green)',
+  entrega:'var(--green)', follow_up:'var(--accent)', anexo:'var(--t2)', edicao:'var(--amber)',
+}
+
 // ── Pedido Detalhe ────────────────────────────────────────
 function PedidoDetalhe({ pedidoId, onBack }) {
   const { perfil, isGestor } = useAuth()
@@ -1438,10 +1452,16 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   const [showWaGestor, setShowWaGestor] = useState(false)
   const [showExcluir, setShowExcluir] = useState(false)
   const [showDevolucao, setShowDevolucao] = useState(false)
+  const [corrigirMode, setCorrigirMode] = useState(false)
+  const [textoFollowUp, setTextoFollowUp] = useState('')
+  const [filesFollowUp, setFilesFollowUp] = useState([])
+  const [loadingFollowUp, setLoadingFollowUp] = useState(false)
+  const followUpFileRef = useRef()
   const { run: runAction, loading: actionLoading } = useAction()
 
   const { data: pedido, loading, reload } = useData(() => pedidosService.getById(pedidoId), [pedidoId])
   const { data: historico, reload: reloadHist } = useData(() => pedidosService.getHistorico(pedidoId), [pedidoId])
+  const { data: timeline, reload: reloadTimeline } = useData(() => pedidosTimelineService.list(pedidoId), [pedidoId])
   const { data: entregadores } = useData(() => usuariosService.listEntregadores(), [])
   const { data: histCliente } = useData(
     () => pedido?.cliente ? pedidosService.list({ cliente: pedido.cliente }) : Promise.resolve([]),
@@ -1484,11 +1504,42 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   }
 
   const handleEdit = async (dados) => {
+    const prevStatusFluxo = pedido?.status_fluxo
+    const wasCorrigir = corrigirMode
     try {
       const { produtos: _p, ...pedidoData } = dados
-      await runAction(async () => { await pedidosService.update(pedidoId, pedidoData); reload(); setShowEdit(false) })
-      toast.success('Pedido atualizado!')
+      await runAction(async () => {
+        await pedidosService.update(pedidoId, pedidoData)
+        if (wasCorrigir && prevStatusFluxo) {
+          await pedidosService.corrigirEReenviar(pedidoId, perfil, {
+            statusFluxoAtual: prevStatusFluxo,
+            numeroPedido: pedido.numero_pedido,
+            loja: pedido.local_separacao,
+            vendedorId: pedido.vendedor_id,
+          })
+          reloadTimeline()
+        }
+        reload(); reloadHist(); setShowEdit(false); setCorrigirMode(false)
+      })
+      toast.success(wasCorrigir ? 'Pedido corrigido e reenviado!' : 'Pedido atualizado!')
     } catch (e) { console.error('[Pedido] handleEdit:', e); toast.error('Erro ao salvar: ' + e.message) }
+  }
+
+  const adicionarFollowUp = async () => {
+    if (!textoFollowUp.trim() && filesFollowUp.length === 0) return
+    setLoadingFollowUp(true)
+    try {
+      await pedidosService.adicionarFollowUp(pedidoId, perfil, {
+        texto: textoFollowUp,
+        arquivos: filesFollowUp,
+        vendedorId: pedido?.vendedor_id,
+      })
+      setTextoFollowUp('')
+      setFilesFollowUp([])
+      reloadTimeline()
+      toast.success('Follow-up adicionado!')
+    } catch (e) { toast.error('Erro: ' + e.message) }
+    finally { setLoadingFollowUp(false) }
   }
 
   const handleRemarcar = async ({ novaData, motivo }) => {
@@ -1568,6 +1619,20 @@ function PedidoDetalhe({ pedidoId, onBack }) {
       <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 4 }}>Pedido #{pedido.numero_pedido}</div>
       {d && <div style={{ fontSize: 13, color: d.color, marginBottom: 4 }}>📅 Entrega: {d.text}</div>}
       {pedido.local_separacao && <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>🏪 {pedido.local_separacao}</div>}
+
+      {['rejeitado_gerente', 'rejeitado_financeiro'].includes(pedido.status_fluxo) && (
+        <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid var(--red)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, color: 'var(--red)', marginBottom: 4 }}>
+            {pedido.status_fluxo === 'rejeitado_gerente' ? '❌ Rejeitado pelo gerente' : '❌ Rejeitado pelo financeiro'}
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 10 }}>
+            {pedido.rejeitado_gerente_motivo || pedido.rejeitado_financeiro_motivo || 'Sem motivo informado'}
+          </div>
+          {isGestor && (
+            <Btn size="sm" onClick={() => { setCorrigirMode(true); setShowEdit(true) }}>✏️ Corrigir e Reenviar</Btn>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
         <div className="card-sm" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1682,6 +1747,77 @@ function PedidoDetalhe({ pedidoId, onBack }) {
         ))}
 
       <HistoricoCliente pedidos={histCliente} pedidoAtualId={pedidoId} />
+
+      {(timeline || []).length > 0 && (
+        <div style={{ marginTop: 24, marginBottom: 8 }}>
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>Linha do tempo</div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {(timeline || []).map((item, i) => {
+              const icon = TIMELINE_ICONS[item.tipo] || '🔹'
+              const color = TIMELINE_COLORS[item.tipo] || 'var(--accent)'
+              return (
+                <div key={item.id} style={{ display: 'flex', gap: 12, position: 'relative' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--adim)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, border: `2px solid ${color}`, zIndex: 1 }}>
+                      {icon}
+                    </div>
+                    {i < (timeline || []).length - 1 && <div style={{ width: 2, flex: 1, background: 'var(--border)', minHeight: 20 }} />}
+                  </div>
+                  <div style={{ paddingBottom: 16, flex: 1, paddingTop: 4 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{item.descricao}</div>
+                    <div style={{ fontSize: 11, color: 'var(--t2)', marginTop: 2 }}>
+                      {item.usuario_nome && `${item.usuario_nome} · `}
+                      {new Date(item.created_at).toLocaleString('pt-BR')}
+                    </div>
+                    {(item.anexos || []).length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                        {(item.anexos || []).map((url, ai) => {
+                          const isPdf = typeof url === 'string' && url.toLowerCase().includes('.pdf')
+                          return isPdf ? (
+                            <a key={ai} href={url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--accent)', background: 'var(--adim)', padding: '4px 8px', borderRadius: 6, textDecoration: 'none' }}>
+                              📎 PDF
+                            </a>
+                          ) : (
+                            <a key={ai} href={url} target="_blank" rel="noreferrer">
+                              <img src={url} alt="anexo" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
+                            </a>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 16, background: 'var(--adim)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>Follow-up</div>
+        <textarea
+          value={textoFollowUp}
+          onChange={e => setTextoFollowUp(e.target.value)}
+          placeholder="Adicione uma observação, acompanhamento ou atualização..."
+          rows={3}
+          style={{ width: '100%', resize: 'vertical', background: 'var(--background)', color: 'var(--t1)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }}
+        />
+        {filesFollowUp.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {filesFollowUp.map((f, fi) => (
+              <div key={fi} style={{ fontSize: 11, background: 'var(--background)', padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                📎 {f.name}
+                <button onClick={() => setFilesFollowUp(prev => prev.filter((_, idx) => idx !== fi))} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <input type="file" ref={followUpFileRef} multiple accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => { setFilesFollowUp(prev => [...prev, ...Array.from(e.target.files || [])]); e.target.value = '' }} />
+          <Btn variant="secondary" size="sm" onClick={() => followUpFileRef.current?.click()}>📎 Anexar</Btn>
+          <Btn size="sm" loading={loadingFollowUp} disabled={loadingFollowUp || (!textoFollowUp.trim() && filesFollowUp.length === 0)} onClick={adicionarFollowUp}>Adicionar Follow-up</Btn>
+        </div>
+      </div>
 
       {showEdit && (
         <NovoPedidoModal
