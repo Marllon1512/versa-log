@@ -3901,8 +3901,19 @@ function NovaEquipeForm({ usuarios, onClose, onSave }) {
   )
 }
 
+function PerfilModulosDesc({ perfil: perfilNome }) {
+  const mods = PROFILE_PAGES[perfilNome] || []
+  if (!mods.length) return null
+  return (
+    <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 6, lineHeight: 1.6 }}>
+      <span style={{ color: 'var(--t2)', fontWeight: 500 }}>Acesso:</span>{' '}
+      {mods.map(m => PAGE_LABELS[m] || m).join(', ')}
+    </div>
+  )
+}
+
 function NovoUsuarioForm({ onClose, onSave }) {
-  const [form, setForm] = useState({ full_name: '', usuario: '', senha: '', role: 'entregador', telefone: '' })
+  const [form, setForm] = useState({ full_name: '', usuario: '', senha: '', perfil: 'vendedor', loja: '', telefone: '' })
   const { run, loading } = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
   const canSave = form.full_name.trim() && form.usuario.trim() && form.senha.length >= 4
@@ -3915,7 +3926,9 @@ function NovoUsuarioForm({ onClose, onSave }) {
       email: `${form.usuario.trim()}@versalog.local`,
       usuario: form.usuario.trim().toLowerCase(),
       senha_hash: hash,
-      role: form.role,
+      perfil: form.perfil,
+      role: form.perfil,
+      loja: form.loja || null,
       telefone: form.telefone,
     })
   }
@@ -3930,13 +3943,18 @@ function NovoUsuarioForm({ onClose, onSave }) {
         </div>
         <div className="grid2">
           <div className="fg">
-            <label className="fl">Cargo</label>
-            <select className="fi" value={form.role} onChange={up('role')}>
-              {['admin', 'gestor', 'motorista', 'entregador', 'estoque', 'conferente'].map(r => <option key={r} value={r}>{r}</option>)}
+            <label className="fl">Perfil de Acesso</label>
+            <select className="fi" value={form.perfil} onChange={up('perfil')}>
+              {Object.entries(PROFILE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+            <PerfilModulosDesc perfil={form.perfil} />
           </div>
-          <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
+          <div className="fg">
+            <label className="fl">Loja Vinculada</label>
+            <LojaSelect value={form.loja} onChange={loja => setForm(p => ({ ...p, loja }))} placeholder="Sem loja específica" />
+          </div>
         </div>
+        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
       </div>
       <div className="mf">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
@@ -3947,13 +3965,25 @@ function NovoUsuarioForm({ onClose, onSave }) {
 }
 
 function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
-  const [form, setForm] = useState({ full_name: u.full_name || '', role: u.role || 'entregador', telefone: u.telefone || '', nova_senha: '' })
+  const [form, setForm] = useState({
+    full_name: u.full_name || '',
+    perfil: u.perfil || u.role || 'vendedor',
+    loja: u.loja || '',
+    telefone: u.telefone || '',
+    nova_senha: '',
+  })
   const { run, loading } = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
   const handleSave = async () => {
     try {
-      const updates = { full_name: form.full_name.trim(), role: form.role, telefone: form.telefone }
+      const updates = {
+        full_name: form.full_name.trim(),
+        perfil: form.perfil,
+        role: form.perfil,
+        loja: form.loja || null,
+        telefone: form.telefone,
+      }
       if (form.nova_senha.length >= 4) {
         const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(form.nova_senha))
         updates.senha_hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
@@ -3978,13 +4008,18 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
       <div className="fg"><label className="fl">Nome Completo *</label><input className="fi" value={form.full_name} onChange={up('full_name')} /></div>
       <div className="grid2">
         <div className="fg">
-          <label className="fl">Cargo</label>
-          <select className="fi" value={form.role} onChange={up('role')}>
-            {['admin', 'gestor', 'motorista', 'entregador', 'estoque', 'conferente'].map(r => <option key={r} value={r}>{r}</option>)}
+          <label className="fl">Perfil de Acesso</label>
+          <select className="fi" value={form.perfil} onChange={up('perfil')}>
+            {Object.entries(PROFILE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
+          <PerfilModulosDesc perfil={form.perfil} />
         </div>
-        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
+        <div className="fg">
+          <label className="fl">Loja Vinculada</label>
+          <LojaSelect value={form.loja} onChange={loja => setForm(p => ({ ...p, loja }))} placeholder="Sem loja específica" />
+        </div>
       </div>
+      <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
       <div className="fg"><label className="fl">Nova Senha (deixe em branco para manter)</label><input className="fi" type="password" value={form.nova_senha} onChange={up('nova_senha')} placeholder="mín. 4 caracteres" /></div>
       <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>Login: {u.usuario || u.email}</div>
     </Modal>
