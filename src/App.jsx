@@ -715,69 +715,104 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
 // DASHBOARD
 // ============================================================
 function Dashboard({ setPage }) {
-  const { perfil, isGestor, effectiveRole } = useAuth()
-  const { lojaFiltro } = useLojaFiltro()
+  const { perfil, effectiveRole, podeVerFinanceiro, podeVerVendas } = useAuth()
+  const lojaEf = useEffectiveLoja()
   const hoje = new Date().toISOString().split('T')[0]
   const diaSemana = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})
+  const mesAtual = new Date().getMonth() + 1
+  const anoAtual = new Date().getFullYear()
+  const mesPfx = `${anoAtual}-${String(mesAtual).padStart(2,'0')}`
 
-  const { data: pedidos, loading: lPed, reload: rPed } = useData(() => pedidosService.list(), [])
-  const { data: assistencias, loading: lAss } = useData(() => assistenciasService.list(), [])
-  const { data: vendas } = useData(() => vendasService.list(), [])
-  const { data: orcamentos } = useData(() => orcamentosService.list(), [])
-  const { data: receber } = useData(() => financeiroService.listReceber(), [])
-  const { data: leads } = useData(() => crmService.list(), [])
+  const isAdminDiretor    = ['admin','diretor','gestor'].includes(effectiveRole)
+  const isGerente         = effectiveRole === 'gerente'
+  const isVendedor        = effectiveRole === 'vendedor'
+  const isLogistica       = ['gerente_logistica','supervisor_logistica'].includes(effectiveRole)
+  const isOperacional     = ['expedidor','separador','conferente'].includes(effectiveRole)
+  const isAssistenteAdmin = effectiveRole === 'assistente_admin'
+  const isTecnicoAtend    = ['tecnico','atendente'].includes(effectiveRole)
+  const isEntregador      = ['entregador','motorista'].includes(effectiveRole)
+
+  const needVendas = isAdminDiretor || isGerente || isVendedor || podeVerVendas
+  const needFinan  = isAdminDiretor || isAssistenteAdmin || podeVerFinanceiro
+
+  const { data: pedidos,     loading: lPed, reload: rPed } = useData(() => pedidosService.list(), [])
+  const { data: assistencias,loading: lAss }               = useData(() => assistenciasService.list(), [])
+  const { data: vendas }                                   = useData(() => needVendas ? vendasService.list() : Promise.resolve([]), [needVendas])
+  const { data: receber }                                  = useData(() => needFinan ? financeiroService.listReceber() : Promise.resolve([]), [needFinan])
+  const { data: pagar }                                    = useData(() => needFinan ? financeiroService.listPagar() : Promise.resolve([]), [needFinan])
+  const { data: compras }                                  = useData(() => isAssistenteAdmin ? comprasService.list() : Promise.resolve([]), [isAssistenteAdmin])
+  const { data: metas }                                    = useData(() => isAdminDiretor || isGerente || isVendedor ? metasService.list(mesAtual, anoAtual) : Promise.resolve([]), [isAdminDiretor, isGerente, isVendedor])
 
   const [selected, setSelected] = useState(null)
   if (selected) return <PedidoDetalhe pedidoId={selected} onBack={() => { setSelected(null); rPed() }} />
 
-  const applyLoja = (arr) => lojaFiltro ? (arr||[]).filter(x => x.loja === lojaFiltro || x.local_separacao === lojaFiltro) : (arr||[])
+  const byLoja = (arr) => lojaEf ? (arr||[]).filter(x => x.loja === lojaEf || x.local_separacao === lojaEf) : (arr||[])
 
-  const pHoje = applyLoja(pedidos).filter(p => p.data_entrega === hoje)
-  const pAtrasados = applyLoja(pedidos).filter(p => p.data_entrega < hoje && !['Entregue','Cancelado'].includes(p.status))
-  const assAbertas = applyLoja(assistencias).filter(a => !['concluida','Concluído','cancelada'].includes(a.status))
-  const vendasHoje = applyLoja(vendas).filter(v => v.created_at?.startsWith(hoje))
-  const totalVendasHoje = vendasHoje.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
-  const orcPendentes = applyLoja(orcamentos).filter(o => o.status === 'enviado' || o.status === 'rascunho')
-  const vencendoHoje = (receber||[]).filter(r => r.vencimento === hoje && r.status !== 'pago')
-  const leadsSemContato = (leads||[]).filter(l => {
-    if (!l.data_contato) return true
-    const d = new Date(l.data_contato)
-    return (Date.now() - d.getTime()) > 3 * 86400000
-  })
+  const peds        = byLoja(pedidos)
+  const pHoje       = peds.filter(p => p.data_entrega === hoje)
+  const pAtrasados  = peds.filter(p => p.data_entrega < hoje && !['Entregue','Cancelado'].includes(p.status))
+  const assAll      = byLoja(assistencias)
+  const assAbertas  = assAll.filter(a => !['concluida','Concluído','cancelada'].includes(a.status))
 
-  const isEntregador = effectiveRole === 'entregador' || effectiveRole === 'motorista'
-  const isSeparador = effectiveRole === 'separador'
-  const isConferente = effectiveRole === 'conferente'
-  const isVendedor = effectiveRole === 'atendente'
+  const vendasHoje  = byLoja(vendas).filter(v => v.created_at?.startsWith(hoje))
+  const vendasMes   = byLoja(vendas).filter(v => v.created_at?.startsWith(mesPfx))
+  const totalVHoje  = vendasHoje.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
+  const totalVMes   = vendasMes.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
 
-  const STATS_GESTOR = [
-    { label:'Entregas hoje', val: pHoje.length, color:'var(--accent)', bg:'var(--adim)', icon:'truck' },
-    { label:'Entregues', val: pHoje.filter(p=>p.status==='Entregue').length, color:'var(--green)', bg:'var(--gdim)', icon:'check' },
-    { label:'Assistências abertas', val: assAbertas.length, color:'var(--amber)', bg:'var(--adim2)', icon:'wrench' },
-    { label:'Vendas hoje', val: fmtR(totalVendasHoje), color:'var(--blue)', bg:'var(--bdim)', icon:'bar' },
-    { label:'A receber hoje', val: vencendoHoje.length, color:'var(--red)', bg:'var(--rdim)', icon:'alert' },
-    { label:'Orçamentos pendentes', val: orcPendentes.length, color:'var(--accent)', bg:'var(--adim)', icon:'pdf' },
-  ]
-  const STATS_ENT = [
-    { label:'Pedidos hoje', val: pHoje.length, color:'var(--accent)', bg:'var(--adim)', icon:'truck' },
-    { label:'Entregues', val: pHoje.filter(p=>p.status==='Entregue').length, color:'var(--green)', bg:'var(--gdim)', icon:'check' },
-    { label:'Em Rota', val: pHoje.filter(p=>p.status==='Em Rota').length, color:'var(--blue)', bg:'var(--bdim)', icon:'truck' },
-    { label:'Problemas', val: pHoje.filter(p=>p.status==='Problema').length, color:'var(--red)', bg:'var(--rdim)', icon:'alert' },
-  ]
-  const stats = isEntregador ? STATS_ENT : STATS_GESTOR
+  const minhasVHoje = (vendas||[]).filter(v => v.vendedor_id === perfil?.id && v.created_at?.startsWith(hoje))
+  const minhasVMes  = (vendas||[]).filter(v => v.vendedor_id === perfil?.id && v.created_at?.startsWith(mesPfx))
+  const totalMHoje  = minhasVHoje.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
+  const totalMMes   = minhasVMes.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
+
+  const vencHoje    = (receber||[]).filter(r => r.vencimento === hoje && r.status !== 'pago')
+  const recAberto   = (receber||[]).filter(r => r.status !== 'pago')
+  const prox7       = new Date(); prox7.setDate(prox7.getDate() + 7)
+  const pagar7d     = (pagar||[]).filter(p => p.status !== 'pago' && p.vencimento && new Date(p.vencimento) <= prox7)
+  const cmpPend     = (compras||[]).filter(c => ['pendente','aguardando','aguardando_aprovacao'].includes(c.status))
+
+  const assMinhas   = assAbertas.filter(a => a.tecnico_id === perfil?.id)
+
+  const metaLoja    = (metas||[]).find(m => m.referencia_nome === lojaEf && m.tipo === 'loja')
+  const metaLojaPct = metaLoja ? Math.min(100, totalVMes / (metaLoja.valor_meta || 1) * 100) : 0
+  const metaPess    = (metas||[]).find(m => m.referencia_id === perfil?.id && m.tipo === 'vendedor')
+  const metaPessPct = metaPess ? Math.min(100, totalMMes / (metaPess.valor_meta || 1) * 100) : 0
 
   const ATALHOS = isEntregador
-    ? [{label:'Minha Rota',icon:'🚚',page:'rota'},{label:'Registrar Ponto',icon:'⏰',page:'ponto'}]
-    : isSeparador
-    ? [{label:'Separações',icon:'📋',page:'separacao'},{label:'Registrar Ponto',icon:'⏰',page:'ponto'}]
-    : isConferente
-    ? [{label:'Conferências',icon:'☑️',page:'conferencia'},{label:'Registrar Ponto',icon:'⏰',page:'ponto'}]
-    : [
-      {label:'Nova Venda',icon:'💰',page:'vendas'},
-      {label:'Novo Pedido',icon:'📦',page:'pedidos'},
-      {label:'Nova Assistência',icon:'🔧',page:'assistencia'},
-      {label:'Registrar Ponto',icon:'⏰',page:'ponto'},
-    ]
+    ? [{label:'Minha Rota',icon:'🚚',page:'rota'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    : isOperacional
+    ? effectiveRole === 'separador'
+      ? [{label:'Separações',icon:'📋',page:'separacao'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+      : effectiveRole === 'conferente'
+      ? [{label:'Conferências',icon:'☑️',page:'conferencia'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+      : [{label:'Pedidos',icon:'📦',page:'pedidos'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    : isVendedor
+    ? [{label:'Nova Venda',icon:'💰',page:'vendas'},{label:'CRM',icon:'🎯',page:'crm'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    : isTecnicoAtend
+    ? [{label:'Assistências',icon:'🔧',page:'assistencia'},{label:'Agenda',icon:'📅',page:'agenda'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    : isAssistenteAdmin
+    ? [{label:'Compras',icon:'🛒',page:'compras'},{label:'Financeiro',icon:'💳',page:'financeiro_loja'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    : [{label:'Nova Venda',icon:'💰',page:'vendas'},{label:'Novo Pedido',icon:'📦',page:'pedidos'},{label:'Assistência',icon:'🔧',page:'assistencia'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+
+  const StatBox = ({ label, val, color, bg, icon, sm }) => (
+    <div className="stat">
+      <div className="stat-ico" style={{background:bg,color:color}}><Ic n={icon} s={14}/></div>
+      <div className="stat-val" style={{color,fontSize:sm?16:28}}>{lPed?'—':val}</div>
+      <div className="stat-lbl">{label}</div>
+    </div>
+  )
+
+  const MetaBar = ({ label, realizado, meta, pct }) => (
+    <div style={{marginBottom:12}}>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
+        <span>{label}</span>
+        <span style={{color:'var(--t2)'}}>{fmtR(realizado)} / {fmtR(meta)}</span>
+      </div>
+      <div style={{height:7,background:'var(--bg3)',borderRadius:4}}>
+        <div style={{height:'100%',width:`${pct}%`,background:pct>=100?'var(--green)':pct>=70?'var(--accent)':'var(--amber)',borderRadius:4,transition:'width .4s'}} />
+      </div>
+      <div style={{fontSize:11,color:'var(--t3)',marginTop:3}}>{pct.toFixed(0)}% atingido</div>
+    </div>
+  )
 
   return (
     <div className="page">
@@ -789,72 +824,228 @@ function Dashboard({ setPage }) {
         <Btn variant="secondary" size="sm" onClick={rPed}><Ic n="refresh" s={13} /></Btn>
       </div>
 
-      {/* Atalhos rápidos */}
       <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
         {ATALHOS.map(a => (
-          <button key={a.page} className="btn btn-s" style={{flex:'1 1 120px',flexDirection:'column',padding:'14px 10px',gap:4,minWidth:100,fontSize:13}} onClick={() => setPage?.(a.page)}>
+          <button key={a.page} className="btn btn-s" style={{flex:'1 1 100px',flexDirection:'column',padding:'14px 10px',gap:4,minWidth:90,fontSize:13}} onClick={() => setPage?.(a.page)}>
             <span style={{fontSize:20}}>{a.icon}</span>
             <span>{a.label}</span>
           </button>
         ))}
       </div>
 
-      {/* Stats */}
-      <div className="stats" style={{marginBottom:20}}>
-        {stats.map(s => (
-          <div className="stat" key={s.label}>
-            <div className="stat-ico" style={{background:s.bg,color:s.color}}><Ic n={s.icon} s={14}/></div>
-            <div className="stat-val" style={{color:s.color,fontSize:typeof s.val==='string'?18:28}}>{lPed?'—':s.val}</div>
-            <div className="stat-lbl">{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Alertas */}
-      {pAtrasados.length > 0 && <Alert type="error" style={{marginBottom:10}}>⚠️ {pAtrasados.length} pedido(s) com entrega atrasada</Alert>}
-      {!isEntregador && leadsSemContato.length > 0 && <Alert type="warning" style={{marginBottom:10}}>🎯 {leadsSemContato.length} lead(s) sem contato há mais de 3 dias</Alert>}
-      {vencendoHoje.length > 0 && !isEntregador && <Alert type="warning" style={{marginBottom:10}}>💳 {vencendoHoje.length} conta(s) a receber vencendo hoje</Alert>}
-
-      <div className={isGestor ? 'grid2' : ''} style={{gap:12}}>
-        {/* Entregas de hoje */}
-        <div className="card">
-          <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}>
-            <span>Entregas de hoje</span>
-            <Badge variant="bg">{pHoje.length}</Badge>
-          </div>
-          {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
-            pHoje.slice(0,5).map(p => (
-              <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
-                <div className="li-main">
-                  <div className="li-title">{p.cliente}</div>
-                  <div className="li-sub">#{p.numero_pedido} · {p.loja || p.local_separacao}</div>
-                </div>
-                <Badge status={p.status} />
-              </div>
-            ))}
-          {pHoje.length > 5 && <div style={{fontSize:12,color:'var(--t3)',textAlign:'center',marginTop:8}}>+{pHoje.length-5} mais</div>}
+      {/* ── Admin / Diretor / Gestor ── */}
+      {isAdminDiretor && <>
+        <div className="stats" style={{marginBottom:20}}>
+          <StatBox label="Entregas hoje"       val={pHoje.length}      color="var(--accent)" bg="var(--adim)"  icon="truck" />
+          <StatBox label="Vendas hoje"         val={fmtR(totalVHoje)}  color="var(--blue)"   bg="var(--bdim)"  icon="bar"   sm />
+          <StatBox label="Assistências abertas" val={assAbertas.length} color="var(--amber)"  bg="var(--adim2)" icon="wrench" />
+          <StatBox label="A receber hoje"      val={vencHoje.length}   color="var(--red)"    bg="var(--rdim)"  icon="alert" />
         </div>
-
-        {/* Assistências (só gestor+) */}
-        {isGestor && (
+        {pAtrasados.length > 0 && <Alert type="error" style={{marginBottom:10}}>⚠️ {pAtrasados.length} pedido(s) com entrega atrasada</Alert>}
+        {vencHoje.length > 0    && <Alert type="warning" style={{marginBottom:10}}>💳 {vencHoje.length} conta(s) a receber vencendo hoje</Alert>}
+        <div className="grid2" style={{gap:12,marginBottom:12}}>
           <div className="card">
             <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}>
-              <span>Assistências abertas</span>
-              <Badge variant="bg-amber">{assAbertas.length}</Badge>
+              <span>Entregas de hoje</span><Badge variant="bg">{pHoje.length}</Badge>
+            </div>
+            {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
+              pHoje.slice(0,5).map(p => (
+                <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
+                  <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.loja||p.local_separacao}</div></div>
+                  <Badge status={p.status} />
+                </div>
+              ))}
+            {pHoje.length > 5 && <div style={{fontSize:12,color:'var(--t3)',textAlign:'center',marginTop:8}}>+{pHoje.length-5} mais</div>}
+          </div>
+          <div className="card">
+            <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}>
+              <span>Assistências abertas</span><Badge variant="bg-amber">{assAbertas.length}</Badge>
             </div>
             {lAss ? <Spinner /> : assAbertas.length === 0 ? <Empty icon="🔧" text="Nenhuma assistência aberta" /> :
               assAbertas.slice(0,5).map(a => (
                 <div className="li" key={a.id}>
-                  <div className="li-main">
-                    <div className="li-title">{a.cliente}</div>
-                    <div className="li-sub">{a.tipo_problema} · {a.loja}</div>
-                  </div>
+                  <div className="li-main"><div className="li-title">{a.cliente}</div><div className="li-sub">{a.tipo_problema} · {a.loja}</div></div>
                   <Badge status={a.status} />
                 </div>
               ))}
           </div>
+        </div>
+        {(metas||[]).filter(m => m.tipo === 'loja').length > 0 && (
+          <div className="card">
+            <div style={{fontWeight:600,marginBottom:12}}>Meta por loja — {new Date().toLocaleDateString('pt-BR',{month:'long'})}</div>
+            {(metas||[]).filter(m => m.tipo === 'loja').map(meta => {
+              const real = (vendas||[]).filter(v => v.loja === meta.referencia_nome && v.created_at?.startsWith(mesPfx)).reduce((s,v)=>s+(parseFloat(v.total)||0),0)
+              const pct  = Math.min(100, meta.valor_meta ? real / meta.valor_meta * 100 : 0)
+              return <MetaBar key={meta.id} label={meta.referencia_nome} realizado={real} meta={meta.valor_meta} pct={pct} />
+            })}
+          </div>
         )}
-      </div>
+      </>}
+
+      {/* ── Gerente ── */}
+      {isGerente && <>
+        <div className="stats" style={{marginBottom:20}}>
+          <StatBox label="Vendas hoje"      val={fmtR(totalVHoje)}  color="var(--blue)"   bg="var(--bdim)"  icon="bar"    sm />
+          <StatBox label="Pedidos hoje"     val={pHoje.length}      color="var(--accent)" bg="var(--adim)"  icon="truck" />
+          <StatBox label="Assistências"     val={assAbertas.length} color="var(--amber)"  bg="var(--adim2)" icon="wrench" />
+          <StatBox label="Atrasos"          val={pAtrasados.length} color="var(--red)"    bg="var(--rdim)"  icon="alert" />
+        </div>
+        {metaLoja && <div className="card" style={{marginBottom:12}}><div style={{fontWeight:600,marginBottom:8}}>Meta do mês — {lojaEf}</div><MetaBar label="" realizado={totalVMes} meta={metaLoja.valor_meta} pct={metaLojaPct} /></div>}
+        {pAtrasados.length > 0 && <Alert type="error" style={{marginBottom:10}}>⚠️ {pAtrasados.length} pedido(s) atrasado(s)</Alert>}
+        <div className="grid2" style={{gap:12}}>
+          <div className="card">
+            <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}><span>Pedidos hoje</span><Badge variant="bg">{pHoje.length}</Badge></div>
+            {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
+              pHoje.slice(0,5).map(p => (
+                <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
+                  <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido}</div></div>
+                  <Badge status={p.status} />
+                </div>
+              ))}
+          </div>
+          <div className="card">
+            <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}><span>Assistências abertas</span><Badge variant="bg-amber">{assAbertas.length}</Badge></div>
+            {lAss ? <Spinner /> : assAbertas.length === 0 ? <Empty icon="🔧" text="Nenhuma aberta" /> :
+              assAbertas.slice(0,5).map(a => (
+                <div className="li" key={a.id}>
+                  <div className="li-main"><div className="li-title">{a.cliente}</div><div className="li-sub">{a.tipo_problema}</div></div>
+                  <Badge status={a.status} />
+                </div>
+              ))}
+          </div>
+        </div>
+      </>}
+
+      {/* ── Vendedor ── */}
+      {isVendedor && <>
+        <div className="stats" style={{marginBottom:20}}>
+          <StatBox label="Vendas hoje"   val={fmtR(totalMHoje)} color="var(--blue)"   bg="var(--bdim)"  icon="bar" sm />
+          <StatBox label="Vendas no mês" val={fmtR(totalMMes)}  color="var(--green)"  bg="var(--gdim)"  icon="bar" sm />
+          <StatBox label="Qtd. hoje"     val={minhasVHoje.length} color="var(--accent)" bg="var(--adim)" icon="check" />
+        </div>
+        {metaPess && <div className="card" style={{marginBottom:12}}><div style={{fontWeight:600,marginBottom:8}}>Minha meta — {new Date().toLocaleDateString('pt-BR',{month:'long'})}</div><MetaBar label="" realizado={totalMMes} meta={metaPess.valor_meta} pct={metaPessPct} /></div>}
+        <div className="card">
+          <div style={{fontWeight:600,marginBottom:12}}>Minhas vendas hoje</div>
+          {minhasVHoje.length === 0 ? <Empty icon="💰" text="Nenhuma venda registrada hoje" /> :
+            minhasVHoje.map(v => (
+              <div className="li" key={v.id}>
+                <div className="li-main"><div className="li-title">{v.cliente_nome||'Cliente'}</div><div className="li-sub">{fmtR(v.total)}</div></div>
+                <Badge status={v.status} />
+              </div>
+            ))}
+        </div>
+      </>}
+
+      {/* ── Logística ── */}
+      {isLogistica && <>
+        <div className="stats" style={{marginBottom:20}}>
+          <StatBox label="Entregas hoje" val={pHoje.length}                              color="var(--accent)" bg="var(--adim)"  icon="truck" />
+          <StatBox label="Entregues"     val={pHoje.filter(p=>p.status==='Entregue').length} color="var(--green)"  bg="var(--gdim)"  icon="check" />
+          <StatBox label="Em Rota"       val={pHoje.filter(p=>p.status==='Em Rota').length}  color="var(--blue)"   bg="var(--bdim)"  icon="truck" />
+          <StatBox label="Atrasados"     val={pAtrasados.length}                         color="var(--red)"    bg="var(--rdim)"  icon="alert" />
+        </div>
+        {pAtrasados.length > 0 && <Alert type="error" style={{marginBottom:10}}>⚠️ {pAtrasados.length} pedido(s) com entrega atrasada</Alert>}
+        {assAbertas.length > 0 && <Alert type="warning" style={{marginBottom:10}}>🔧 {assAbertas.length} assistência(s) abertas</Alert>}
+        <div className="card">
+          <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}><span>Entregas de hoje</span><Badge variant="bg">{pHoje.length}</Badge></div>
+          {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
+            pHoje.map(p => (
+              <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.entregador_nome||'Sem entregador'}</div></div>
+                <Badge status={p.status} />
+              </div>
+            ))}
+        </div>
+      </>}
+
+      {/* ── Operacional (expedidor / separador / conferente) ── */}
+      {isOperacional && <>
+        <div className="stats" style={{marginBottom:20}}>
+          <StatBox label="Pedidos hoje" val={pHoje.length}                                    color="var(--accent)" bg="var(--adim)"  icon="truck" />
+          <StatBox label="Separando"    val={pHoje.filter(p=>p.status==='Separando').length}   color="var(--blue)"   bg="var(--bdim)"  icon="check" />
+          <StatBox label="Prontos"      val={pHoje.filter(p=>p.status==='Pronto para Rota').length} color="var(--green)"  bg="var(--gdim)"  icon="check" />
+        </div>
+        <div className="card">
+          <div style={{fontWeight:600,marginBottom:12}}>Fila do dia</div>
+          {lPed ? <Spinner /> : pHoje.filter(p=>!['Entregue','Cancelado'].includes(p.status)).length === 0 ? <Empty icon="📋" text="Nenhum pedido na fila" /> :
+            pHoje.filter(p=>!['Entregue','Cancelado'].includes(p.status)).map(p => (
+              <div className="li" key={p.id}>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.loja||p.local_separacao}</div></div>
+                <Badge status={p.status} />
+              </div>
+            ))}
+        </div>
+      </>}
+
+      {/* ── Assistente Admin ── */}
+      {isAssistenteAdmin && <>
+        <div className="stats" style={{marginBottom:20}}>
+          <StatBox label="Pagar (7 dias)"      val={pagar7d.length}  color="var(--red)"    bg="var(--rdim)"  icon="alert" />
+          <StatBox label="Receber em aberto"   val={recAberto.length} color="var(--amber)"  bg="var(--adim2)" icon="bar" />
+          <StatBox label="Compras pendentes"   val={cmpPend.length}  color="var(--blue)"   bg="var(--bdim)"  icon="truck" />
+        </div>
+        {pagar7d.length > 0 && <Alert type="error" style={{marginBottom:10}}>💳 {pagar7d.length} conta(s) a pagar nos próximos 7 dias</Alert>}
+        <div className="grid2" style={{gap:12}}>
+          <div className="card">
+            <div style={{fontWeight:600,marginBottom:12}}>A pagar — próximos 7 dias</div>
+            {pagar7d.length === 0 ? <Empty icon="✅" text="Nenhuma conta vencendo" /> :
+              pagar7d.slice(0,5).map(p => (
+                <div className="li" key={p.id}>
+                  <div className="li-main"><div className="li-title">{p.descricao||p.fornecedor}</div><div className="li-sub">{fmtR(p.valor)} · {p.vencimento}</div></div>
+                  <Badge status={p.status} />
+                </div>
+              ))}
+          </div>
+          <div className="card">
+            <div style={{fontWeight:600,marginBottom:12}}>Compras pendentes</div>
+            {cmpPend.length === 0 ? <Empty icon="🛒" text="Nenhuma compra pendente" /> :
+              cmpPend.slice(0,5).map(c => (
+                <div className="li" key={c.id}>
+                  <div className="li-main"><div className="li-title">{c.fornecedor_nome||c.fornecedor}</div><div className="li-sub">{fmtR(c.valor_total)}</div></div>
+                  <Badge status={c.status} />
+                </div>
+              ))}
+          </div>
+        </div>
+      </>}
+
+      {/* ── Técnico / Atendente ── */}
+      {isTecnicoAtend && <>
+        <div className="stats" style={{marginBottom:20}}>
+          <StatBox label="Minhas assistências" val={assMinhas.length}                              color="var(--amber)" bg="var(--adim2)" icon="wrench" />
+          <StatBox label="Urgentes"            val={assMinhas.filter(a=>a.prioridade==='Urgente').length} color="var(--red)"   bg="var(--rdim)"  icon="alert" />
+        </div>
+        <div className="card">
+          <div style={{fontWeight:600,marginBottom:12}}>Minhas assistências abertas</div>
+          {lAss ? <Spinner /> : assMinhas.length === 0 ? <Empty icon="🔧" text="Nenhuma assistência atribuída" /> :
+            assMinhas.map(a => (
+              <div className="li" key={a.id}>
+                <div className="li-main"><div className="li-title">{a.cliente}</div><div className="li-sub">{a.tipo_problema} · {a.loja}</div></div>
+                <Badge status={a.status} />
+              </div>
+            ))}
+        </div>
+      </>}
+
+      {/* ── Entregador / Motorista ── */}
+      {isEntregador && <>
+        <div className="stats" style={{marginBottom:20}}>
+          <StatBox label="Pedidos hoje" val={pHoje.length}                              color="var(--accent)" bg="var(--adim)"  icon="truck" />
+          <StatBox label="Entregues"    val={pHoje.filter(p=>p.status==='Entregue').length} color="var(--green)"  bg="var(--gdim)"  icon="check" />
+          <StatBox label="Em Rota"      val={pHoje.filter(p=>p.status==='Em Rota').length}  color="var(--blue)"   bg="var(--bdim)"  icon="truck" />
+          <StatBox label="Problemas"    val={pHoje.filter(p=>p.status==='Problema').length} color="var(--red)"    bg="var(--rdim)"  icon="alert" />
+        </div>
+        <div className="card">
+          <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}><span>Meus pedidos de hoje</span><Badge variant="bg">{pHoje.length}</Badge></div>
+          {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
+            pHoje.map(p => (
+              <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.endereco}</div></div>
+                <Badge status={p.status} />
+              </div>
+            ))}
+        </div>
+      </>}
     </div>
   )
 }
