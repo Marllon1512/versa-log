@@ -4776,11 +4776,169 @@ function Ponto() {
 }
 
 // ============================================================
+// GERENCIAMENTO DE PERMISSÕES
+// ============================================================
+function GerenciamentoPermissoes() {
+  const [usuarios, setUsuarios] = useState([])
+  const [perfisDB, setPerfisDB] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [busca, setBusca] = useState('')
+  const [filtroPerfil, setFiltroPerfil] = useState('')
+  const [filtroLoja, setFiltroLoja] = useState('')
+  const [editando, setEditando] = useState(null)
+  const [editForm, setEditForm] = useState({ perfil: '', loja: '', modulos: [] })
+  const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => {
+    Promise.all([usuariosService.list(), perfisAcessoService.list()])
+      .then(([users, perfis]) => { setUsuarios(users); setPerfisDB(perfis) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const getBaseModulos = useCallback((perfilNome) => {
+    const perfilDB = perfisDB.find(p => p.perfil === perfilNome)
+    return perfilDB?.modulos || PROFILE_PAGES[perfilNome] || []
+  }, [perfisDB])
+
+  const abrirEditor = (u) => {
+    const perfilNome = u.perfil || u.role || 'vendedor'
+    const baseModulos = getBaseModulos(perfilNome)
+    const extras = u.permissoes_extras || {}
+    let efetivos = [...baseModulos]
+    if (extras.modulos_adicionais?.length) efetivos = [...new Set([...efetivos, ...extras.modulos_adicionais])]
+    if (extras.modulos_removidos?.length) efetivos = efetivos.filter(m => !extras.modulos_removidos.includes(m))
+    setEditando(u)
+    setEditForm({ perfil: perfilNome, loja: u.loja || '', modulos: efetivos })
+  }
+
+  const onPerfilChange = (newPerfil) => {
+    const baseModulos = getBaseModulos(newPerfil)
+    setEditForm(f => ({ ...f, perfil: newPerfil, modulos: baseModulos }))
+  }
+
+  const toggleModulo = (mod) => {
+    setEditForm(f => ({
+      ...f,
+      modulos: f.modulos.includes(mod) ? f.modulos.filter(m => m !== mod) : [...f.modulos, mod],
+    }))
+  }
+
+  const salvar = async () => {
+    if (!editando) return
+    setSalvando(true)
+    try {
+      const baseModulos = getBaseModulos(editForm.perfil)
+      const modulos_adicionais = editForm.modulos.filter(m => !baseModulos.includes(m))
+      const modulos_removidos = baseModulos.filter(m => !editForm.modulos.includes(m))
+      const updates = {
+        perfil: editForm.perfil,
+        loja: editForm.loja || null,
+        permissoes_extras: { modulos_adicionais, modulos_removidos },
+      }
+      await usuariosService.update(editando.id, updates)
+      setUsuarios(prev => prev.map(u => u.id === editando.id ? { ...u, ...updates } : u))
+      toast.success('Permissões salvas com sucesso!')
+      setEditando(null)
+    } catch (e) {
+      toast.error(e.message || 'Erro ao salvar permissões')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const filtered = usuarios.filter(u => {
+    const nome = (u.full_name || u.email || '').toLowerCase()
+    if (busca && !nome.includes(busca.toLowerCase())) return false
+    if (filtroPerfil && (u.perfil || u.role) !== filtroPerfil) return false
+    if (filtroLoja && u.loja !== filtroLoja) return false
+    return true
+  })
+
+  return (
+    <div>
+      <div style={{ fontWeight: 600, marginBottom: 14 }}>Gerenciamento de Permissões</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+        <input className="fi" placeholder="Buscar por nome..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <select className="fi" value={filtroPerfil} onChange={e => setFiltroPerfil(e.target.value)}>
+          <option value="">Todos os perfis</option>
+          {Object.entries(PROFILE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <select className="fi" value={filtroLoja} onChange={e => setFiltroLoja(e.target.value)}>
+          <option value="">Todas as lojas</option>
+          {LOJAS_GRUPO.map(l => <option key={l} value={l}>{l}</option>)}
+        </select>
+      </div>
+
+      {loading ? <Spinner /> : filtered.length === 0 ? <Empty text="Nenhum usuário encontrado" /> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map(u => (
+            <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--bg2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{u.full_name || u.email}</div>
+                <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 2 }}>
+                  {PROFILE_LABELS[u.perfil || u.role] || u.role} · {u.loja || 'Sem loja'}
+                </div>
+              </div>
+              <Btn variant="secondary" size="sm" onClick={() => abrirEditor(u)}>Editar</Btn>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editando && (
+        <Modal title={`Permissões — ${editando.full_name || editando.email}`} onClose={() => setEditando(null)} size="lg">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="grid2">
+              <div className="fg">
+                <label className="fl">Perfil Base</label>
+                <select className="fi" value={editForm.perfil} onChange={e => onPerfilChange(e.target.value)}>
+                  <option value="">Selecionar...</option>
+                  {Object.entries(PROFILE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              <div className="fg">
+                <label className="fl">Loja Vinculada</label>
+                <LojaSelect value={editForm.loja} onChange={loja => setEditForm(f => ({ ...f, loja }))} />
+              </div>
+            </div>
+
+            <div>
+              <label className="fl" style={{ marginBottom: 10 }}>Módulos Habilitados</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: 6 }}>
+                {_ALL_PAGES.map(mod => {
+                  const enabled = editForm.modulos.includes(mod)
+                  const baseModulos = getBaseModulos(editForm.perfil)
+                  const isBase = baseModulos.includes(mod)
+                  const isExtra = enabled && !isBase
+                  return (
+                    <label key={mod} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: enabled ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--bg3)', borderRadius: 8, cursor: 'pointer', border: `1px solid ${enabled ? 'var(--accent)' : 'var(--border)'}`, transition: 'all .15s' }}>
+                      <input type="checkbox" checked={enabled} onChange={() => toggleModulo(mod)} style={{ accentColor: 'var(--accent)', flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, flex: 1 }}>{PAGE_LABELS[mod] || mod}</span>
+                      {isExtra && <span style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 700 }}>+</span>}
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn variant="primary" loading={salvando} onClick={salvar}>Salvar Permissões</Btn>
+              <Btn variant="secondary" onClick={() => setEditando(null)} disabled={salvando}>Cancelar</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
 // CONFIGURACOES
 // ============================================================
 function Configuracoes() {
   const { perfil, isAdmin } = useAuth()
-  const [msg, setMsg] = useState('')
 
   return (
     <div className="page">
@@ -4793,7 +4951,7 @@ function Configuracoes() {
         </div>
         <div className="fg">
           <label className="fl">Cargo</label>
-          <input className="fi" defaultValue={perfil?.role} disabled style={{ textTransform: 'capitalize' }} />
+          <input className="fi" defaultValue={perfil?.perfil || perfil?.role} disabled style={{ textTransform: 'capitalize' }} />
         </div>
       </div>
       <div className="card" style={{ marginBottom: 16 }}>
@@ -4809,7 +4967,7 @@ function Configuracoes() {
         </div>
       </div>
       {isAdmin && (
-        <div className="card">
+        <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 12 }}>Administração</div>
           <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 12 }}>
             Para criar novos usuários com senha, acesse o Supabase Dashboard.
@@ -4817,6 +4975,11 @@ function Configuracoes() {
           <a href="https://supabase.com/dashboard/project/kwccjkqltllypbmaisio/auth/users" target="_blank" rel="noreferrer">
             <Btn variant="secondary" size="sm">Abrir Supabase Auth ↗</Btn>
           </a>
+        </div>
+      )}
+      {isAdmin && (
+        <div className="card">
+          <GerenciamentoPermissoes />
         </div>
       )}
     </div>
