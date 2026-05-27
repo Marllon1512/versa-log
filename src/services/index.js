@@ -291,24 +291,32 @@ export const fornecedoresService = {
 // ── Catálogo ──────────────────────────────────────────────
 export const catalogoService = {
   async list() {
-    const { data, error } = await supabase.from('catalogo').select('*').order('nome')
+    const { data, error } = await supabase.from('catalogo_produtos').select('*').order('nome')
     if (error) throw error
     return data || []
   },
   async create(p) {
-    const { data, error } = await supabase.from('catalogo').insert(p).select().single()
+    const { data, error } = await supabase.from('catalogo_produtos').insert(p).select().single()
     if (error) throw error
     return data
   },
   async update(id, updates) {
-    const { data, error } = await supabase.from('catalogo').update(updates).eq('id', id).select().single()
+    const { data, error } = await supabase.from('catalogo_produtos').update(updates).eq('id', id).select().single()
     if (error) throw error
     return data
   },
   async remove(id) {
-    const { error } = await supabase.from('catalogo').delete().eq('id', id)
+    const { error } = await supabase.from('catalogo_produtos').delete().eq('id', id)
     if (error) throw error
     return true
+  },
+  async uploadFoto(file, produtoId) {
+    const ext = file.name.split('.').pop()
+    const path = `${produtoId}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('produtos').upload(path, file, { upsert: false })
+    if (error) throw error
+    const { data } = supabase.storage.from('produtos').getPublicUrl(path)
+    return data.publicUrl
   },
 }
 

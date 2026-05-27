@@ -5006,18 +5006,71 @@ function CadCatalogo() {
   const [busca, setBusca] = useState('')
   const [filtroTipo, setFiltroTipo] = useState('')
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', tipo:'produto', referencia:'', preco_custo:'', preco_venda:'', unidade:'un', estoque_atual:0, estoque_minimo:0, descricao:'' }
+  const [detalhe, setDetalhe] = useState(null)
+  const empty = { nome:'', tipo:'produto', referencia:'', preco_custo:'', preco_venda:'', unidade:'un', estoque_atual:0, estoque_minimo:0, descricao:'', fotos:[] }
   const [form, setForm] = useState(empty)
+  const [fotosNovas, setFotosNovas] = useState([]) // { file, preview }
+  const [fotosExistentes, setFotosExistentes] = useState([]) // URLs já salvas
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
   const TIPOS = ['produto','serviço','peça','matéria-prima']
 
+  const abrirModal = (item) => {
+    if (item) {
+      setForm({ ...empty, ...item })
+      setFotosExistentes(item.fotos || [])
+    } else {
+      setForm(empty)
+      setFotosExistentes([])
+    }
+    setFotosNovas([])
+    setModal({ item: item || null })
+  }
+
+  const onFotoChange = (e) => {
+    const files = Array.from(e.target.files || [])
+    const totalFotos = fotosExistentes.length + fotosNovas.length + files.length
+    if (totalFotos > 5) return toast.error('Máximo 5 fotos por produto')
+    const novas = files.map(f => ({ file: f, preview: URL.createObjectURL(f) }))
+    setFotosNovas(p => [...p, ...novas])
+    e.target.value = ''
+  }
+
+  const removerFotoNova = (idx) => setFotosNovas(p => p.filter((_, i) => i !== idx))
+  const removerFotoExistente = (idx) => setFotosExistentes(p => p.filter((_, i) => i !== idx))
+
   const salvar = async () => {
     if (!form.nome.trim()) return toast.error('Nome obrigatório')
+    const totalFotos = fotosExistentes.length + fotosNovas.length
+    if (totalFotos < 1) return toast.error('Obrigatório pelo menos 1 foto do produto')
     try {
-      const payload = { ...form, preco_custo: parseFloat(form.preco_custo)||0, preco_venda: parseFloat(form.preco_venda)||0, estoque_atual: parseInt(form.estoque_atual)||0, estoque_minimo: parseInt(form.estoque_minimo)||0 }
-      if (!modal.item) await act.run(() => catalogoService.create(payload))
-      else await act.run(() => catalogoService.update(modal.item.id, payload))
+      const payload = {
+        ...form,
+        preco_custo: parseFloat(form.preco_custo)||0,
+        preco_venda: parseFloat(form.preco_venda)||0,
+        estoque_atual: parseInt(form.estoque_atual)||0,
+        estoque_minimo: parseInt(form.estoque_minimo)||0,
+      }
+      let savedItem
+      if (!modal.item) {
+        savedItem = await act.run(() => catalogoService.create({ ...payload, fotos: [] }))
+      } else {
+        savedItem = modal.item
+      }
+      // Upload fotos novas
+      const urlsNovas = []
+      for (const { file } of fotosNovas) {
+        try {
+          const url = await catalogoService.uploadFoto(file, savedItem.id)
+          urlsNovas.push(url)
+        } catch (e) { toast.error('Erro ao enviar foto: ' + e.message) }
+      }
+      const fotosFinais = [...fotosExistentes, ...urlsNovas]
+      if (modal.item) {
+        await act.run(() => catalogoService.update(modal.item.id, { ...payload, fotos: fotosFinais }))
+      } else {
+        await catalogoService.update(savedItem.id, { fotos: fotosFinais })
+      }
       toast.success('Salvo'); setModal(null); reload()
     } catch (e) { toast.error(e.message) }
   }
@@ -5047,7 +5100,7 @@ function CadCatalogo() {
           <option value="">Todos os tipos</option>
           {TIPOS.map(t => <option key={t}>{t}</option>)}
         </select>
-        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ Novo</button>
+        <button className="btn btn-p btn-sm" onClick={() => abrirModal(null)}>+ Novo</button>
       </div>
       {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum item no catálogo" /> : (
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -5055,12 +5108,18 @@ function CadCatalogo() {
             const markup = calcMarkup(p.preco_custo, p.preco_venda)
             const markupNum = parseFloat(markup)
             const markupOk = !markup || markupNum >= 30
+            const temFoto = p.fotos && p.fotos.length > 0
             return (
-            <div key={p.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
+            <div key={p.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer' }} onClick={() => setDetalhe(p)}>
+              {temFoto
+                ? <img src={p.fotos[0]} alt={p.nome} style={{ width:48, height:48, borderRadius:8, objectFit:'cover', flexShrink:0 }} />
+                : <div style={{ width:48, height:48, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>📷</div>
+              }
               <div style={{ flex:1 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                   <span style={{ fontWeight:600, fontSize:14 }}>{p.nome}</span>
                   <Badge variant="bg">{p.tipo}</Badge>
+                  {!temFoto && <Badge variant="bg-red">Sem foto</Badge>}
                   {p.estoque_atual <= p.estoque_minimo && <Badge variant="bg-red">Estoque baixo</Badge>}
                   {markup !== null && (
                     <span style={{ fontSize:11, fontWeight:700, color: markupOk ? 'var(--green)' : 'var(--red)', background: markupOk ? 'rgba(34,197,94,.12)' : 'rgba(239,68,68,.12)', padding:'1px 6px', borderRadius:8 }}>
@@ -5072,17 +5131,44 @@ function CadCatalogo() {
                   Custo: {fmtMoeda(p.preco_custo)} · Venda: {fmtMoeda(p.preco_venda)} · Estoque: {p.estoque_atual} {p.unidade}
                 </div>
               </div>
-              <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...p }); setModal({ item:p }) }}>Editar</button>
-              <button className="btn btn-g btn-sm" onClick={() => excluir(p.id)}>✕</button>
+              <button className="btn btn-s btn-sm" onClick={e => { e.stopPropagation(); abrirModal(p) }}>Editar</button>
+              <button className="btn btn-g btn-sm" onClick={e => { e.stopPropagation(); excluir(p.id) }}>✕</button>
             </div>
           )})}
         </div>
       )}
+
+      {/* Modal detalhe com galeria */}
+      {detalhe && (
+        <Modal title={detalhe.nome} onClose={() => setDetalhe(null)}>
+          {detalhe.fotos && detalhe.fotos.length > 0 ? (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px,1fr))', gap:8, marginBottom:16 }}>
+              {detalhe.fotos.map((url, i) => (
+                <img key={i} src={url} alt={`Foto ${i+1}`} style={{ width:'100%', height:120, objectFit:'cover', borderRadius:8 }} />
+              ))}
+            </div>
+          ) : <div style={{ textAlign:'center', padding:'20px 0', color:'var(--t3)' }}>Sem fotos cadastradas</div>}
+          <div className="grid2" style={{ marginTop:8 }}>
+            <div><div style={{ fontSize:11, color:'var(--t2)' }}>Tipo</div><div>{detalhe.tipo}</div></div>
+            <div><div style={{ fontSize:11, color:'var(--t2)' }}>Referência</div><div>{detalhe.referencia||'—'}</div></div>
+            <div><div style={{ fontSize:11, color:'var(--t2)' }}>Preço custo</div><div>{fmtMoeda(detalhe.preco_custo)}</div></div>
+            <div><div style={{ fontSize:11, color:'var(--t2)' }}>Preço venda</div><div>{fmtMoeda(detalhe.preco_venda)}</div></div>
+            <div><div style={{ fontSize:11, color:'var(--t2)' }}>Estoque atual</div><div>{detalhe.estoque_atual} {detalhe.unidade}</div></div>
+            <div><div style={{ fontSize:11, color:'var(--t2)' }}>Estoque mínimo</div><div>{detalhe.estoque_minimo} {detalhe.unidade}</div></div>
+          </div>
+          {detalhe.descricao && <div style={{ marginTop:12, color:'var(--t2)', fontSize:13 }}>{detalhe.descricao}</div>}
+          <div style={{ display:'flex', gap:8, marginTop:16 }}>
+            <button className="btn btn-p btn-sm" style={{ flex:1 }} onClick={() => { setDetalhe(null); abrirModal(detalhe) }}>Editar</button>
+            <button className="btn btn-s btn-sm" onClick={() => setDetalhe(null)}>Fechar</button>
+          </div>
+        </Modal>
+      )}
+
       {modal && (
         <Modal title={modal.item ? 'Editar Item' : 'Novo Item do Catálogo'} onClose={() => setModal(null)}>
           <div className="grid2">
             <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
-            <div className="fg"><label className="fl">Referência</label><input className="fi" value={form.referencia} onChange={up('referencia')} /></div>
+            <div className="fg"><label className="fl">Referência</label><input className="fi" value={form.referencia||''} onChange={up('referencia')} /></div>
             <div className="fg"><label className="fl">Tipo</label>
               <select className="fi" value={form.tipo} onChange={up('tipo')}>
                 {TIPOS.map(t => <option key={t}>{t}</option>)}
@@ -5094,9 +5180,35 @@ function CadCatalogo() {
             <div className="fg"><label className="fl">Estoque Atual</label><input className="fi" type="number" value={form.estoque_atual} onChange={up('estoque_atual')} /></div>
             <div className="fg"><label className="fl">Estoque Mínimo</label><input className="fi" type="number" value={form.estoque_minimo} onChange={up('estoque_minimo')} /></div>
           </div>
-          <div className="fg"><label className="fl">Descrição</label><textarea className="fi" value={form.descricao} onChange={up('descricao')} rows={2} /></div>
+          <div className="fg"><label className="fl">Descrição</label><textarea className="fi" value={form.descricao||''} onChange={up('descricao')} rows={2} /></div>
+
+          {/* Fotos */}
+          <div className="fg">
+            <label className="fl">Fotos * (mín. 1, máx. 5)</label>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:8 }}>
+              {fotosExistentes.map((url, i) => (
+                <div key={i} style={{ position:'relative' }}>
+                  <img src={url} alt="" style={{ width:72, height:72, objectFit:'cover', borderRadius:8 }} />
+                  <button onClick={() => removerFotoExistente(i)} style={{ position:'absolute', top:-6, right:-6, background:'var(--red)', border:'none', borderRadius:'50%', width:20, height:20, color:'#fff', cursor:'pointer', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                </div>
+              ))}
+              {fotosNovas.map((f, i) => (
+                <div key={i} style={{ position:'relative' }}>
+                  <img src={f.preview} alt="" style={{ width:72, height:72, objectFit:'cover', borderRadius:8, opacity:0.8, border:'2px dashed var(--accent)' }} />
+                  <button onClick={() => removerFotoNova(i)} style={{ position:'absolute', top:-6, right:-6, background:'var(--red)', border:'none', borderRadius:'50%', width:20, height:20, color:'#fff', cursor:'pointer', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                </div>
+              ))}
+              {(fotosExistentes.length + fotosNovas.length) < 5 && (
+                <label style={{ width:72, height:72, borderRadius:8, border:'2px dashed var(--border)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'var(--t3)', flexDirection:'column', gap:4, fontSize:11 }}>
+                  <span style={{ fontSize:22 }}>+</span>Foto
+                  <input type="file" accept="image/*" capture="environment" multiple style={{ display:'none' }} onChange={onFotoChange} />
+                </label>
+              )}
+            </div>
+          </div>
+
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
-            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
+            <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? 'Salvando...' : 'Salvar'}</button>
             <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
           </div>
         </Modal>
