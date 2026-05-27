@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import './styles.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { useData, useAction, useDateInfo, usePrazo, usePagination } from './hooks/index'
+import { useData, useAction, useDateInfo, usePrazo, usePagination, usePullToRefresh } from './hooks/index'
 import { Btn, Badge, Modal, ConfirmModal, Ic, Logo, Alert, Spinner, Empty, Input } from './components/ui/index'
 import * as XLSX from 'xlsx'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -840,7 +840,7 @@ function ModalDevolucao({ pedido, onClose, onConfirm }) {
             {MOTIVOS.map(m => <option key={m}>{m}</option>)}
           </select>
         </div>
-        <div className="fg"><label className="fl">Valor devolvido (R$)</label><input className="fi" type="number" step="0.01" min={0} value={form.valor_devolvido} onChange={up('valor_devolvido')} /></div>
+        <div className="fg"><label className="fl">Valor devolvido (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" min={0} value={form.valor_devolvido} onChange={up('valor_devolvido')} /></div>
         <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Descrição</label><textarea className="fi" rows={2} value={form.descricao} onChange={up('descricao')} /></div>
         <label className="fl" style={{ display:'flex', gap:8, alignItems:'center', cursor:'pointer' }}>
           <input type="checkbox" checked={form.estoque_revertido} onChange={e => setForm(p => ({ ...p, estoque_revertido: e.target.checked }))} />
@@ -1853,7 +1853,7 @@ function EditParsedItemModal({ item, onSave, onClose }) {
       </div>
       <div className="fg"><label className="fl">Endereço</label><input className="fi" value={form.endereco} onChange={up('endereco')} /></div>
       <div className="grid2">
-        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
         <div className="fg"><label className="fl">Prioridade</label>
           <select className="fi" value={form.prioridade} onChange={up('prioridade')}>
             <option>Normal</option><option>Alta</option><option>Urgente</option>
@@ -3902,7 +3902,7 @@ function NovoUsuarioForm({ onClose, onSave }) {
               {['admin', 'gestor', 'motorista', 'entregador', 'estoque', 'conferente'].map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
-          <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+          <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
         </div>
       </div>
       <div className="mf">
@@ -3950,7 +3950,7 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
             {['admin', 'gestor', 'motorista', 'entregador', 'estoque', 'conferente'].map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
-        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
       </div>
       <div className="fg"><label className="fl">Nova Senha (deixe em branco para manter)</label><input className="fi" type="password" value={form.nova_senha} onChange={up('nova_senha')} placeholder="mín. 4 caracteres" /></div>
       <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>Login: {u.usuario || u.email}</div>
@@ -5005,7 +5005,7 @@ function CadFornecedores() {
             <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
             <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj||''} onChange={up('cnpj')} /></div>
             <div className="fg"><label className="fl">Contato</label><input className="fi" value={form.contato||''} onChange={up('contato')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email||''} onChange={up('email')} /></div>
             <div className="fg"><label className="fl">Categoria</label><input className="fi" value={form.categoria||''} onChange={up('categoria')} placeholder="Ex: Móveis, Tecidos..." /></div>
           </div>
@@ -5227,8 +5227,8 @@ function CadCatalogo() {
               </select>
             </div>
             <div className="fg"><label className="fl">Unidade</label><input className="fi" value={form.unidade} onChange={up('unidade')} placeholder="un, m², kg..." /></div>
-            <div className="fg"><label className="fl">Preço de Custo (R$)</label><input className="fi" type="number" step="0.01" value={form.preco_custo} onChange={up('preco_custo')} /></div>
-            <div className="fg"><label className="fl">Preço de Venda (R$)</label><input className="fi" type="number" step="0.01" value={form.preco_venda} onChange={up('preco_venda')} /></div>
+            <div className="fg"><label className="fl">Preço de Custo (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.preco_custo} onChange={up('preco_custo')} /></div>
+            <div className="fg"><label className="fl">Preço de Venda (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.preco_venda} onChange={up('preco_venda')} /></div>
             <div className="fg"><label className="fl">Estoque Atual</label><input className="fi" type="number" value={form.estoque_atual} onChange={up('estoque_atual')} /></div>
             <div className="fg"><label className="fl">Estoque Mínimo</label><input className="fi" type="number" value={form.estoque_minimo} onChange={up('estoque_minimo')} /></div>
           </div>
@@ -5308,7 +5308,7 @@ function CadConfigSistema() {
         <div className="grid2">
           <div className="fg"><label className="fl">Razão social</label><input className="fi" value={form.razao_social||''} onChange={up('razao_social')} /></div>
           <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj||''} onChange={up('cnpj')} /></div>
-          <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} /></div>
+          <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
           <div className="fg"><label className="fl">WhatsApp aprovação</label><input className="fi" value={form.whatsapp_aprovacao||''} onChange={up('whatsapp_aprovacao')} placeholder="5531..." /></div>
         </div>
       </div>
@@ -5377,7 +5377,7 @@ function CadLojas() {
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
             <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj||''} onChange={up('cnpj')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Cidade</label><input className="fi" value={form.cidade||''} onChange={up('cidade')} /></div>
             <div className="fg"><label className="fl">Responsável</label><input className="fi" value={form.responsavel||''} onChange={up('responsavel')} /></div>
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Endereço</label><input className="fi" value={form.endereco||''} onChange={up('endereco')} /></div>
@@ -5438,7 +5438,7 @@ function CadDecoradores() {
         <Modal title={modal.item ? 'Editar Decorador' : 'Novo Decorador'} onClose={() => setModal(null)}>
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email||''} onChange={up('email')} /></div>
             <div className="fg"><label className="fl">Especialidade</label><input className="fi" value={form.especialidade||''} onChange={up('especialidade')} /></div>
             <div className="fg"><label className="fl">Comissão RT (%)</label><input className="fi" type="number" step="0.1" min="0" value={form.comissao_rt||0} onChange={up('comissao_rt')} /></div>
@@ -5640,7 +5640,7 @@ function CadRepresentantes() {
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
             <div className="fg"><label className="fl">CPF</label><input className="fi" value={form.cpf||''} onChange={up('cpf')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" type="email" value={form.email||''} onChange={up('email')} /></div>
             <div className="fg"><label className="fl">Fornecedor vinculado</label>
               <select className="fi" value={form.fornecedor_id||''} onChange={up('fornecedor_id')}>
@@ -5648,7 +5648,7 @@ function CadRepresentantes() {
                 {(forns||[]).map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
             </div>
-            <div className="fg"><label className="fl">Comissão (%)</label><input className="fi" type="number" step="0.01" value={form.comissao_percent||''} onChange={up('comissao_percent')} /></div>
+            <div className="fg"><label className="fl">Comissão (%)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.comissao_percent||''} onChange={up('comissao_percent')} /></div>
             <div className="fg"><label className="fl">Região de atuação</label><input className="fi" value={form.regiao||''} onChange={up('regiao')} /></div>
             <div className="fg" style={{ display:'flex', alignItems:'center', gap:8, paddingTop:24 }}>
               <input type="checkbox" id="ativo-rep" checked={!!form.ativo} onChange={e => setForm(p => ({ ...p, ativo: e.target.checked }))} />
@@ -5803,7 +5803,7 @@ function CRMKanban() {
         <Modal title={modal.item ? 'Editar Lead' : 'Novo Lead'} onClose={() => setModal(null)}>
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email||''} onChange={up('email')} /></div>
             <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja||''} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
             <div className="fg"><label className="fl">Responsável</label><input className="fi" value={form.responsavel||''} onChange={up('responsavel')} /></div>
@@ -5812,7 +5812,7 @@ function CRMKanban() {
                 {CRM_COLUNAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
-            <div className="fg"><label className="fl">Valor estimado (R$)</label><input className="fi" type="number" step="0.01" value={form.valor_estimado||0} onChange={up('valor_estimado')} /></div>
+            <div className="fg"><label className="fl">Valor estimado (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.valor_estimado||0} onChange={up('valor_estimado')} /></div>
             <div className="fg"><label className="fl">Próxima visita</label><input className="fi" type="date" value={form.proxima_visita||''} onChange={up('proxima_visita')} /></div>
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Observações</label><textarea className="fi" rows={2} value={form.obs||''} onChange={up('obs')} /></div>
           </div>
@@ -6293,7 +6293,7 @@ function NovaVenda({ onClose }) {
                   <div key={idx} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid var(--border)' }}>
                     <div style={{ flex:1, fontSize:13 }}>{it.nome}</div>
                     <input type="number" min={1} value={it.quantidade} style={{ width:60, padding:'4px 6px', border:'1px solid var(--border)', borderRadius:6, textAlign:'center' }} onChange={e => updItem(idx,'quantidade',parseInt(e.target.value)||1)} />
-                    <input type="number" step="0.01" value={it.preco_unitario} style={{ width:90, padding:'4px 6px', border:'1px solid var(--border)', borderRadius:6 }} onChange={e => updItem(idx,'preco_unitario',parseFloat(e.target.value)||0)} />
+                    <input type="number" step="0.01" inputMode="decimal" value={it.preco_unitario} style={{ width:90, padding:'4px 6px', border:'1px solid var(--border)', borderRadius:6 }} onChange={e => updItem(idx,'preco_unitario',parseFloat(e.target.value)||0)} />
                     <button className="btn btn-g btn-sm" onClick={() => remItem(idx)}>✕</button>
                   </div>
                 ))}
@@ -6370,7 +6370,7 @@ function NovaVenda({ onClose }) {
             </div>
           )}
           {pagamento.forma === 'Financiamento' && (
-            <div className="fg"><label className="fl">Entrada (R$)</label><input className="fi" type="number" step="0.01" value={pagamento.entrada} onChange={e => setPagamento(p => ({ ...p, entrada: e.target.value }))} /></div>
+            <div className="fg"><label className="fl">Entrada (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={pagamento.entrada} onChange={e => setPagamento(p => ({ ...p, entrada: e.target.value }))} /></div>
           )}
           <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs} onChange={up('obs')} rows={2} /></div>
           <div style={{ display:'flex', gap:8, marginTop:16 }}>
@@ -6631,7 +6631,7 @@ function ModalCompra({ modal, onClose }) {
         <div key={idx} style={{ display:'flex', gap:6, marginBottom:6, alignItems:'center' }}>
           <input className="fi" style={{ flex:2 }} placeholder="Descrição" value={it.descricao} onChange={e => upItem(idx,'descricao',e.target.value)} />
           <input className="fi" style={{ width:60 }} type="number" min={1} value={it.quantidade} onChange={e => upItem(idx,'quantidade',e.target.value)} />
-          <input className="fi" style={{ width:90 }} type="number" step="0.01" value={it.preco_unitario} onChange={e => upItem(idx,'preco_unitario',e.target.value)} placeholder="R$" />
+          <input className="fi" style={{ width:90 }} type="number" step="0.01" inputMode="decimal" value={it.preco_unitario} onChange={e => upItem(idx,'preco_unitario',e.target.value)} placeholder="R$" />
           <button className="btn btn-g btn-sm" onClick={() => remItem(idx)}>✕</button>
         </div>
       ))}
@@ -6968,14 +6968,14 @@ function EstoqueNF() {
             </div>
             <div className="fg"><label className="fl">Nº NF *</label><input className="fi" value={form.numero_nf} onChange={up('numero_nf')} /></div>
             <div className="fg"><label className="fl">Data emissão</label><input className="fi" type="date" value={form.data_emissao} onChange={up('data_emissao')} /></div>
-            <div className="fg"><label className="fl">Valor total (R$)</label><input className="fi" type="number" step="0.01" value={form.valor_total} onChange={up('valor_total')} /></div>
+            <div className="fg"><label className="fl">Valor total (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.valor_total} onChange={up('valor_total')} /></div>
           </div>
           <div style={{ fontWeight:600, margin:'12px 0 8px' }}>Itens</div>
           {itens.map((it, idx) => (
             <div key={idx} style={{ display:'flex', gap:6, marginBottom:6, alignItems:'center' }}>
               <input className="fi" style={{ flex:2 }} placeholder="Descrição" value={it.descricao} onChange={e => upItem(idx,'descricao',e.target.value)} />
               <input className="fi" style={{ width:60 }} type="number" value={it.quantidade} onChange={e => upItem(idx,'quantidade',e.target.value)} />
-              <input className="fi" style={{ width:80 }} type="number" step="0.01" value={it.preco_unitario} onChange={e => upItem(idx,'preco_unitario',e.target.value)} placeholder="R$" />
+              <input className="fi" style={{ width:80 }} type="number" step="0.01" inputMode="decimal" value={it.preco_unitario} onChange={e => upItem(idx,'preco_unitario',e.target.value)} placeholder="R$" />
               <button className="btn btn-g btn-sm" onClick={() => setItens(p => p.filter((_,i)=>i!==idx))}>✕</button>
             </div>
           ))}
@@ -7412,7 +7412,7 @@ function FinanceiroLista({ tipo }) {
         <Modal title={tipo === 'receber' ? 'Conta a Receber' : 'Conta a Pagar'} onClose={() => setModal(null)}>
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Descrição *</label><input className="fi" value={form.descricao} onChange={up('descricao')} /></div>
-            <div className="fg"><label className="fl">Valor (R$) *</label><input className="fi" type="number" step="0.01" value={form.valor} onChange={up('valor')} /></div>
+            <div className="fg"><label className="fl">Valor (R$) *</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.valor} onChange={up('valor')} /></div>
             <div className="fg"><label className="fl">Vencimento *</label><input className="fi" type="date" value={form.vencimento} onChange={up('vencimento')} /></div>
             <div className="fg"><label className="fl">{tipo==='receber'?'Cliente':'Fornecedor'}</label><input className="fi" value={form.cliente_fornecedor} onChange={up('cliente_fornecedor')} /></div>
             <div className="fg"><label className="fl">Categoria</label>
@@ -7522,9 +7522,9 @@ function DPFuncionarios({ lojaFiltro }) {
             <div className="fg"><label className="fl">Cargo *</label><input className="fi" value={form.cargo} onChange={up('cargo')} /></div>
             <div className="fg"><label className="fl">Departamento</label><input className="fi" value={form.departamento} onChange={up('departamento')} /></div>
             <div className="fg"><label className="fl">Admissão</label><input className="fi" type="date" value={form.admissao} onChange={up('admissao')} /></div>
-            <div className="fg"><label className="fl">Salário (R$)</label><input className="fi" type="number" step="0.01" value={form.salario} onChange={up('salario')} /></div>
+            <div className="fg"><label className="fl">Salário (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.salario} onChange={up('salario')} /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email} onChange={up('email')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja||''} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={form.status} onChange={up('status')}>
@@ -7726,7 +7726,7 @@ function OrdensServico() {
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Título *</label><input className="fi" value={form.titulo} onChange={up('titulo')} /></div>
             <div className="fg"><label className="fl">Cliente *</label><input className="fi" value={form.cliente} onChange={up('cliente')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
             <div className="fg"><label className="fl">Técnico</label><input className="fi" value={form.tecnico_responsavel} onChange={up('tecnico_responsavel')} /></div>
             <div className="fg"><label className="fl">Prioridade</label>
@@ -7740,7 +7740,7 @@ function OrdensServico() {
               </select>
             </div>
             <div className="fg"><label className="fl">Previsão</label><input className="fi" type="date" value={form.previsao_conclusao} onChange={up('previsao_conclusao')} /></div>
-            <div className="fg"><label className="fl">Orçamento (R$)</label><input className="fi" type="number" step="0.01" value={form.valor_orcamento} onChange={up('valor_orcamento')} /></div>
+            <div className="fg"><label className="fl">Orçamento (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.valor_orcamento} onChange={up('valor_orcamento')} /></div>
           </div>
           <div className="fg"><label className="fl">Descrição</label><textarea className="fi" value={form.descricao} onChange={up('descricao')} rows={3} /></div>
           <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs} onChange={up('obs')} rows={2} /></div>

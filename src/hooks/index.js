@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 // Generic async data fetcher with loading/error/reload
 export function useData(fetcher, deps = []) {
@@ -60,6 +60,35 @@ export function useDateInfo(dateStr) {
   if (dt < today) return { text: `Atrasado — ${fmt}`, color: 'var(--red)' }
   if (dt.toDateString() === today.toDateString()) return { text: `Hoje, ${fmt}`, color: 'var(--green)' }
   return { text: fmt, color: 'var(--t2)' }
+}
+
+// Pull to refresh
+export function usePullToRefresh(onRefresh, containerRef) {
+  const [refreshing, setRefreshing] = useState(false)
+  const startY = useRef(0)
+  const threshold = 70
+
+  useEffect(() => {
+    const el = containerRef?.current
+    if (!el) return
+
+    const onTouchStart = (e) => { startY.current = e.touches[0].clientY }
+    const onTouchEnd = async (e) => {
+      const dy = e.changedTouches[0].clientY - startY.current
+      if (dy > threshold && el.scrollTop <= 0) {
+        setRefreshing(true)
+        try { await onRefresh() } finally { setRefreshing(false) }
+      }
+    }
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [onRefresh, containerRef])
+
+  return { refreshing }
 }
 
 // Paginação simples
