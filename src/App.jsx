@@ -7003,7 +7003,8 @@ function EstoqueMov() {
 // ============================================================
 function FinanceiroDRE() {
   const [mes, setMes] = useState(new Date().toISOString().slice(0,7))
-  const [lojaFiltro, setLojaFiltro] = useState('')
+  const { lojaFiltro: lojaGlobal } = useLojaFiltro()
+  const [lojaFiltro, setLojaFiltro] = useState(lojaGlobal || '')
   const { data: vendas } = useData(() => vendasService.list(), [])
   const { data: pagar } = useData(() => financeiroService.listPagar(), [])
   const { data: folha } = useData(() => dpService.listFolha(mes), [mes])
@@ -7239,8 +7240,11 @@ function Financeiro() {
 }
 
 function FinanceiroResumo() {
-  const { data: receber } = useData(() => financeiroService.listReceber(), [])
-  const { data: pagar } = useData(() => financeiroService.listPagar(), [])
+  const { lojaFiltro } = useLojaFiltro()
+  const { data: receberRaw } = useData(() => financeiroService.listReceber(), [])
+  const { data: pagarRaw } = useData(() => financeiroService.listPagar(), [])
+  const receber = lojaFiltro ? (receberRaw||[]).filter(x => !x.loja || x.loja === lojaFiltro) : receberRaw
+  const pagar = lojaFiltro ? (pagarRaw||[]).filter(x => !x.loja || x.loja === lojaFiltro) : pagarRaw
   const hoje = new Date().toISOString().split('T')[0]
   const totalReceber = (receber||[]).filter(r => r.status !== 'pago').reduce((s,r) => s + (parseFloat(r.valor)||0), 0)
   const totalPagar   = (pagar||[]).filter(p => p.status !== 'pago').reduce((s,p) => s + (parseFloat(p.valor)||0), 0)
@@ -7285,7 +7289,9 @@ function FinanceiroResumo() {
 }
 
 function FinanceiroLista({ tipo }) {
-  const { data: lista, loading, reload } = useData(() => tipo === 'receber' ? financeiroService.listReceber() : financeiroService.listPagar(), [tipo])
+  const { lojaFiltro } = useLojaFiltro()
+  const { data: listaRaw, loading, reload } = useData(() => tipo === 'receber' ? financeiroService.listReceber() : financeiroService.listPagar(), [tipo])
+  const lista = lojaFiltro ? (listaRaw||[]).filter(x => !x.loja || x.loja === lojaFiltro) : listaRaw
   const [modal, setModal] = useState(null)
   const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...LOJAS_GRUPO]
   const empty = { descricao:'', valor:'', vencimento:'', categoria:'', cliente_fornecedor:'', status:'pendente', obs:'', loja:'', centro_custo:'' }

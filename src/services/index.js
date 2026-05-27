@@ -341,8 +341,10 @@ export const configSistemaService = {
 
 // ── Vendas ────────────────────────────────────────────────
 export const vendasService = {
-  async list() {
-    const { data, error } = await supabase.from('vendas').select('*, venda_itens(*)').order('created_at', { ascending: false })
+  async list(lojaFiltro) {
+    let q = supabase.from('vendas').select('*, venda_itens(*)').order('created_at', { ascending: false })
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q
     if (error) throw error
     return data || []
   },
