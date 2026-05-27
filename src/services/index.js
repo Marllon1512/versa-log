@@ -904,7 +904,16 @@ export const pedidosAnexosService = {
 
 // ── Notificações ──────────────────────────────────────────
 export const notificacoesService = {
-  async list(usuarioId) {
+  async criar({ usuario_id, tipo, titulo, mensagem, link, pedido_id, origem_usuario_id, origem_usuario_nome }) {
+    const { data, error } = await supabase
+      .from('notificacoes')
+      .insert({ usuario_id, tipo, titulo, mensagem, link: link || null, pedido_id: pedido_id || null, origem_usuario_id: origem_usuario_id || null, origem_usuario_nome: origem_usuario_nome || null })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+  async listar(usuarioId) {
     const { data, error } = await supabase
       .from('notificacoes')
       .select('*')
@@ -914,7 +923,7 @@ export const notificacoesService = {
     if (error) throw error
     return data || []
   },
-  async naoLidas(usuarioId) {
+  async contarNaoLidas(usuarioId) {
     const { count, error } = await supabase
       .from('notificacoes')
       .select('*', { count: 'exact', head: true })
@@ -923,21 +932,32 @@ export const notificacoesService = {
     if (error) return 0
     return count || 0
   },
-  async marcarLida(id) {
+  async marcarComoLida(id) {
     const { error } = await supabase.from('notificacoes').update({ lida: true }).eq('id', id)
     if (error) throw error
   },
-  async marcarTodasLidas(usuarioId) {
-    const { error } = await supabase.from('notificacoes').update({ lida: true }).eq('usuario_id', usuarioId).eq('lida', false)
+  async marcarTodasComoLidas(usuarioId) {
+    const { error } = await supabase
+      .from('notificacoes')
+      .update({ lida: true })
+      .eq('usuario_id', usuarioId)
+      .eq('lida', false)
     if (error) throw error
   },
-  async create(notif) {
-    const { data, error } = await supabase.from('notificacoes').insert(notif).select().single()
-    if (error) throw error
-    return data
-  },
-  async createBulk(notifs) {
-    if (!notifs.length) return
+  async criarParaPerfil({ loja_id, perfil, tipo, titulo, mensagem, pedido_id }) {
+    const { data: usuarios } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('loja', loja_id)
+      .or(`perfil.eq.${perfil},role.eq.${perfil}`)
+    if (!usuarios?.length) return
+    const notifs = usuarios.map(u => ({
+      usuario_id: u.id,
+      tipo,
+      titulo,
+      mensagem,
+      pedido_id: pedido_id || null,
+    }))
     const { error } = await supabase.from('notificacoes').insert(notifs)
     if (error) throw error
   },
@@ -945,70 +965,119 @@ export const notificacoesService = {
 
 // ── Chat ──────────────────────────────────────────────────
 export const chatService = {
-  async listConversas(usuarioId) {
-    const { data, error } = await supabase
-      .from('chat_participantes')
-      .select('conversa_id, ultima_leitura, chat_conversas(id, tipo, nome, criado_por, created_at)')
-      .eq('usuario_id', usuarioId)
-    if (error) throw error
-    return (data || []).map(r => ({ ...r.chat_conversas, ultima_leitura: r.ultima_leitura }))
-  },
-  async getOuCriarDireto(meuId, outroId) {
-    const { data: existentes } = await supabase
+  async buscarOuCriarConversa(usuarioId, destinatarioId) {
+    const { data: minhas } = await supabase
       .from('chat_participantes')
       .select('conversa_id')
-      .eq('usuario_id', meuId)
-    const minhasConversas = (existentes || []).map(r => r.conversa_id)
-    if (minhasConversas.length) {
+      .eq('usuario_id', usuarioId)
+    const ids = (minhas || []).map(r => r.conversa_id)
+    if (ids.length) {
       const { data: comOutro } = await supabase
         .from('chat_participantes')
         .select('conversa_id, chat_conversas!inner(tipo)')
-        .in('conversa_id', minhasConversas)
-        .eq('usuario_id', outroId)
+        .in('conversa_id', ids)
+        .eq('usuario_id', destinatarioId)
       const direto = (comOutro || []).find(r => r.chat_conversas?.tipo === 'direto')
       if (direto) return direto.conversa_id
     }
     const { data: nova, error } = await supabase
       .from('chat_conversas')
-      .insert({ tipo: 'direto', criado_por: meuId })
+      .insert({ tipo: 'direto', criado_por: usuarioId })
       .select()
       .single()
     if (error) throw error
     await supabase.from('chat_participantes').insert([
-      { conversa_id: nova.id, usuario_id: meuId },
-      { conversa_id: nova.id, usuario_id: outroId },
+      { conversa_id: nova.id, usuario_id: usuarioId },
+      { conversa_id: nova.id, usuario_id: destinatarioId },
     ])
     return nova.id
   },
-  async listMensagens(conversaId, limit = 50) {
+  async listarConversas(usuarioId) {
+    const { data: partic, error } = await supabase
+      .from('chat_participantes')
+      .select('conversa_id, ultima_leitura, chat_conversas(id, tipo, nome, criado_por, created_at)')
+      .eq('usuario_id', usuarioId)
+    if (error) throw error
+    const conversaIds = (partic || []).map(r => r.conversa_id)
+    if (!conversaIds.length) return []
+    const { data: mensagens } = await supabase
+      .from('chat_mensagens')
+      .select('conversa_id, texto, usuario_nome, created_at')
+      .in('conversa_id', conversaIds)
+      .order('created_at', { ascending: false })
+    const ultimaMsgPorConversa = {}
+    for (const m of mensagens || []) {
+      if (!ultimaMsgPorConversa[m.conversa_id]) ultimaMsgPorConversa[m.conversa_id] = m
+    }
+    const { data: naoLidas } = await supabase
+      .from('chat_mensagens')
+      .select('conversa_id, created_at')
+      .in('conversa_id', conversaIds)
+      .neq('usuario_id', usuarioId)
+    return (partic || []).map(r => {
+      const ultimaLeitura = r.ultima_leitura ? new Date(r.ultima_leitura) : new Date(0)
+      const naoLidasCount = (naoLidas || []).filter(m => m.conversa_id === r.conversa_id && new Date(m.created_at) > ultimaLeitura).length
+      return {
+        ...r.chat_conversas,
+        ultima_leitura: r.ultima_leitura,
+        ultima_mensagem: ultimaMsgPorConversa[r.conversa_id] || null,
+        nao_lidas: naoLidasCount,
+      }
+    }).sort((a, b) => {
+      const ta = a.ultima_mensagem?.created_at || a.created_at
+      const tb = b.ultima_mensagem?.created_at || b.created_at
+      return new Date(tb) - new Date(ta)
+    })
+  },
+  async listarMensagens(conversaId) {
     const { data, error } = await supabase
       .from('chat_mensagens')
       .select('*')
       .eq('conversa_id', conversaId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+      .order('created_at', { ascending: true })
+      .limit(100)
     if (error) throw error
-    return (data || []).reverse()
+    return data || []
   },
-  async sendMensagem(msg) {
-    const { data, error } = await supabase.from('chat_mensagens').insert(msg).select().single()
+  async enviarMensagem({ conversa_id, usuario_id, usuario_nome, texto, arquivos }) {
+    const anexos = []
+    for (const file of arquivos || []) {
+      const ext = file.name.split('.').pop()
+      const path = `${conversa_id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: upErr } = await supabase.storage.from('chat-anexos').upload(path, file)
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from('chat-anexos').getPublicUrl(path)
+        anexos.push(pub.publicUrl)
+      }
+    }
+    const { data: msg, error } = await supabase
+      .from('chat_mensagens')
+      .insert({ conversa_id, usuario_id, usuario_nome, texto, anexos })
+      .select()
+      .single()
     if (error) throw error
-    return data
+    const { data: partic } = await supabase
+      .from('chat_participantes')
+      .select('usuario_id')
+      .eq('conversa_id', conversa_id)
+      .neq('usuario_id', usuario_id)
+    const notifs = (partic || []).map(p => ({
+      usuario_id: p.usuario_id,
+      tipo: 'nova_mensagem',
+      titulo: `Nova mensagem de ${usuario_nome}`,
+      mensagem: texto || (anexos.length ? '📎 Anexo' : ''),
+      origem_usuario_id: usuario_id,
+      origem_usuario_nome: usuario_nome,
+    }))
+    if (notifs.length) await supabase.from('notificacoes').insert(notifs)
+    return msg
   },
-  async marcarLeitura(conversaId, usuarioId) {
+  async atualizarUltimaLeitura(conversaId, usuarioId) {
     await supabase
       .from('chat_participantes')
       .update({ ultima_leitura: new Date().toISOString() })
       .eq('conversa_id', conversaId)
       .eq('usuario_id', usuarioId)
-  },
-  async uploadAnexo(file, conversaId) {
-    const ext = file.name.split('.').pop()
-    const path = `${conversaId}/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('chat-anexos').upload(path, file)
-    if (error) throw error
-    const { data } = supabase.storage.from('chat-anexos').getPublicUrl(path)
-    return data.publicUrl
   },
 }
 
