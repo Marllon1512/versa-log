@@ -370,7 +370,120 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobile
   )
 }
 
-function ContentTopbar({ page, setMobileOpen }) {
+const NOTIF_ICONS = {
+  lembrete_ponto: '⏰', nova_mensagem: '💬',
+  pedido_submetido: '📋', pedido_aprovado_gerente: '✅', pedido_rejeitado_gerente: '❌',
+  pedido_aprovado_financeiro: '💰', pedido_rejeitado_financeiro: '❌',
+  pedido_confirmado_fabrica: '🏭', pedido_produto_conferido: '📦',
+  pedido_agendado: '📅', pedido_separado: '🔧', follow_up_adicionado: '📝',
+}
+
+function tempoRelativo(iso) {
+  const diff = Date.now() - new Date(iso)
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'agora'
+  if (min < 60) return `há ${min}min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `há ${h}h`
+  return `há ${Math.floor(h / 24)}d`
+}
+
+function NotifBell({ navigateTo }) {
+  const { perfil } = useAuth()
+  const [count, setCount]   = useState(0)
+  const [open, setOpen]     = useState(false)
+  const [notifs, setNotifs] = useState([])
+  const [loading, setLoading] = useState(false)
+  const ref = useRef()
+
+  useEffect(() => {
+    if (!perfil?.id) return
+    const fetch = async () => { const c = await notificacoesService.contarNaoLidas(perfil.id); setCount(c) }
+    fetch()
+    const id = setInterval(fetch, 30000)
+    return () => clearInterval(id)
+  }, [perfil?.id])
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+
+  const abrirPainel = async () => {
+    if (!open && perfil?.id) {
+      setLoading(true)
+      const ns = await notificacoesService.listar(perfil.id)
+      setNotifs(ns.slice(0, 20))
+      setLoading(false)
+    }
+    setOpen(o => !o)
+  }
+
+  const clicarNotif = async (n) => {
+    if (!n.lida) {
+      await notificacoesService.marcarComoLida(n.id).catch(() => {})
+      setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, lida: true } : x))
+      setCount(c => Math.max(0, c - 1))
+    }
+    setOpen(false)
+    if (n.tipo === 'lembrete_ponto') navigateTo('ponto')
+    else if (n.tipo === 'nova_mensagem') navigateTo('chat')
+    else if (n.link) window.open(n.link, '_blank')
+  }
+
+  const marcarTodas = async () => {
+    await notificacoesService.marcarTodasComoLidas(perfil.id).catch(() => {})
+    setNotifs(prev => prev.map(n => ({ ...n, lida: true })))
+    setCount(0)
+  }
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button onClick={abrirPainel}
+        style={{ position:'relative', width:34, height:34, borderRadius:8, border:'none', background:'var(--bg3)', color:'var(--t1)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>
+        🔔
+        {count > 0 && (
+          <span style={{ position:'absolute', top:-4, right:-4, background:'var(--red)', color:'#fff', fontSize:9, fontWeight:700, minWidth:16, height:16, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px', lineHeight:1 }}>
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div style={{ position:'absolute', right:0, top:'calc(100% + 8px)', width:320, maxHeight:480, overflowY:'auto', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, zIndex:400, boxShadow:'0 8px 32px rgba(0,0,0,.6)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 14px 10px', borderBottom:'1px solid var(--border)', position:'sticky', top:0, background:'var(--bg2)', zIndex:1 }}>
+            <span style={{ fontWeight:700, fontSize:14 }}>Notificações</span>
+            {count > 0 && (
+              <button onClick={marcarTodas} style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)' }}>
+                Marcar todas como lidas
+              </button>
+            )}
+          </div>
+          {loading ? (
+            <div style={{ padding:24, textAlign:'center', color:'var(--t3)', fontSize:13 }}>Carregando...</div>
+          ) : notifs.length === 0 ? (
+            <div style={{ padding:24, textAlign:'center', color:'var(--t3)', fontSize:13 }}>Nenhuma notificação</div>
+          ) : notifs.map(n => (
+            <div key={n.id} onClick={() => clicarNotif(n)}
+              style={{ padding:'10px 14px', cursor:'pointer', borderBottom:'1px solid var(--border)', background: n.lida ? 'transparent' : 'rgba(99,102,241,.07)' }}>
+              <div style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+                <span style={{ fontSize:16, flexShrink:0, marginTop:2 }}>{NOTIF_ICONS[n.tipo] || '🔔'}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:'var(--t1)', marginBottom:2 }}>{n.titulo}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)', lineHeight:1.4 }}>{n.mensagem}</div>
+                  <div style={{ fontSize:11, color:'var(--t3)', marginTop:4 }}>{tempoRelativo(n.created_at)}</div>
+                </div>
+                {!n.lida && <div style={{ width:7, height:7, borderRadius:'50%', background:'var(--accent)', flexShrink:0, marginTop:5 }} />}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ContentTopbar({ page, setMobileOpen, navigateTo }) {
   const { perfil, isSimulating, simulatedRole, isGestor } = useAuth()
   const { lojaFiltro, setLojaFiltro } = useLojaFiltro()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -405,6 +518,7 @@ function ContentTopbar({ page, setMobileOpen }) {
           👁 {PROFILE_LABELS[simulatedRole] || simulatedRole}
         </span>
       )}
+      <NotifBell navigateTo={navigateTo} />
       <div ref={menuRef} style={{ position:'relative' }}>
         <button
           onClick={() => setMenuOpen(o => !o)}
@@ -9242,7 +9356,7 @@ function AppContent() {
           setMobileOpen={setMobileOpen}
         />
         <div className="content-area">
-          <ContentTopbar page={page} setMobileOpen={setMobileOpen} />
+          <ContentTopbar page={page} setMobileOpen={setMobileOpen} navigateTo={navigateTo} />
           <div className="content-main">
             <div key={animKey} className="page-enter">
               {PAGES[page] || PAGES.dashboard}
