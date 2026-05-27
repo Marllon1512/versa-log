@@ -25,17 +25,55 @@ export function Btn({ children, variant = 'primary', size = 'md', disabled, load
 
 // ── Badge ─────────────────────────────────────────────────
 const BADGE_MAP = {
-  Pendente: 'bg', Separando: 'bg-accent', 'Pronto para Rota': 'bg-blue',
-  'Em Rota': 'bg-blue', Entregue: 'bg-green', Problema: 'bg-red',
-  Remarcado: 'bg-amber', Cancelado: 'bg',
-  Aberto: 'bg-amber', 'Em andamento': 'bg-blue', Concluído: 'bg-green',
-  Aprovado: 'bg-green', Reprovado: 'bg-red',
-  Ativa: 'bg-green', Inativa: 'bg',
-  Normal: 'bg', Alta: 'bg-amber', Urgente: 'bg-red',
+  // Amarelo — Pendente / Em aberto
+  Pendente: 'bg-amber', 'Em aberto': 'bg-amber', 'aguardando_aprovacao': 'bg-amber',
+  // Azul — Em andamento / Separado
+  Separando: 'bg-blue', 'Pronto para Rota': 'bg-blue', 'Em Rota': 'bg-blue',
+  'Em andamento': 'bg-blue', Separado: 'bg-blue', em_andamento: 'bg-blue',
+  // Verde — Concluído / Pago / Entregue / Aprovado / Ativo
+  Entregue: 'bg-green', Concluído: 'bg-green', Aprovado: 'bg-green', Pago: 'bg-green',
+  aprovado: 'bg-green', pago: 'bg-green', concluida: 'bg-green', Ativa: 'bg-green',
+  // Vermelho — Cancelado / Atrasado / Reprovado
+  Cancelado: 'bg-red', Problema: 'bg-red', Reprovado: 'bg-red', Vencido: 'bg-red',
+  cancelado: 'bg-red', vencido: 'bg-red',
+  // Cinza — Rascunho / Inativo / Normal
+  Rascunho: 'bg', rascunho: 'bg', Inativo: 'bg', Inativa: 'bg', Normal: 'bg',
+  Remarcado: 'bg-amber', Aberto: 'bg-amber', aberta: 'bg-amber',
+  Alta: 'bg-amber', Urgente: 'bg-red', 'bg-accent': 'bg-accent',
 }
-export function Badge({ status, children, style }) {
-  const cls = BADGE_MAP[status || children] || 'bg'
+export function Badge({ status, children, style, variant }) {
+  const key = status || children
+  const cls = variant || BADGE_MAP[key] || 'bg'
   return <span className={`badge ${cls}`} style={style}>{children || status}</span>
+}
+
+// ── Confirmation Modal ─────────────────────────────────────
+export function ConfirmModal({ title, message, onConfirm, onCancel, confirmLabel = 'Confirmar', loading }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onCancel?.()}>
+      <div className="modal" style={{ maxWidth: 420 }}>
+        <div className="mh">
+          <h2>{title || 'Confirmar ação'}</h2>
+        </div>
+        <div className="mb">
+          <p style={{ color: 'var(--t2)', fontSize: 14, marginBottom: 16 }}>
+            {message || 'Esta ação não pode ser desfeita. Deseja continuar?'}
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-d" style={{ flex: 1 }} onClick={onConfirm} disabled={loading}>
+              {loading ? 'Aguarde...' : confirmLabel}
+            </button>
+            <button className="btn btn-s" onClick={onCancel} disabled={loading}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Modal ─────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import './styles.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { useData, useAction, useDateInfo, usePrazo } from './hooks/index'
-import { Btn, Badge, Modal, Ic, Logo, Alert, Spinner, Empty, Input } from './components/ui/index'
+import { useData, useAction, useDateInfo, usePrazo, usePagination } from './hooks/index'
+import { Btn, Badge, Modal, ConfirmModal, Ic, Logo, Alert, Spinner, Empty, Input } from './components/ui/index'
 import * as XLSX from 'xlsx'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -19,7 +19,7 @@ import {
   dpService, ordensServicoService,
   lojasService, decoradoresService, crmService, orcamentosService, metasService,
   npsService, devolucoesService, localizacoesService, consignacoesService,
-  acabamentosService, tecidosService, representantesService,
+  acabamentosService, tecidosService, representantesService, auditLog,
 } from './services/index'
 
 // ── Filtro global de loja ─────────────────────────────────
@@ -4888,16 +4888,18 @@ function CadClientes() {
   }
 
   const filtrado = (lista || []).filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()) || c.cpf_cnpj?.includes(busca) || c.telefone?.includes(busca))
+  const { paged, page, setPage, totalPages, total } = usePagination(filtrado)
 
   return (
     <div>
       <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
-        <input className="fi" style={{ flex:1 }} placeholder="Buscar cliente..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <input className="fi" style={{ flex:1 }} placeholder="Buscar cliente..." value={busca} onChange={e => { setBusca(e.target.value); setPage(1) }} />
         <button className="btn btn-p btn-sm" onClick={abrirNovo}>+ Novo</button>
       </div>
       {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum cliente cadastrado" /> : (
+        <>
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {filtrado.map(c => (
+          {paged.map(c => (
             <div key={c.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{c.nome}</div>
@@ -4909,6 +4911,14 @@ function CadClientes() {
             </div>
           ))}
         </div>
+        {totalPages > 1 && (
+          <div style={{ display:'flex', gap:6, justifyContent:'center', marginTop:12 }}>
+            <button className="btn btn-s btn-sm" disabled={page===1} onClick={() => setPage(p=>p-1)}>←</button>
+            <span style={{ fontSize:13, color:'var(--t2)', lineHeight:'32px' }}>{page} / {totalPages} ({total})</span>
+            <button className="btn btn-s btn-sm" disabled={page===totalPages} onClick={() => setPage(p=>p+1)}>→</button>
+          </div>
+        )}
+        </>
       )}
       {modal && modal.mode !== 'historico' && (
         <Modal title={modal.mode === 'new' ? 'Novo Cliente' : 'Editar Cliente'} onClose={() => setModal(null)}>

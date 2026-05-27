@@ -62,6 +62,16 @@ export function useDateInfo(dateStr) {
   return { text: fmt, color: 'var(--t2)' }
 }
 
+// Paginação simples
+export function usePagination(items, pageSize = 20) {
+  const [page, setPage] = useState(1)
+  const total = (items || []).length
+  const totalPages = Math.ceil(total / pageSize)
+  const paged = (items || []).slice((page - 1) * pageSize, page * pageSize)
+  const reset = () => setPage(1)
+  return { paged, page, setPage, totalPages, total, reset }
+}
+
 // Prazo de assistência (30 dias)
 export function usePrazo(dataAbertura) {
   if (!dataAbertura) return null

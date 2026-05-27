@@ -767,3 +767,12 @@ export const representantesService = {
     return true
   },
 }
+
+// ── Audit Log ─────────────────────────────────────────────
+export const auditLog = {
+  async registrar(acao, tabela, registroId, usuario_id, dadosAnteriores) {
+    try {
+      await supabase.from('audit_log').insert({ usuario_id, acao, tabela, registro_id: String(registroId), dados_anteriores: dadosAnteriores || null })
+    } catch (_) { /* audit_log pode não existir ainda */ }
+  },
+}
