@@ -6150,6 +6150,7 @@ function NovaVenda({ onClose }) {
   const confirmar = async () => {
     try {
       const status = precisaAprovacao ? 'aguardando_aprovacao' : 'aprovado'
+      const hoje = new Date().toISOString().split('T')[0]
       const nova = await act.run(() => vendasService.create({
         cliente_id: form.cliente_id || null,
         cliente_nome: form.cliente_nome,
@@ -6165,6 +6166,43 @@ function NovaVenda({ onClose }) {
         status,
       }))
       if (itens.length) await vendasService.createItens(itens.map(it => ({ ...it, venda_id: nova.id })))
+
+      // Integração financeira — inserir lançamentos de receita
+      if (!precisaAprovacao) {
+        try {
+          const isAVista = ['Dinheiro','PIX','Cartão Débito'].includes(pagamento.forma)
+          if (pagamento.parcelas > 1 && !isAVista) {
+            const valorParcela = total / pagamento.parcelas
+            const entrada = parseFloat(pagamento.entrada) || 0
+            const lancamentos = []
+            if (entrada > 0) {
+              lancamentos.push({ descricao: `Venda #${nova.id?.slice(0,8)} - entrada`, valor: entrada, vencimento: hoje, status: 'pago', data_pagamento: hoje, tipo: 'receita', loja: form.loja, venda_id: nova.id })
+            }
+            for (let i = 1; i <= pagamento.parcelas; i++) {
+              const venc = new Date(); venc.setMonth(venc.getMonth() + i)
+              lancamentos.push({ descricao: `Venda #${nova.id?.slice(0,8)} - parcela ${i}/${pagamento.parcelas}`, valor: valorParcela, vencimento: venc.toISOString().split('T')[0], status: 'pendente', tipo: 'receita', loja: form.loja, venda_id: nova.id })
+            }
+            for (const l of lancamentos) {
+              await supabase.from('financeiro_lancamentos').insert(l)
+            }
+          } else {
+            await supabase.from('financeiro_lancamentos').insert({ descricao: `Venda #${nova.id?.slice(0,8)} - ${form.cliente_nome}`, valor: total, vencimento: hoje, status: isAVista ? 'pago' : 'pendente', data_pagamento: isAVista ? hoje : null, tipo: 'receita', loja: form.loja, venda_id: nova.id })
+          }
+        } catch (_) { /* financeiro_lancamentos pode não ter todas colunas ainda */ }
+
+        // Baixa de estoque
+        try {
+          for (const it of itens) {
+            await supabase.from('movimentos_estoque').insert({ tipo: 'saida', produto_nome: it.nome, catalogo_id: it.catalogo_id, quantidade: it.quantidade, loja: form.loja, origem: 'venda', referencia_id: nova.id, registrado_por: perfil?.full_name })
+            if (it.catalogo_id) {
+              await supabase.from('catalogo_produtos').select('estoque_atual').eq('id', it.catalogo_id).single().then(({ data }) => {
+                if (data) supabase.from('catalogo_produtos').update({ estoque_atual: Math.max(0, (data.estoque_atual || 0) - it.quantidade) }).eq('id', it.catalogo_id)
+              })
+            }
+          }
+        } catch (_) { /* estoque pode não ter todas colunas ainda */ }
+      }
+
       if (precisaAprovacao) {
         const tel = cfg.whatsapp_aprovacao
         if (tel) {
@@ -6876,7 +6914,13 @@ function EstoqueNF() {
     if (!form.fornecedor_nome || !form.numero_nf) return toast.error('Fornecedor e NF obrigatórios')
     try {
       const nf = await act.run(() => estoqueService.createNFEntrada({ ...form, valor_total: parseFloat(form.valor_total)||0, status:'pendente' }))
-      await estoqueService.createNFItens(itens.map(i => ({ ...i, nf_entrada_id: nf.id, quantidade: parseInt(i.quantidade)||1, preco_unitario: parseFloat(i.preco_unitario)||0 })))
+      const itensSaved = await estoqueService.createNFItens(itens.map(i => ({ ...i, nf_entrada_id: nf.id, quantidade: parseInt(i.quantidade)||1, preco_unitario: parseFloat(i.preco_unitario)||0 })))
+      // Integração: movimentos_estoque e atualização de estoque
+      try {
+        for (const it of itensSaved || []) {
+          await supabase.from('movimentos_estoque').insert({ tipo: 'entrada', produto_nome: it.descricao, quantidade: it.quantidade, origem: 'nf_entrada', referencia_id: nf.id, fornecedor_nome: form.fornecedor_nome })
+        }
+      } catch (_) { /* colunas podem não existir ainda */ }
       toast.success('NF registrada'); setModal(false); reload()
     } catch (e) { toast.error(e.message) }
   }
