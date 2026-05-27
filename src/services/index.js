@@ -836,3 +836,293 @@ export const perfisAcessoService = {
     } catch { return null }
   },
 }
+
+// ── Pedidos Timeline ──────────────────────────────────────
+export const pedidosTimelineService = {
+  async list(pedidoId) {
+    const { data, error } = await supabase
+      .from('pedidos_timeline')
+      .select('*')
+      .eq('pedido_id', pedidoId)
+      .order('created_at')
+    if (error) throw error
+    return data || []
+  },
+  async create(entry) {
+    const { data, error } = await supabase
+      .from('pedidos_timeline')
+      .insert(entry)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Pedidos Follow-up ─────────────────────────────────────
+export const pedidosFollowupService = {
+  async list(pedidoId) {
+    const { data, error } = await supabase
+      .from('pedidos_followup')
+      .select('*')
+      .eq('pedido_id', pedidoId)
+      .order('created_at')
+    if (error) throw error
+    return data || []
+  },
+  async create(entry) {
+    const { data, error } = await supabase
+      .from('pedidos_followup')
+      .insert(entry)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+  async remove(id) {
+    const { error } = await supabase.from('pedidos_followup').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Pedidos Anexos (Storage) ──────────────────────────────
+export const pedidosAnexosService = {
+  async upload(file, pedidoId) {
+    const ext = file.name.split('.').pop()
+    const path = `${pedidoId}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('pedidos-anexos').upload(path, file)
+    if (error) throw error
+    const { data } = supabase.storage.from('pedidos-anexos').getPublicUrl(path)
+    return data.publicUrl
+  },
+  async remove(url) {
+    const path = url.split('/pedidos-anexos/')[1]
+    if (!path) return
+    await supabase.storage.from('pedidos-anexos').remove([path])
+  },
+}
+
+// ── Notificações ──────────────────────────────────────────
+export const notificacoesService = {
+  async list(usuarioId) {
+    const { data, error } = await supabase
+      .from('notificacoes')
+      .select('*')
+      .eq('usuario_id', usuarioId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (error) throw error
+    return data || []
+  },
+  async naoLidas(usuarioId) {
+    const { count, error } = await supabase
+      .from('notificacoes')
+      .select('*', { count: 'exact', head: true })
+      .eq('usuario_id', usuarioId)
+      .eq('lida', false)
+    if (error) return 0
+    return count || 0
+  },
+  async marcarLida(id) {
+    const { error } = await supabase.from('notificacoes').update({ lida: true }).eq('id', id)
+    if (error) throw error
+  },
+  async marcarTodasLidas(usuarioId) {
+    const { error } = await supabase.from('notificacoes').update({ lida: true }).eq('usuario_id', usuarioId).eq('lida', false)
+    if (error) throw error
+  },
+  async create(notif) {
+    const { data, error } = await supabase.from('notificacoes').insert(notif).select().single()
+    if (error) throw error
+    return data
+  },
+  async createBulk(notifs) {
+    if (!notifs.length) return
+    const { error } = await supabase.from('notificacoes').insert(notifs)
+    if (error) throw error
+  },
+}
+
+// ── Chat ──────────────────────────────────────────────────
+export const chatService = {
+  async listConversas(usuarioId) {
+    const { data, error } = await supabase
+      .from('chat_participantes')
+      .select('conversa_id, ultima_leitura, chat_conversas(id, tipo, nome, criado_por, created_at)')
+      .eq('usuario_id', usuarioId)
+    if (error) throw error
+    return (data || []).map(r => ({ ...r.chat_conversas, ultima_leitura: r.ultima_leitura }))
+  },
+  async getOuCriarDireto(meuId, outroId) {
+    const { data: existentes } = await supabase
+      .from('chat_participantes')
+      .select('conversa_id')
+      .eq('usuario_id', meuId)
+    const minhasConversas = (existentes || []).map(r => r.conversa_id)
+    if (minhasConversas.length) {
+      const { data: comOutro } = await supabase
+        .from('chat_participantes')
+        .select('conversa_id, chat_conversas!inner(tipo)')
+        .in('conversa_id', minhasConversas)
+        .eq('usuario_id', outroId)
+      const direto = (comOutro || []).find(r => r.chat_conversas?.tipo === 'direto')
+      if (direto) return direto.conversa_id
+    }
+    const { data: nova, error } = await supabase
+      .from('chat_conversas')
+      .insert({ tipo: 'direto', criado_por: meuId })
+      .select()
+      .single()
+    if (error) throw error
+    await supabase.from('chat_participantes').insert([
+      { conversa_id: nova.id, usuario_id: meuId },
+      { conversa_id: nova.id, usuario_id: outroId },
+    ])
+    return nova.id
+  },
+  async listMensagens(conversaId, limit = 50) {
+    const { data, error } = await supabase
+      .from('chat_mensagens')
+      .select('*')
+      .eq('conversa_id', conversaId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) throw error
+    return (data || []).reverse()
+  },
+  async sendMensagem(msg) {
+    const { data, error } = await supabase.from('chat_mensagens').insert(msg).select().single()
+    if (error) throw error
+    return data
+  },
+  async marcarLeitura(conversaId, usuarioId) {
+    await supabase
+      .from('chat_participantes')
+      .update({ ultima_leitura: new Date().toISOString() })
+      .eq('conversa_id', conversaId)
+      .eq('usuario_id', usuarioId)
+  },
+  async uploadAnexo(file, conversaId) {
+    const ext = file.name.split('.').pop()
+    const path = `${conversaId}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('chat-anexos').upload(path, file)
+    if (error) throw error
+    const { data } = supabase.storage.from('chat-anexos').getPublicUrl(path)
+    return data.publicUrl
+  },
+}
+
+// ── Escalas de Trabalho ───────────────────────────────────
+export const escalasTrabalhoService = {
+  async list(usuarioId) {
+    let q = supabase.from('escalas_trabalho').select('*').eq('ativo', true)
+    if (usuarioId) q = q.eq('usuario_id', usuarioId)
+    const { data, error } = await q.order('dia_semana')
+    if (error) throw error
+    return data || []
+  },
+  async getEscalaHoje(usuarioId) {
+    const diaSemana = new Date().getDay()
+    const { data } = await supabase
+      .from('escalas_trabalho')
+      .select('*')
+      .eq('usuario_id', usuarioId)
+      .eq('ativo', true)
+      .or(`dia_semana.eq.${diaSemana},dia_semana.is.null`)
+      .order('dia_semana', { nullsFirst: false })
+      .limit(1)
+      .single()
+    return data || null
+  },
+  async create(escala) {
+    const { data, error } = await supabase.from('escalas_trabalho').insert(escala).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('escalas_trabalho').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async remove(id) {
+    const { error } = await supabase.from('escalas_trabalho').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+
+// ── Ponto Ocorrências ─────────────────────────────────────
+export const pontoOcorrenciasService = {
+  async list(filtros = {}) {
+    let q = supabase.from('ponto_ocorrencias').select('*, usuarios(full_name)').order('data', { ascending: false })
+    if (filtros.usuario_id) q = q.eq('usuario_id', filtros.usuario_id)
+    if (filtros.loja_id)    q = q.eq('loja_id', filtros.loja_id)
+    if (filtros.status)     q = q.eq('status', filtros.status)
+    if (filtros.data_de)    q = q.gte('data', filtros.data_de)
+    if (filtros.data_ate)   q = q.lte('data', filtros.data_ate)
+    const { data, error } = await q
+    if (error) throw error
+    return data || []
+  },
+  async create(ocorrencia) {
+    const { data, error } = await supabase.from('ponto_ocorrencias').insert(ocorrencia).select().single()
+    if (error) throw error
+    return data
+  },
+  async aprovar(id, aprovadoPor) {
+    const { data, error } = await supabase
+      .from('ponto_ocorrencias')
+      .update({ status: 'aprovado', aprovado_por: aprovadoPor })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+  async rejeitar(id) {
+    const { data, error } = await supabase
+      .from('ponto_ocorrencias')
+      .update({ status: 'rejeitado' })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+}
+
+// ── Cercas Virtuais ───────────────────────────────────────
+export const cercasVirtuaisService = {
+  async list(lojaId) {
+    let q = supabase.from('cercas_virtuais').select('*').eq('ativo', true)
+    if (lojaId) q = q.eq('loja_id', lojaId)
+    const { data, error } = await q
+    if (error) throw error
+    return data || []
+  },
+  async listAll() {
+    const { data, error } = await supabase.from('cercas_virtuais').select('*, lojas(nome)').order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+  async create(cerca) {
+    const { data, error } = await supabase.from('cercas_virtuais').insert(cerca).select().single()
+    if (error) throw error
+    return data
+  },
+  async update(id, updates) {
+    const { data, error } = await supabase.from('cercas_virtuais').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  },
+  async remove(id) {
+    const { error } = await supabase.from('cercas_virtuais').delete().eq('id', id)
+    if (error) throw error
+  },
+  calcularDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371000
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)))
+  },
+}

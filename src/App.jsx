@@ -21,6 +21,9 @@ import {
   npsService, devolucoesService, localizacoesService, consignacoesService,
   acabamentosService, tecidosService, representantesService, auditLog,
   perfisAcessoService,
+  pedidosTimelineService, pedidosFollowupService, pedidosAnexosService,
+  notificacoesService, chatService,
+  escalasTrabalhoService, pontoOcorrenciasService, cercasVirtuaisService,
 } from './services/index'
 
 // ── Filtro global de loja ─────────────────────────────────
