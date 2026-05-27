@@ -898,6 +898,13 @@ function Dashboard({ setPage }) {
 
   const assMinhas   = assAbertas.filter(a => a.tecnico_id === perfil?.id)
 
+  const diasParado = (p) => Math.floor((Date.now() - new Date(p.updated_at || p.created_at).getTime()) / 86400000)
+  const aguardandoGerente      = peds.filter(p => p.status_fluxo === 'aguardando_gerente')
+  const aguardandoFinanceiro   = peds.filter(p => p.status_fluxo === 'aguardando_financeiro')
+  const separadosParaAgendar   = peds.filter(p => p.status_fluxo === 'aprovado_entrega' && !p.data_entrega_agendada)
+  const separacoesPendHoje     = peds.filter(p => p.status_fluxo === 'separado' && p.data_entrega_agendada === hoje)
+  const meusPedidos            = (pedidos || []).filter(p => p.vendedor_id === perfil?.id)
+
   const metaLoja    = (metas||[]).find(m => m.referencia_nome === lojaEf && m.tipo === 'loja')
   const metaLojaPct = metaLoja ? Math.min(100, totalVMes / (metaLoja.valor_meta || 1) * 100) : 0
   const metaPess    = (metas||[]).find(m => m.referencia_id === perfil?.id && m.tipo === 'vendedor')
@@ -969,6 +976,26 @@ function Dashboard({ setPage }) {
         </div>
         {pAtrasados.length > 0 && <Alert type="error" style={{marginBottom:10}}>⚠️ {pAtrasados.length} pedido(s) com entrega atrasada</Alert>}
         {vencHoje.length > 0    && <Alert type="warning" style={{marginBottom:10}}>💳 {vencHoje.length} conta(s) a receber vencendo hoje</Alert>}
+        {aguardandoFinanceiro.length > 0 && (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
+              Ag. aprovação financeira
+              <span style={{ background: 'var(--accent)', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 12 }}>{aguardandoFinanceiro.length}</span>
+            </div>
+            {lPed ? <Spinner /> : aguardandoFinanceiro.slice(0, 4).map(p => {
+              const dias = diasParado(p)
+              return (
+                <div key={p.id} className="li" onClick={() => setSelected(p.id)} style={{ background: dias >= 2 ? 'rgba(251,191,36,0.08)' : undefined }}>
+                  <div className="li-main">
+                    <div className="li-title">{p.cliente}</div>
+                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{p.numero_pedido}{dias >= 2 ? ` · ⏳ Aguardando há ${dias} dia(s)` : ''}</div>
+                  </div>
+                  <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
+                </div>
+              )
+            })}
+          </div>
+        )}
         <div className="grid2" style={{gap:12,marginBottom:12}}>
           <div className="card">
             <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}>
@@ -1018,6 +1045,26 @@ function Dashboard({ setPage }) {
         </div>
         {metaLoja && <div className="card" style={{marginBottom:12}}><div style={{fontWeight:600,marginBottom:8}}>Meta do mês — {lojaEf}</div><MetaBar label="" realizado={totalVMes} meta={metaLoja.valor_meta} pct={metaLojaPct} /></div>}
         {pAtrasados.length > 0 && <Alert type="error" style={{marginBottom:10}}>⚠️ {pAtrasados.length} pedido(s) atrasado(s)</Alert>}
+        {aguardandoGerente.length > 0 && (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
+              Pedidos aguardando sua aprovação
+              <span style={{ background: 'var(--accent)', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 12 }}>{aguardandoGerente.length}</span>
+            </div>
+            {lPed ? <Spinner /> : aguardandoGerente.map(p => {
+              const dias = diasParado(p)
+              return (
+                <div key={p.id} className="li" onClick={() => setSelected(p.id)} style={{ background: dias >= 2 ? 'rgba(251,191,36,0.08)' : undefined }}>
+                  <div className="li-main">
+                    <div className="li-title">{p.cliente}</div>
+                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{p.numero_pedido}{dias >= 2 ? ` · ⏳ Aguardando há ${dias} dia(s)` : ''}</div>
+                  </div>
+                  <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
+                </div>
+              )
+            })}
+          </div>
+        )}
         <div className="grid2" style={{gap:12}}>
           <div className="card">
             <div style={{fontWeight:600,marginBottom:12,display:'flex',justifyContent:'space-between'}}><span>Pedidos hoje</span><Badge variant="bg">{pHoje.length}</Badge></div>
@@ -1050,6 +1097,30 @@ function Dashboard({ setPage }) {
           <StatBox label="Qtd. hoje"     val={minhasVHoje.length} color="var(--accent)" bg="var(--adim)" icon="check" />
         </div>
         {metaPess && <div className="card" style={{marginBottom:12}}><div style={{fontWeight:600,marginBottom:8}}>Minha meta — {new Date().toLocaleDateString('pt-BR',{month:'long'})}</div><MetaBar label="" realizado={totalMMes} meta={metaPess.valor_meta} pct={metaPessPct} /></div>}
+        {meusPedidos.length > 0 && (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 12 }}>Status dos meus pedidos por etapa</div>
+            {[
+              { label: 'Ag. Gerente',    key: 'aguardando_gerente',    color: 'var(--amber)' },
+              { label: 'Ag. Financeiro', key: 'aguardando_financeiro', color: 'var(--blue)'  },
+              { label: 'Ag. Fábrica',   key: 'aguardando_fabrica',    color: 'var(--accent)'},
+              { label: 'Ag. Produto',   key: 'aguardando_produto',    color: 'var(--accent)'},
+              { label: 'Ag. Entrega',   key: 'aprovado_entrega',      color: 'var(--green)' },
+              { label: 'Separado',      key: 'separado',              color: 'var(--green)' },
+              { label: 'Rejeitado',     key: ['rejeitado_gerente','rejeitado_financeiro'], color: 'var(--red)' },
+              { label: 'Entregue',      key: null, color: 'var(--green)', count: meusPedidos.filter(p => p.status === 'Entregue').length },
+            ].map(({ label, key, color, count }) => {
+              const n = count !== undefined ? count : meusPedidos.filter(p => Array.isArray(key) ? key.includes(p.status_fluxo) : p.status_fluxo === key).length
+              if (n === 0) return null
+              return (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 13 }}>{label}</span>
+                  <span style={{ background: color.replace(')', ',0.15)').replace('var(', 'var('), color, fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 12, border: `1px solid ${color}` }}>{n}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
         <div className="card">
           <div style={{fontWeight:600,marginBottom:12}}>Minhas vendas hoje</div>
           {minhasVHoje.length === 0 ? <Empty icon="💰" text="Nenhuma venda registrada hoje" /> :
@@ -1082,6 +1153,49 @@ function Dashboard({ setPage }) {
               </div>
             ))}
         </div>
+        {separadosParaAgendar.length > 0 && (
+          <div className="card" style={{ marginTop: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
+              Aprovados para agendar
+              <span style={{ background: 'var(--accent)', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 12 }}>{separadosParaAgendar.length}</span>
+            </div>
+            {separadosParaAgendar.slice(0, 5).map(p => (
+              <div key={p.id} className="li" onClick={() => setSelected(p.id)}>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.local_separacao||''}</div></div>
+                <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
+              </div>
+            ))}
+            {separadosParaAgendar.length > 5 && <div style={{ fontSize: 12, color: 'var(--t3)', textAlign: 'center', marginTop: 8 }}>+{separadosParaAgendar.length - 5} mais</div>}
+          </div>
+        )}
+        {separacoesPendHoje.length > 0 && (
+          <div className="card" style={{ marginTop: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
+              Separações pendentes para hoje
+              <span style={{ background: 'var(--amber)', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 12 }}>{separacoesPendHoje.length}</span>
+            </div>
+            {separacoesPendHoje.slice(0, 5).map(p => (
+              <div key={p.id} className="li" onClick={() => setSelected(p.id)}>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido}</div></div>
+                <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
+              </div>
+            ))}
+          </div>
+        )}
+        {pAtrasados.length > 0 && (
+          <div className="card" style={{ marginTop: 12, borderLeft: '4px solid var(--red)' }}>
+            <div style={{ fontWeight: 600, marginBottom: 10, color: 'var(--red)', display: 'flex', justifyContent: 'space-between' }}>
+              Pedidos atrasados
+              <span style={{ background: 'var(--red)', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 12 }}>{pAtrasados.length}</span>
+            </div>
+            {pAtrasados.slice(0, 5).map(p => (
+              <div key={p.id} className="li" onClick={() => setSelected(p.id)}>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.data_entrega}</div></div>
+                <Ic n="chev" s={12} style={{ color: 'var(--red)' }} />
+              </div>
+            ))}
+          </div>
+        )}
       </>}
 
       {/* ── Operacional (expedidor / separador / conferente) ── */}
@@ -1111,6 +1225,26 @@ function Dashboard({ setPage }) {
           <StatBox label="Compras pendentes"   val={cmpPend.length}  color="var(--blue)"   bg="var(--bdim)"  icon="truck" />
         </div>
         {pagar7d.length > 0 && <Alert type="error" style={{marginBottom:10}}>💳 {pagar7d.length} conta(s) a pagar nos próximos 7 dias</Alert>}
+        {podeVerFinanceiro && aguardandoFinanceiro.length > 0 && (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
+              Ag. aprovação financeira
+              <span style={{ background: 'var(--accent)', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 12 }}>{aguardandoFinanceiro.length}</span>
+            </div>
+            {lPed ? <Spinner /> : aguardandoFinanceiro.slice(0, 4).map(p => {
+              const dias = diasParado(p)
+              return (
+                <div key={p.id} className="li" onClick={() => setSelected(p.id)} style={{ background: dias >= 2 ? 'rgba(251,191,36,0.08)' : undefined }}>
+                  <div className="li-main">
+                    <div className="li-title">{p.cliente}</div>
+                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{p.numero_pedido}{dias >= 2 ? ` · ⏳ ${dias} dia(s)` : ''}</div>
+                  </div>
+                  <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
+                </div>
+              )
+            })}
+          </div>
+        )}
         <div className="grid2" style={{gap:12}}>
           <div className="card">
             <div style={{fontWeight:600,marginBottom:12}}>A pagar — próximos 7 dias</div>
@@ -5128,8 +5262,11 @@ function MinhaRota() {
           const npsRow = await npsService.create({ pedido_id: active.id, cliente_nome: active.cliente, cliente_telefone: active.telefone, loja: active.local_separacao })
           if (active.telefone && npsRow?.token) {
             const link = `${window.location.origin}${window.location.pathname}#/nps/${npsRow.token}`
-            const msg = encodeURIComponent(`Olá ${active.cliente?.split(' ')[0]}! Sua entrega foi realizada. De 0 a 10, como foi sua experiência? ${link}`)
-            window.open(`https://wa.me/55${active.telefone.replace(/\D/g,'')}?text=${msg}`, '_blank')
+            const msg = `Olá ${active.cliente?.split(' ')[0]}! Sua entrega foi realizada. De 0 a 10, como foi sua experiência? ${link}`
+            const pending = JSON.parse(localStorage.getItem('nps_pendentes') || '[]')
+            pending.push({ waLink: `https://wa.me/55${active.telefone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, cliente: active.cliente, sendAt: Date.now() + 24 * 60 * 60 * 1000 })
+            localStorage.setItem('nps_pendentes', JSON.stringify(pending))
+            toast.success('NPS agendado para envio em 24h')
           }
         } catch {}
       }
@@ -5148,8 +5285,11 @@ function MinhaRota() {
         const npsRow = await npsService.create({ pedido_id: p.id, cliente_nome: p.cliente, cliente_telefone: p.telefone, loja: p.local_separacao })
         if (p.telefone && npsRow?.token) {
           const link = `${window.location.origin}${window.location.pathname}#/nps/${npsRow.token}`
-          const msg = encodeURIComponent(`Olá ${p.cliente?.split(' ')[0]}! Sua montagem foi concluída. De 0 a 10, como foi sua experiência? ${link}`)
-          window.open(`https://wa.me/55${p.telefone.replace(/\D/g,'')}?text=${msg}`, '_blank')
+          const msg = `Olá ${p.cliente?.split(' ')[0]}! Sua montagem foi concluída. De 0 a 10, como foi sua experiência? ${link}`
+          const pending = JSON.parse(localStorage.getItem('nps_pendentes') || '[]')
+          pending.push({ waLink: `https://wa.me/55${p.telefone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, cliente: p.cliente, sendAt: Date.now() + 24 * 60 * 60 * 1000 })
+          localStorage.setItem('nps_pendentes', JSON.stringify(pending))
+          toast.success('NPS agendado para envio em 24h')
         }
       } catch {}
       reload()
@@ -10015,6 +10155,38 @@ function AppContent() {
     const allowed = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
     if (!allowed.includes(page)) navigateTo(allowed[0] || 'dashboard')
   }, [simulatedRole]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!perfil) return
+    try {
+      const pending = JSON.parse(localStorage.getItem('nps_pendentes') || '[]')
+      const now = Date.now()
+      const due = pending.filter(n => n.sendAt <= now)
+      const remaining = pending.filter(n => n.sendAt > now)
+      if (due.length === 0) return
+      localStorage.setItem('nps_pendentes', JSON.stringify(remaining))
+      due.forEach((nps, i) => {
+        setTimeout(() => {
+          toast((t) => (
+            <div style={{ minWidth: 220 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>📊 Enviar NPS ao cliente</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>{nps.cliente}</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button style={{ flex: 1, padding: '6px 10px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  onClick={() => { window.open(nps.waLink, '_blank'); toast.dismiss(t.id) }}>
+                  WhatsApp
+                </button>
+                <button style={{ padding: '6px 10px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
+                  onClick={() => toast.dismiss(t.id)}>
+                  Ignorar
+                </button>
+              </div>
+            </div>
+          ), { duration: 60000, id: `nps-${i}-${nps.cliente}` })
+        }, i * 1500)
+      })
+    } catch {}
+  }, [perfil?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
