@@ -12,12 +12,13 @@ ALTER TABLE pontos ADD COLUMN IF NOT EXISTS justificativa TEXT;
 ALTER TABLE pontos ADD COLUMN IF NOT EXISTS justificativa_aprovada BOOLEAN;
 ALTER TABLE pontos ADD COLUMN IF NOT EXISTS justificativa_aprovada_por UUID REFERENCES usuarios(id);
 ALTER TABLE pontos ADD COLUMN IF NOT EXISTS device_info TEXT;
+-- tipos de marcacao: entrada, saida_almoco, retorno_almoco, saida
 
 -- 2. Escalas de trabalho por funcionário
 CREATE TABLE IF NOT EXISTS escalas_trabalho (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
-  loja_id UUID REFERENCES lojas(id),
+  loja_id UUID,
   dia_semana INTEGER,
   hora_entrada TIME NOT NULL,
   hora_saida_almoco TIME,
@@ -33,7 +34,7 @@ CREATE TABLE IF NOT EXISTS escalas_trabalho (
 CREATE TABLE IF NOT EXISTS ponto_ocorrencias (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
-  loja_id UUID REFERENCES lojas(id),
+  loja_id UUID,
   data DATE NOT NULL,
   tipo TEXT NOT NULL,
   descricao TEXT,
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS ponto_ocorrencias (
 -- 4. Cercas virtuais por loja
 CREATE TABLE IF NOT EXISTS cercas_virtuais (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  loja_id UUID REFERENCES lojas(id) ON DELETE CASCADE,
+  loja_id UUID,
   nome TEXT NOT NULL,
   latitude NUMERIC(10,7) NOT NULL,
   longitude NUMERIC(10,7) NOT NULL,
