@@ -5005,7 +5005,7 @@ function CadFornecedores() {
             <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
             <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj||''} onChange={up('cnpj')} /></div>
             <div className="fg"><label className="fl">Contato</label><input className="fi" value={form.contato||''} onChange={up('contato')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email||''} onChange={up('email')} /></div>
             <div className="fg"><label className="fl">Categoria</label><input className="fi" value={form.categoria||''} onChange={up('categoria')} placeholder="Ex: Móveis, Tecidos..." /></div>
           </div>
@@ -5640,7 +5640,7 @@ function CadRepresentantes() {
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
             <div className="fg"><label className="fl">CPF</label><input className="fi" value={form.cpf||''} onChange={up('cpf')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
+            <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" type="email" value={form.email||''} onChange={up('email')} /></div>
             <div className="fg"><label className="fl">Fornecedor vinculado</label>
               <select className="fi" value={form.fornecedor_id||''} onChange={up('fornecedor_id')}>
