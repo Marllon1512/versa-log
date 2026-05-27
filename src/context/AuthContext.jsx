@@ -3,34 +3,76 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
+// Fallback local quando perfis_acesso ainda não existe no banco
+const PERFIL_FALLBACK = {
+  admin:    { modulos: ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','dp','os','crm','nps','devolucao','relatorios','fila','catalogo','nf'], pode_ver_todas_lojas:true,  pode_ver_financeiro:true,  pode_ver_vendas:true,  pode_ver_metas:true  },
+  diretor:  { modulos: ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','cadastros','vendas','compras','estoque','financeiro','dp','os','crm','nps','devolucao','relatorios','fila'], pode_ver_todas_lojas:true,  pode_ver_financeiro:true,  pode_ver_vendas:true,  pode_ver_metas:true  },
+  gerente:  { modulos: ['dashboard','pedidos','agenda','assistencia','conferencia','equipe','ranking','ponto','cadastros','vendas','estoque','os','crm','nps'], pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:true,  pode_ver_metas:true  },
+  gestor:   { modulos: ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','dp','os','crm','nps','devolucao','relatorios','fila','catalogo','nf'], pode_ver_todas_lojas:true,  pode_ver_financeiro:true,  pode_ver_vendas:true,  pode_ver_metas:true  },
+  assistente_admin: { modulos: ['dashboard','pedidos','agenda','ponto','cadastros','compras','estoque','dp','financeiro_loja'], pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  vendedor: { modulos: ['dashboard','vendas','cadastros','ponto','crm','ranking'], pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:true,  pode_ver_metas:true  },
+  gerente_logistica:    { modulos: ['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque','equipe','ranking'], pode_ver_todas_lojas:true,  pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  supervisor_logistica: { modulos: ['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque'], pode_ver_todas_lojas:true,  pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  expedidor:  { modulos: ['dashboard','separacao','conferencia','ponto'], pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  entregador: { modulos: ['dashboard','rota','pedidos','ponto','ranking'],  pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  motorista:  { modulos: ['dashboard','rota','pedidos','ponto','ranking'],  pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  separador:  { modulos: ['dashboard','separacao','pedidos','ponto'],       pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  conferente: { modulos: ['dashboard','conferencia','pedidos','ponto'],     pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  tecnico:    { modulos: ['dashboard','assistencia','roteiro','ponto'],     pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  atendente:  { modulos: ['dashboard','assistencia','pedidos','agenda','ponto'], pode_ver_todas_lojas:false, pode_ver_financeiro:false, pode_ver_vendas:false, pode_ver_metas:false },
+  contador:   { modulos: ['financeiro','dp','relatorios'],                  pode_ver_todas_lojas:true,  pode_ver_financeiro:true,  pode_ver_vendas:false, pode_ver_metas:false },
+}
+
+function computeModulos(baseModulos, permissoesExtras) {
+  let mods = [...(baseModulos || [])]
+  const extras = permissoesExtras || {}
+  if (extras.modulos_adicionais?.length) mods = [...new Set([...mods, ...extras.modulos_adicionais])]
+  if (extras.modulos_removidos?.length) mods = mods.filter(m => !extras.modulos_removidos.includes(m))
+  return mods
+}
+
+async function fetchPerfilAcesso(perfilNome) {
+  if (!perfilNome) return null
+  try {
+    const { data } = await supabase.from('perfis_acesso').select('*').eq('perfil', perfilNome).single()
+    return data || PERFIL_FALLBACK[perfilNome] || null
+  } catch {
+    return PERFIL_FALLBACK[perfilNome] || null
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [perfil, setPerfil] = useState(null)
+  const [perfilAcesso, setPerfilAcesso] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [simulatedRole, setSimulatedRole] = useState(null) // null = sem simulação
+  const [simulatedRole, setSimulatedRole] = useState(null)
 
   const loadPerfil = async (authUser) => {
-    if (!authUser) { setPerfil(null); return }
-    const { data } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('email', authUser.email)
-      .single()
-    setPerfil(data || { id: authUser.id, email: authUser.email, full_name: authUser.email, role: 'entregador' })
+    if (!authUser) { setPerfil(null); setPerfilAcesso(null); return }
+    const { data } = await supabase.from('usuarios').select('*').eq('email', authUser.email).single()
+    const usuario = data || { id: authUser.id, email: authUser.email, full_name: authUser.email, role: 'entregador' }
+    setPerfil(usuario)
+    const pNome = usuario.perfil || usuario.role || 'vendedor'
+    const pa = await fetchPerfilAcesso(pNome)
+    setPerfilAcesso(pa)
   }
 
   useEffect(() => {
-    // Sessão local → carrega instantâneo, sem esperar rede
     try {
       const saved = sessionStorage.getItem('versa_perfil')
       if (saved) {
-        setPerfil(JSON.parse(saved))
+        const parsed = JSON.parse(saved)
+        setPerfil(parsed)
+        const pNome = parsed.perfil || parsed.role || 'vendedor'
+        setPerfilAcesso(PERFIL_FALLBACK[pNome] || null)
         setLoading(false)
+        // Refresh from DB in background
+        fetchPerfilAcesso(pNome).then(pa => { if (pa) setPerfilAcesso(pa) }).catch(() => {})
         return
       }
     } catch {}
 
-    // Sem sessão local → aguarda Supabase Auth
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         setUser(session?.user ?? null)
@@ -50,46 +92,61 @@ export function AuthProvider({ children }) {
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg))
       return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
     }
-    // Autenticação direto na tabela usuarios (email ou campo usuario + senha_hash)
     try {
       const hash = await sha256(password)
-      const { data: rows } = await supabase
-        .from('usuarios')
-        .select('*')
-        .or(`email.eq.${loginInput},usuario.eq.${loginInput}`)
-      const user = (rows || []).find(u => u.senha_hash === hash)
-      if (user) {
-        const perfil = { id: user.id, email: user.email, full_name: user.full_name, role: user.role }
-        setPerfil(perfil)
-        sessionStorage.setItem('versa_perfil', JSON.stringify(perfil))
-        return perfil
+      const { data: rows } = await supabase.from('usuarios').select('*').or(`email.eq.${loginInput},usuario.eq.${loginInput}`)
+      const u = (rows || []).find(x => x.senha_hash === hash)
+      if (u) {
+        setPerfil(u)
+        sessionStorage.setItem('versa_perfil', JSON.stringify(u))
+        const pNome = u.perfil || u.role || 'vendedor'
+        const pa = await fetchPerfilAcesso(pNome)
+        setPerfilAcesso(pa)
+        return u
       }
     } catch (e) {
       console.warn('[Auth] Erro ao consultar usuarios:', e?.message)
     }
-    // Fallback admin fixo — para acesso de manutenção sem banco
     if (loginInput === 'admin@versalog.com' && password === 'Versa@2026') {
-      const perfil = { id: 'admin-local', email: 'admin@versalog.com', full_name: 'Marllon Augusto', role: 'admin' }
-      setPerfil(perfil)
-      sessionStorage.setItem('versa_perfil', JSON.stringify(perfil))
-      return perfil
+      const adminPerfil = { id: 'admin-local', email: 'admin@versalog.com', full_name: 'Marllon Augusto', role: 'admin', perfil: 'admin' }
+      setPerfil(adminPerfil)
+      sessionStorage.setItem('versa_perfil', JSON.stringify(adminPerfil))
+      setPerfilAcesso(PERFIL_FALLBACK.admin)
+      return adminPerfil
     }
     throw new Error('Email ou senha incorretos')
   }
 
   const logout = async () => {
     try { await supabase.auth.signOut() } catch {}
-    setUser(null)
-    setPerfil(null)
+    setUser(null); setPerfil(null); setPerfilAcesso(null)
     setSimulatedRole(null)
     sessionStorage.removeItem('versa_perfil')
   }
 
-  // Role efetivo: simulação sobrepõe role real para isGestor/isEntregador
-  const effectiveRole = simulatedRole ?? perfil?.role
-  const isGestor     = ['admin', 'gestor'].includes(effectiveRole)
-  const isEntregador = ['entregador', 'motorista'].includes(effectiveRole)
-  const isAdmin      = perfil?.role === 'admin'  // sempre real — controla UI de simulação
+  // Nome do perfil efetivo (considera simulação)
+  const effectiveRole = simulatedRole ?? (perfil?.perfil || perfil?.role)
+
+  // perfilAcesso efetivo: quando simulando usa fallback local
+  const effectivePA = simulatedRole
+    ? (PERFIL_FALLBACK[simulatedRole] || perfilAcesso)
+    : perfilAcesso
+
+  // modulosPermitidos: base do perfil + ajustes personalizados
+  const baseModulos = effectivePA?.modulos || []
+  const permissoesExtras = simulatedRole ? {} : (perfil?.permissoes_extras || {})
+  const modulosPermitidos = computeModulos(baseModulos, permissoesExtras)
+
+  const podeVerTodasLojas = effectivePA?.pode_ver_todas_lojas || false
+  const podeVerFinanceiro = effectivePA?.pode_ver_financeiro  || false
+  const podeVerVendas     = effectivePA?.pode_ver_vendas      || false
+  const podeVerMetas      = effectivePA?.pode_ver_metas       || false
+  const lojaId            = perfil?.loja_id || null
+
+  // Backward compat flags
+  const isGestor     = ['admin','gestor','diretor','gerente','gerente_logistica'].includes(effectiveRole)
+  const isEntregador = ['entregador','motorista'].includes(effectiveRole)
+  const isAdmin      = ['admin'].includes(perfil?.perfil || perfil?.role)
   const isSimulating = simulatedRole !== null
 
   return (
@@ -97,6 +154,9 @@ export function AuthProvider({ children }) {
       user, perfil, loading, login, logout,
       isGestor, isEntregador, isAdmin,
       simulatedRole, setSimulatedRole, isSimulating, effectiveRole,
+      modulosPermitidos, lojaId,
+      podeVerTodasLojas, podeVerFinanceiro, podeVerVendas, podeVerMetas,
+      perfilAcesso: effectivePA,
     }}>
       {children}
     </AuthContext.Provider>
