@@ -7564,13 +7564,15 @@ function DPFolha({ lojaFiltro }) {
   const gerarFolha = async () => {
     const ativos = (funcionarios||[]).filter(f => f.status === 'ativo')
     try {
-      for (const f of ativos) {
-        const sal = parseFloat(f.salario)||0
-        const inss = calcINSS(sal)
-        const irrf = calcIRRF(sal - inss)
-        const liquido = sal - inss - irrf
-        await dpService.upsertFolha({ funcionario_id: f.id, funcionario_nome: f.nome, cargo: f.cargo, mes, salario_bruto: sal, inss, irrf, outros_descontos: 0, liquido, status: 'gerado' })
-      }
+      await act.run(async () => {
+        for (const f of ativos) {
+          const sal = parseFloat(f.salario)||0
+          const inss = calcINSS(sal)
+          const irrf = calcIRRF(sal - inss)
+          const liquido = sal - inss - irrf
+          await dpService.upsertFolha({ funcionario_id: f.id, funcionario_nome: f.nome, cargo: f.cargo, mes, salario_bruto: sal, inss, irrf, outros_descontos: 0, liquido, status: 'gerado' })
+        }
+      })
       toast.success(`Folha gerada para ${ativos.length} funcionários`)
       reload()
     } catch (e) { toast.error(e.message) }
@@ -7582,7 +7584,7 @@ function DPFolha({ lojaFiltro }) {
     <div>
       <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
         <input className="fi" type="month" value={mes} onChange={e => setMes(e.target.value)} style={{ width:'auto' }} />
-        <button className="btn btn-p btn-sm" onClick={gerarFolha}>Gerar Folha</button>
+        <button className="btn btn-p btn-sm" onClick={gerarFolha} disabled={act.loading}>{act.loading ? 'Gerando...' : 'Gerar Folha'}</button>
       </div>
       {loading ? <Spinner /> : (folha||[]).length === 0 ? <Empty text="Nenhuma folha gerada para este mês" /> : (
         <div>
