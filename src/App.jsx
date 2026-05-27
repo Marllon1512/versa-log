@@ -681,7 +681,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
 // ============================================================
 // DASHBOARD
 // ============================================================
-function Dashboard() {
+function Dashboard({ setPage }) {
   const { perfil, isGestor, effectiveRole } = useAuth()
   const { lojaFiltro } = useLojaFiltro()
   const hoje = new Date().toISOString().split('T')[0]
@@ -759,7 +759,7 @@ function Dashboard() {
       {/* Atalhos rápidos */}
       <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
         {ATALHOS.map(a => (
-          <button key={a.page} className="btn btn-s" style={{flex:'1 1 120px',flexDirection:'column',padding:'14px 10px',gap:4,minWidth:100,fontSize:13}}>
+          <button key={a.page} className="btn btn-s" style={{flex:'1 1 120px',flexDirection:'column',padding:'14px 10px',gap:4,minWidth:100,fontSize:13}} onClick={() => setPage?.(a.page)}>
             <span style={{fontSize:20}}>{a.icon}</span>
             <span>{a.label}</span>
           </button>
@@ -8110,7 +8110,7 @@ function AppContent() {
   if (!perfil) return <Login />
 
   const PAGES = {
-    dashboard: <Dashboard />,
+    dashboard: <Dashboard setPage={navigateTo} />,
     pedidos: <Pedidos />,
     separacao: <Separacao />,
     agenda: <Agenda />,
