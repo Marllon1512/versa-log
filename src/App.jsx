@@ -30,6 +30,8 @@ import {
 const LojaCtx = createContext({ lojaFiltro: '', setLojaFiltro: () => {} })
 export const useLojaFiltro = () => useContext(LojaCtx)
 
+const AppCtx = createContext({ navigateTo: () => {}, chatTarget: null, clearChatTarget: () => {}, openChatWith: () => {}, chatUnread: 0, setChatUnread: () => {} })
+
 // Retorna filtro de loja efetivo: automático para usuários sem acesso global
 function useEffectiveLoja() {
   const { perfil, podeVerTodasLojas } = useAuth()
@@ -42,22 +44,22 @@ function useEffectiveLoja() {
 const LOJAS_GRUPO = ['Templum Comércio','Templum Minas','Movelaria Olga','Santa Comércio','Alpendre Mobiliário','Arca Garden','Feirão']
 
 // ── Permissões por perfil (mantido para simulação) ────────
-const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','financeiro_loja','dp','os','fila','crm','catalogo','nf','nps','devolucao','relatorios']
+const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','financeiro_loja','dp','os','fila','crm','catalogo','nf','nps','devolucao','relatorios','chat']
 const PROFILE_PAGES = {
   admin:     _ALL_PAGES, gestor: _ALL_PAGES, diretor: _ALL_PAGES,
-  gerente:   ['dashboard','pedidos','agenda','assistencia','conferencia','equipe','ranking','ponto','cadastros','vendas','estoque','os','crm','nps'],
-  assistente_admin: ['dashboard','pedidos','agenda','ponto','cadastros','compras','estoque','dp','financeiro_loja'],
-  vendedor:  ['dashboard','vendas','cadastros','ponto','crm','ranking'],
-  gerente_logistica:    ['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque','equipe','ranking'],
-  supervisor_logistica: ['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque'],
-  expedidor: ['dashboard','separacao','conferencia','ponto'],
-  entregador:['dashboard','rota','pedidos','ponto','ranking'],
-  motorista: ['dashboard','rota','pedidos','ponto','ranking'],
-  separador: ['dashboard','separacao','pedidos','ponto'],
-  conferente:['dashboard','conferencia','pedidos','ponto'],
-  estoque:   ['dashboard','separacao','pedidos','ponto','estoque'],
-  tecnico:   ['dashboard','roteiro','assistencia','ponto','os'],
-  atendente: ['dashboard','assistencia','pedidos','agenda','ponto'],
+  gerente:   ['dashboard','pedidos','agenda','assistencia','conferencia','equipe','ranking','ponto','cadastros','vendas','estoque','os','crm','nps','chat'],
+  assistente_admin: ['dashboard','pedidos','agenda','ponto','cadastros','compras','estoque','dp','financeiro_loja','chat'],
+  vendedor:  ['dashboard','vendas','cadastros','ponto','crm','ranking','chat'],
+  gerente_logistica:    ['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque','equipe','ranking','chat'],
+  supervisor_logistica: ['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque','chat'],
+  expedidor: ['dashboard','separacao','conferencia','ponto','chat'],
+  entregador:['dashboard','rota','pedidos','ponto','ranking','chat'],
+  motorista: ['dashboard','rota','pedidos','ponto','ranking','chat'],
+  separador: ['dashboard','separacao','pedidos','ponto','chat'],
+  conferente:['dashboard','conferencia','pedidos','ponto','chat'],
+  estoque:   ['dashboard','separacao','pedidos','ponto','estoque','chat'],
+  tecnico:   ['dashboard','roteiro','assistencia','ponto','os','chat'],
+  atendente: ['dashboard','assistencia','pedidos','agenda','ponto','chat'],
   contador:  ['financeiro','dp','relatorios'],
 }
 const PROFILE_LABELS = {
@@ -69,7 +71,7 @@ const PROFILE_LABELS = {
   conferente:'Conferente', estoque:'Estoque', tecnico:'Téc. Assistência',
   atendente:'Atendente', contador:'Contador',
 }
-const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações',cadastros:'Cadastros',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Financeiro',financeiro_loja:'Financeiro (Loja)',dp:'Dep. Pessoal',os:'Ordens de Serviço',fila:'Fila Liberação',crm:'CRM',catalogo:'Catálogo Digital',nf:'Nota Fiscal',nps:'NPS',devolucao:'Devoluções',relatorios:'Relatórios' }
+const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações',cadastros:'Cadastros',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Financeiro',financeiro_loja:'Financeiro (Loja)',dp:'Dep. Pessoal',os:'Ordens de Serviço',fila:'Fila Liberação',crm:'CRM',catalogo:'Catálogo Digital',nf:'Nota Fiscal',nps:'NPS',devolucao:'Devoluções',relatorios:'Relatórios',chat:'Chat' }
 const fmtR = (v) => (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
 
 function LojaSelect({ value, onChange, className, style, placeholder }) {
@@ -236,6 +238,7 @@ const SIDEBAR_GROUPS = [
     { id:'os',       label:'Ordens de Serviço',  icon:'🛠️' },
   ]},
   { group:'SISTEMA', items:[
+    { id:'chat',      label:'Chat',              icon:'💬' },
     { id:'config',    label:'Configurações',     icon:'⚙️' },
     { id:'cadastros', label:'Cadastros',         icon:'🏪' },
     { id:'nf',        label:'Nota Fiscal',       icon:'📄' },
@@ -244,6 +247,7 @@ const SIDEBAR_GROUPS = [
 
 function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole, modulosPermitidos } = useAuth()
+  const { chatUnread } = useContext(AppCtx)
   const allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
   const [msgIdx, setMsgIdx] = useState(0)
 
@@ -336,6 +340,11 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobile
                   >
                     <span className="sb-icon">{it.icon}</span>
                     {!collapsed && <span className="sb-label">{it.label}</span>}
+                    {it.id === 'chat' && chatUnread > 0 && (
+                      <span style={{ marginLeft:'auto', background:'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, minWidth:16, height:16, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px' }}>
+                        {chatUnread > 9 ? '9+' : chatUnread}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1421,6 +1430,7 @@ function gerarPDFSimples(pedido, produtos) {
 // ── Pedido Detalhe ────────────────────────────────────────
 function PedidoDetalhe({ pedidoId, onBack }) {
   const { perfil, isGestor } = useAuth()
+  const { openChatWith } = useContext(AppCtx)
   const [showEdit, setShowEdit] = useState(false)
   const [showTroca, setShowTroca] = useState(false)
   const [showRemarcar, setShowRemarcar] = useState(false)
@@ -1599,6 +1609,23 @@ function PedidoDetalhe({ pedidoId, onBack }) {
             <Btn variant="secondary" size="sm" onClick={() => setShowTroca(true)}><Ic n="edit" s={12} /> Alterar</Btn>
           )}
         </div>
+
+        {pedido.vendedor_nome && (
+          <div className="card-sm" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <span style={{ fontSize: 14 }}>👤</span>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--t3)' }}>Vendedor</div>
+                <div style={{ fontSize: 13 }}>{pedido.vendedor_nome}</div>
+              </div>
+            </div>
+            {pedido.vendedor_id && pedido.vendedor_id !== perfil?.id && (
+              <Btn variant="secondary" size="sm" onClick={() => openChatWith(pedido.vendedor_id, `Sobre o pedido #${pedido.numero_pedido}: `)}>
+                💬 Mensagem
+              </Btn>
+            )}
+          </div>
+        )}
       </div>
 
       {pedido.observacoes && <Alert type="warning" style={{ marginBottom: 14 }}>{pedido.observacoes}</Alert>}
@@ -9164,6 +9191,221 @@ function NPSPublico({ token }) {
 // ============================================================
 // LEMBRETES DE PONTO
 // ============================================================
+// ============================================================
+// CHAT INTERNO
+// ============================================================
+function Chat() {
+  const { perfil } = useAuth()
+  const { chatTarget, clearChatTarget, setChatUnread } = useContext(AppCtx)
+  const { data: usuarios } = useData(() => usuariosService.list(), [])
+  const [conversas, setConversas] = useState([])
+  const [conversaId, setConversaId] = useState(null)
+  const [mensagens, setMensagens] = useState([])
+  const [texto, setTexto] = useState('')
+  const [busca, setBusca] = useState('')
+  const [buscaOpen, setBuscaOpen] = useState(false)
+  const [loadingConv, setLoadingConv] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const [mobileView, setMobileView] = useState('lista')
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const endRef = useRef()
+  const fileRef = useRef()
+
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+
+  const carregarConversas = useCallback(async () => {
+    if (!perfil?.id) return
+    setLoadingConv(true)
+    try {
+      const cvs = await chatService.listarConversas(perfil.id)
+      setConversas(cvs)
+      setChatUnread(cvs.reduce((acc, c) => acc + (c.nao_lidas || 0), 0))
+    } finally { setLoadingConv(false) }
+  }, [perfil?.id, setChatUnread])
+
+  useEffect(() => { carregarConversas() }, [carregarConversas])
+
+  const abrirConversa = useCallback(async (id) => {
+    if (!perfil?.id) return
+    setConversaId(id)
+    setMobileView('chat')
+    setLoadingMsg(true)
+    const msgs = await chatService.listarMensagens(id)
+    setMensagens(msgs)
+    setLoadingMsg(false)
+    chatService.atualizarUltimaLeitura(id, perfil.id).catch(() => {})
+    setConversas(prev => {
+      const updated = prev.map(c => c.id === id ? { ...c, nao_lidas: 0 } : c)
+      setChatUnread(updated.reduce((acc, c) => acc + (c.nao_lidas || 0), 0))
+      return updated
+    })
+  }, [perfil?.id, setChatUnread])
+
+  const abrirComUsuario = useCallback(async (userId, msgInicial) => {
+    if (!perfil?.id || !userId) return
+    try {
+      const id = await chatService.buscarOuCriarConversa(perfil.id, userId)
+      await carregarConversas()
+      await abrirConversa(id)
+      if (msgInicial) setTexto(msgInicial)
+    } catch (e) { toast.error(e.message) }
+  }, [perfil?.id, carregarConversas, abrirConversa])
+
+  useEffect(() => {
+    if (chatTarget && perfil?.id) {
+      abrirComUsuario(chatTarget.userId, chatTarget.mensagem)
+      clearChatTarget()
+    }
+  }, [chatTarget, perfil?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!conversaId) return
+    const id = setInterval(async () => {
+      const msgs = await chatService.listarMensagens(conversaId)
+      setMensagens(msgs)
+    }, 5000)
+    return () => clearInterval(id)
+  }, [conversaId])
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [mensagens])
+
+  const enviar = async (arquivos) => {
+    if ((!texto.trim() && !arquivos?.length) || !conversaId || enviando) return
+    setEnviando(true)
+    const txt = texto.trim()
+    setTexto('')
+    try {
+      await chatService.enviarMensagem({
+        conversa_id: conversaId, usuario_id: perfil.id,
+        usuario_nome: perfil.full_name || perfil.email, texto: txt, arquivos,
+      })
+      const msgs = await chatService.listarMensagens(conversaId)
+      setMensagens(msgs)
+      carregarConversas()
+    } catch (e) { toast.error(e.message); setTexto(txt) } finally { setEnviando(false) }
+  }
+
+  const usuariosFiltrados = (usuarios || []).filter(u =>
+    u.id !== perfil?.id && u.full_name?.toLowerCase().includes(busca.toLowerCase())
+  )
+  const nomeConversa = (c) => c?.nome_exibicao || c?.nome || 'Conversa'
+
+  const Lista = (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', borderRight: isMobile ? 'none' : '1px solid var(--border)', minWidth:0 }}>
+      <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom: buscaOpen ? 8 : 0 }}>
+          <span style={{ fontWeight:700, fontSize:15, flex:1 }}>Mensagens</span>
+          <button className="btn btn-p btn-sm" onClick={() => { setBuscaOpen(o => !o); setBusca('') }}>+ Nova</button>
+        </div>
+        {buscaOpen && (
+          <div style={{ position:'relative' }}>
+            <input className="fi" placeholder="Buscar funcionário..." value={busca}
+              onChange={e => setBusca(e.target.value)} autoFocus />
+            {busca && (
+              <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, zIndex:10, maxHeight:200, overflowY:'auto', boxShadow:'0 4px 20px rgba(0,0,0,.4)' }}>
+                {usuariosFiltrados.length === 0 ? (
+                  <div style={{ padding:'10px 12px', fontSize:12, color:'var(--t3)' }}>Nenhum resultado</div>
+                ) : usuariosFiltrados.slice(0, 8).map(u => (
+                  <div key={u.id} onClick={() => { abrirComUsuario(u.id, ''); setBuscaOpen(false); setBusca('') }}
+                    style={{ padding:'10px 12px', cursor:'pointer', fontSize:13, borderBottom:'1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background='var(--bg3)'}
+                    onMouseLeave={e => e.currentTarget.style.background=''}>
+                    <div style={{ fontWeight:600 }}>{u.full_name}</div>
+                    <div style={{ fontSize:11, color:'var(--t3)' }}>{PROFILE_LABELS[u.role||u.perfil]||u.role||''}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <div style={{ flex:1, overflowY:'auto' }}>
+        {loadingConv ? <div style={{ padding:20 }}><Spinner /></div> :
+         conversas.length === 0 ? <div style={{ padding:20 }}><Empty text="Nenhuma conversa ainda" /></div> :
+         conversas.map(c => (
+          <div key={c.id} onClick={() => abrirConversa(c.id)}
+            style={{ padding:'12px 14px', cursor:'pointer', borderBottom:'1px solid var(--border)', background: conversaId === c.id ? 'var(--bg3)' : 'transparent' }}
+            onMouseEnter={e => { if (conversaId !== c.id) e.currentTarget.style.background='rgba(255,255,255,.02)' }}
+            onMouseLeave={e => { if (conversaId !== c.id) e.currentTarget.style.background='transparent' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+              <div style={{ fontWeight:600, fontSize:13, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{nomeConversa(c)}</div>
+              <div style={{ display:'flex', gap:5, alignItems:'center', flexShrink:0, marginLeft:6 }}>
+                {c.ultima_mensagem && <span style={{ fontSize:10, color:'var(--t3)' }}>{tempoRelativo(c.ultima_mensagem.created_at)}</span>}
+                {c.nao_lidas > 0 && <span style={{ background:'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, minWidth:16, height:16, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px' }}>{c.nao_lidas > 9 ? '9+' : c.nao_lidas}</span>}
+              </div>
+            </div>
+            {c.ultima_mensagem && <div style={{ fontSize:12, color:'var(--t2)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.ultima_mensagem.usuario_nome?.split(' ')[0]}: {c.ultima_mensagem.texto || '📎'}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  const ChatArea = conversaId ? (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minWidth:0 }}>
+      {isMobile && (
+        <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+          <button className="btn btn-s btn-sm btn-ico" onClick={() => { setConversaId(null); setMobileView('lista') }}>←</button>
+          <span style={{ fontWeight:600, fontSize:14 }}>{nomeConversa(conversas.find(c => c.id === conversaId))}</span>
+        </div>
+      )}
+      <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+        {loadingMsg ? <Spinner /> : mensagens.length === 0 ? <Empty text="Nenhuma mensagem ainda" /> :
+          mensagens.map(m => {
+            const minha = m.usuario_id === perfil?.id
+            return (
+              <div key={m.id} style={{ display:'flex', flexDirection:'column', alignItems: minha ? 'flex-end' : 'flex-start' }}>
+                {!minha && <div style={{ fontSize:11, color:'var(--t3)', marginBottom:2, paddingLeft:4 }}>{m.usuario_nome}</div>}
+                <div style={{ maxWidth:'72%', padding:'8px 12px', borderRadius: minha ? '14px 14px 2px 14px' : '14px 14px 14px 2px', background: minha ? 'var(--accent)' : 'var(--bg3)', color: minha ? '#fff' : 'var(--t1)', fontSize:13, lineHeight:1.5, wordBreak:'break-word' }}>
+                  {m.texto && <div>{m.texto}</div>}
+                  {(m.anexos||[]).map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display:'block', fontSize:12, color: minha ? 'rgba(255,255,255,.8)' : 'var(--accent)', marginTop:4 }}>📎 Arquivo {i+1}</a>
+                  ))}
+                </div>
+                <div style={{ fontSize:10, color:'var(--t3)', marginTop:2 }}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
+              </div>
+            )
+          })
+        }
+        <div ref={endRef} />
+      </div>
+      <div style={{ padding:'10px 12px', borderTop:'1px solid var(--border)', display:'flex', gap:6, alignItems:'flex-end', flexShrink:0 }}>
+        <textarea className="fi" style={{ flex:1, resize:'none', minHeight:40, maxHeight:120, lineHeight:1.5, padding:'8px 10px', fontFamily:'var(--font)' }}
+          placeholder="Mensagem... (Enter para enviar, Shift+Enter para nova linha)"
+          value={texto} onChange={e => setTexto(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }} />
+        <input ref={fileRef} type="file" multiple hidden onChange={e => { enviar([...e.target.files]); e.target.value = '' }} />
+        <button className="btn btn-s btn-sm btn-ico" onClick={() => fileRef.current?.click()} title="Anexar" style={{ width:38, height:40, flexShrink:0 }}>📎</button>
+        <button className="btn btn-p btn-sm" onClick={() => enviar()} disabled={enviando} style={{ height:40, padding:'0 14px', flexShrink:0 }}>
+          {enviando ? '...' : '➤'}
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'var(--t3)', fontSize:13 }}>
+      Selecione uma conversa para começar
+    </div>
+  )
+
+  return (
+    <div style={{ height:'calc(100vh - 52px)' }}>
+      {isMobile ? (
+        mobileView === 'lista' ? Lista : ChatArea
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', height:'100%' }}>
+          {Lista}
+          {ChatArea}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function useVerificarLembretesPonto() {
   const { perfil } = useAuth()
 
@@ -9287,6 +9529,14 @@ function AppContent() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [animKey, setAnimKey] = useState(0)
   const [lojaFiltro, setLojaFiltro] = useState('')
+  const [chatTarget, setChatTargetState] = useState(null)
+  const [chatUnread, setChatUnread] = useState(0)
+
+  const clearChatTarget = useCallback(() => setChatTargetState(null), [])
+  const openChatWith = useCallback((userId, mensagem) => {
+    setChatTargetState({ userId, mensagem: mensagem || '' })
+    navigateTo('chat')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigateTo = useCallback((id) => {
     setPage(id)
@@ -9342,9 +9592,11 @@ function AppContent() {
     nps: <Financeiro />,
     devolucao: <Financeiro />,
     relatorios: <Financeiro />,
+    chat: <Chat />,
   }
 
   return (
+    <AppCtx.Provider value={{ navigateTo, chatTarget, clearChatTarget, openChatWith, chatUnread, setChatUnread }}>
     <LojaCtx.Provider value={{ lojaFiltro, setLojaFiltro }}>
       <div className="app">
         <Sidebar
@@ -9366,6 +9618,7 @@ function AppContent() {
         <Toaster />
       </div>
     </LojaCtx.Provider>
+    </AppCtx.Provider>
   )
 }
 

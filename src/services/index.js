@@ -1000,6 +1000,15 @@ export const chatService = {
     if (error) throw error
     const conversaIds = (partic || []).map(r => r.conversa_id)
     if (!conversaIds.length) return []
+    const { data: outros } = await supabase
+      .from('chat_participantes')
+      .select('conversa_id, usuario_id, usuarios(full_name, email)')
+      .in('conversa_id', conversaIds)
+      .neq('usuario_id', usuarioId)
+    const outrosPorConversa = {}
+    for (const o of outros || []) {
+      outrosPorConversa[o.conversa_id] = { id: o.usuario_id, nome: o.usuarios?.full_name || o.usuarios?.email || 'Desconhecido' }
+    }
     const { data: mensagens } = await supabase
       .from('chat_mensagens')
       .select('conversa_id, texto, usuario_nome, created_at')
@@ -1017,11 +1026,14 @@ export const chatService = {
     return (partic || []).map(r => {
       const ultimaLeitura = r.ultima_leitura ? new Date(r.ultima_leitura) : new Date(0)
       const naoLidasCount = (naoLidas || []).filter(m => m.conversa_id === r.conversa_id && new Date(m.created_at) > ultimaLeitura).length
+      const outro = outrosPorConversa[r.conversa_id] || {}
       return {
         ...r.chat_conversas,
         ultima_leitura: r.ultima_leitura,
         ultima_mensagem: ultimaMsgPorConversa[r.conversa_id] || null,
         nao_lidas: naoLidasCount,
+        nome_exibicao: r.chat_conversas?.nome || outro.nome || 'Conversa',
+        outro_usuario_id: outro.id || null,
       }
     }).sort((a, b) => {
       const ta = a.ultima_mensagem?.created_at || a.created_at
