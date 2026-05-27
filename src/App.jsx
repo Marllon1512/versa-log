@@ -30,22 +30,35 @@ export const useLojaFiltro = () => useContext(LojaCtx)
 // ── Lojas do grupo (lista fixa) ───────────────────────────
 const LOJAS_GRUPO = ['Templum Comércio','Templum Minas','Movelaria Olga','Santa Comércio','Alpendre Mobiliário','Arca Garden','Feirão']
 
-// ── Permissões por perfil ─────────────────────────────────
-const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','dp','os','fila','crm','catalogo','nf']
+// ── Permissões por perfil (mantido para simulação) ────────
+const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','financeiro_loja','dp','os','fila','crm','catalogo','nf','nps','devolucao','relatorios']
 const PROFILE_PAGES = {
-  admin:     _ALL_PAGES,
-  gestor:    _ALL_PAGES,
+  admin:     _ALL_PAGES, gestor: _ALL_PAGES, diretor: _ALL_PAGES,
+  gerente:   ['dashboard','pedidos','agenda','assistencia','conferencia','equipe','ranking','ponto','cadastros','vendas','estoque','os','crm','nps'],
+  assistente_admin: ['dashboard','pedidos','agenda','ponto','cadastros','compras','estoque','dp','financeiro_loja'],
+  vendedor:  ['dashboard','vendas','cadastros','ponto','crm','ranking'],
+  gerente_logistica:    ['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque','equipe','ranking'],
+  supervisor_logistica: ['dashboard','pedidos','separacao','roteiro','conferencia','assistencia','mapa','rota','ponto','estoque'],
+  expedidor: ['dashboard','separacao','conferencia','ponto'],
   entregador:['dashboard','rota','pedidos','ponto','ranking'],
   motorista: ['dashboard','rota','pedidos','ponto','ranking'],
   separador: ['dashboard','separacao','pedidos','ponto'],
   conferente:['dashboard','conferencia','pedidos','ponto'],
   estoque:   ['dashboard','separacao','pedidos','ponto','estoque'],
   tecnico:   ['dashboard','roteiro','assistencia','ponto','os'],
-  atendente: ['dashboard','assistencia','pedidos','agenda','ponto','vendas','cadastros','crm'],
-  contador:  ['financeiro','nf'],
+  atendente: ['dashboard','assistencia','pedidos','agenda','ponto'],
+  contador:  ['financeiro','dp','relatorios'],
 }
-const PROFILE_LABELS = { admin:'Diretor',gestor:'Gerente',entregador:'Entregador',motorista:'Motorista',separador:'Separador',conferente:'Conferente',estoque:'Estoque',tecnico:'Téc. Assistência',atendente:'Atendente',contador:'Contador' }
-const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações',cadastros:'Cadastros',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Financeiro',dp:'Dep. Pessoal',os:'Ordens de Serviço',fila:'Fila Liberação',crm:'CRM',catalogo:'Catálogo Digital',nf:'Nota Fiscal' }
+const PROFILE_LABELS = {
+  admin:'Administrador', diretor:'Diretor', gerente:'Gerente de Loja',
+  assistente_admin:'Assistente Adm.', vendedor:'Vendedor',
+  gerente_logistica:'Ger. Logística', supervisor_logistica:'Supervisor Log.',
+  expedidor:'Expedição', gestor:'Gestor',
+  entregador:'Entregador', motorista:'Motorista', separador:'Separador',
+  conferente:'Conferente', estoque:'Estoque', tecnico:'Téc. Assistência',
+  atendente:'Atendente', contador:'Contador',
+}
+const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações',cadastros:'Cadastros',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Financeiro',financeiro_loja:'Financeiro (Loja)',dp:'Dep. Pessoal',os:'Ordens de Serviço',fila:'Fila Liberação',crm:'CRM',catalogo:'Catálogo Digital',nf:'Nota Fiscal',nps:'NPS',devolucao:'Devoluções',relatorios:'Relatórios' }
 const fmtR = (v) => (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
 
 function LojaSelect({ value, onChange, className, style, placeholder }) {
@@ -179,44 +192,48 @@ const MOTIVATIONAL_MSGS = [
 
 const SIDEBAR_GROUPS = [
   { group:'OPERACIONAL', items:[
-    { id:'dashboard', label:'Painel',          icon:'🏠' },
-    { id:'pedidos',   label:'Pedidos',          icon:'📦' },
-    { id:'separacao', label:'Separação',        icon:'📋' },
-    { id:'agenda',    label:'Agenda',           icon:'📅' },
-    { id:'mapa',      label:'Mapa',             icon:'🗺️' },
-    { id:'rota',      label:'Minha Rota',       icon:'🚚' },
-    { id:'fila',      label:'Fila Liberação',   icon:'✅' },
+    { id:'dashboard',  label:'Painel',          icon:'🏠' },
+    { id:'pedidos',    label:'Pedidos',          icon:'📦' },
+    { id:'separacao',  label:'Separação',        icon:'📋' },
+    { id:'agenda',     label:'Agenda',           icon:'📅' },
+    { id:'mapa',       label:'Mapa',             icon:'🗺️' },
+    { id:'rota',       label:'Minha Rota',       icon:'🚚' },
+    { id:'fila',       label:'Fila Liberação',   icon:'✅' },
   ]},
   { group:'COMERCIAL', items:[
-    { id:'vendas',     label:'Vendas (PDV)',    icon:'💰' },
-    { id:'crm',        label:'CRM',             icon:'🎯' },
-    { id:'compras',    label:'Compras',         icon:'🛒' },
-    { id:'estoque',    label:'Estoque',         icon:'📊' },
-    { id:'financeiro', label:'Financeiro',      icon:'💳' },
-    { id:'catalogo',   label:'Catálogo Digital',icon:'🛍️' },
+    { id:'vendas',          label:'Vendas (PDV)',     icon:'💰' },
+    { id:'crm',             label:'CRM',              icon:'🎯' },
+    { id:'compras',         label:'Compras',          icon:'🛒' },
+    { id:'estoque',         label:'Estoque',          icon:'📊' },
+    { id:'financeiro',      label:'Financeiro',       icon:'💳' },
+    { id:'financeiro_loja', label:'Financeiro',       icon:'💳' },
+    { id:'catalogo',        label:'Catálogo Digital', icon:'🛍️' },
+    { id:'nps',             label:'NPS',              icon:'⭐' },
+    { id:'devolucao',       label:'Devoluções',       icon:'↩️' },
+    { id:'relatorios',      label:'Relatórios',       icon:'📈' },
   ]},
   { group:'ATENDIMENTO', items:[
-    { id:'assistencia', label:'Assistência',   icon:'🔧' },
-    { id:'roteiro',     label:'Roteiro',        icon:'📍' },
-    { id:'conferencia', label:'Conferência',   icon:'☑️' },
+    { id:'assistencia', label:'Assistência',    icon:'🔧' },
+    { id:'roteiro',     label:'Roteiro',         icon:'📍' },
+    { id:'conferencia', label:'Conferência',    icon:'☑️' },
   ]},
   { group:'GESTÃO', items:[
-    { id:'equipe',   label:'Equipe',            icon:'👥' },
-    { id:'ranking',  label:'Ranking',           icon:'🏆' },
-    { id:'ponto',    label:'Ponto',             icon:'⏰' },
-    { id:'dp',       label:'Dep. Pessoal',      icon:'👔' },
-    { id:'os',       label:'Ordens de Serviço', icon:'📋' },
+    { id:'equipe',   label:'Equipe',             icon:'👥' },
+    { id:'ranking',  label:'Ranking',            icon:'🏆' },
+    { id:'ponto',    label:'Ponto',              icon:'⏰' },
+    { id:'dp',       label:'Dep. Pessoal',       icon:'👔' },
+    { id:'os',       label:'Ordens de Serviço',  icon:'🛠️' },
   ]},
   { group:'SISTEMA', items:[
-    { id:'config',    label:'Configurações',    icon:'⚙️' },
-    { id:'cadastros', label:'Cadastros',        icon:'🏪' },
-    { id:'nf',        label:'Nota Fiscal',      icon:'📄' },
+    { id:'config',    label:'Configurações',     icon:'⚙️' },
+    { id:'cadastros', label:'Cadastros',         icon:'🏪' },
+    { id:'nf',        label:'Nota Fiscal',       icon:'📄' },
   ]},
 ]
 
 function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
-  const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole } = useAuth()
-  const allowedPages = PROFILE_PAGES[effectiveRole] || _ALL_PAGES
+  const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole, modulosPermitidos } = useAuth()
+  const allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
   const [msgIdx, setMsgIdx] = useState(0)
 
   useEffect(() => {
@@ -270,12 +287,19 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobile
                 onChange={e => setSimulatedRole(e.target.value || null)}
               >
                 <option value="">👁 Admin (real)</option>
-                <option value="gestor">Gestor</option>
+                <option value="diretor">Diretor</option>
+                <option value="gerente">Gerente de Loja</option>
+                <option value="assistente_admin">Assistente Adm.</option>
+                <option value="vendedor">Vendedor</option>
+                <option value="gerente_logistica">Ger. Logística</option>
+                <option value="supervisor_logistica">Supervisor Log.</option>
+                <option value="expedidor">Expedição</option>
                 <option value="entregador">Entregador</option>
                 <option value="separador">Separador</option>
                 <option value="conferente">Conferente</option>
                 <option value="tecnico">Téc. Assistência</option>
                 <option value="atendente">Atendente</option>
+                <option value="contador">Contador</option>
               </select>
             </div>
           )}
@@ -7279,15 +7303,18 @@ function FinanceiroRelatorios() {
 }
 
 function Financeiro() {
-  const [tab, setTab] = useState('resumo')
-  const TABS = [
-    { id:'resumo',label:'Resumo' },
-    { id:'receber',label:'A Receber' },
-    { id:'pagar',label:'A Pagar' },
-    { id:'dre',label:'DRE' },
-    { id:'nps',label:'NPS' },
-    { id:'relatorios',label:'Rentabilidade' },
+  const { effectiveRole } = useAuth()
+  const isAssistenteAdmin = effectiveRole === 'assistente_admin'
+  const [tab, setTab] = useState('receber')
+  const ALL_TABS = [
+    { id:'resumo',     label:'Resumo',        hide: isAssistenteAdmin },
+    { id:'receber',    label:'A Receber' },
+    { id:'pagar',      label:'A Pagar' },
+    { id:'dre',        label:'DRE',           hide: isAssistenteAdmin },
+    { id:'nps',        label:'NPS',           hide: isAssistenteAdmin },
+    { id:'relatorios', label:'Rentabilidade', hide: isAssistenteAdmin },
   ]
+  const TABS = ALL_TABS.filter(t => !t.hide)
   return (
     <div className="page">
       <div className="ph"><h1>Financeiro</h1></div>
@@ -8077,7 +8104,7 @@ function NPSPublico({ token }) {
 // APP ROOT
 // ============================================================
 function AppContent() {
-  const { perfil, loading, isGestor, isEntregador, simulatedRole, effectiveRole } = useAuth()
+  const { perfil, loading, isGestor, isEntregador, simulatedRole, effectiveRole, modulosPermitidos } = useAuth()
   const defaultPage = isEntregador && !isGestor ? 'rota' : 'dashboard'
   const [page, setPage] = useState(defaultPage)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sb_collapsed') === 'true')
@@ -8096,8 +8123,8 @@ function AppContent() {
   }, [perfil?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const allowed = PROFILE_PAGES[effectiveRole] || _ALL_PAGES
-    if (!allowed.includes(page)) navigateTo(allowed[0])
+    const allowed = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
+    if (!allowed.includes(page)) navigateTo(allowed[0] || 'dashboard')
   }, [simulatedRole]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
@@ -8129,12 +8156,16 @@ function AppContent() {
     compras: <Compras />,
     estoque: <Estoque />,
     financeiro: <Financeiro />,
+    financeiro_loja: <Financeiro />,
     dp: <DP />,
     os: <OrdensServico />,
     fila: <FilaLiberacao />,
     crm: <CRM />,
     catalogo: <CatalogoPub />,
     nf: <NotaFiscal />,
+    nps: <Financeiro />,
+    devolucao: <Financeiro />,
+    relatorios: <Financeiro />,
   }
 
   return (
