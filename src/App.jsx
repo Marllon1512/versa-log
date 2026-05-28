@@ -6066,8 +6066,6 @@ function AparenciaConfig() {
   const uploadLogoVersa = async (file) => {
     setUploadingLogoVersa(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Sessão expirada. Faça login novamente.')
       const ext = (file.name.split('.').pop() || 'png').toLowerCase()
       const path = `logo/versa_${Date.now()}.${ext}`
       const { error } = await supabase.storage.from('sistema-assets').upload(path, file, { upsert: true, contentType: file.type || 'image/png' })
@@ -6091,8 +6089,6 @@ function AparenciaConfig() {
   const upload = async (slot, file) => {
     setUploading(p => ({ ...p, [slot]: true }))
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Sessão expirada. Faça login novamente.')
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
       const path = `bg/slot${slot}_${Date.now()}.${ext}`
       const old = cfg[`bg_imagem_${slot}`]
