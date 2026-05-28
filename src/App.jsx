@@ -249,7 +249,7 @@ const SIDEBAR_GROUPS = [
   ]},
 ]
 
-function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen }) {
+function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVersaUrl }) {
   const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole, modulosPermitidos } = useAuth()
   const { chatUnread } = useContext(AppCtx)
   let allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
@@ -271,7 +271,9 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen }) {
         {/* Header */}
         <div style={{ padding:'14px 12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent: collapsed ? 'center' : 'flex-start', gap:10, overflow:'hidden' }}>
-            <div style={{ width:36, height:36, borderRadius:'50%', background:'#000', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', flexShrink:0 }}><Logo size={20} /></div>
+            <div style={{ width:36, height:36, borderRadius:'50%', background: logoVersaUrl ? 'transparent' : '#000', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', flexShrink:0, overflow:'hidden' }}>
+              {logoVersaUrl ? <img src={logoVersaUrl} alt="Logo" style={{ width:36, height:36, objectFit:'contain' }} /> : <Logo size={20} />}
+            </div>
             {!collapsed && (
               <div style={{ overflow:'hidden', flex:1 }}>
                 <div style={{ fontWeight:700, fontSize:13, color:'var(--t1)', letterSpacing:'.05em', whiteSpace:'nowrap' }}>VERSA LOG</div>
@@ -6021,13 +6023,37 @@ function GerenciamentoPermissoes() {
 // ============================================================
 function AparenciaConfig() {
   const { reloadBgConfig } = useContext(AppCtx)
-  const [cfg, setCfg] = useState({ bg_imagem_1: null, bg_imagem_2: null, bg_imagem_3: null, bg_imagem_ativa: null, bg_blur_intensidade: 8, bg_overlay_opacidade: 40 })
+  const [cfg, setCfg] = useState({ bg_imagem_1: null, bg_imagem_2: null, bg_imagem_3: null, bg_imagem_ativa: null, bg_blur_intensidade: 8, bg_overlay_opacidade: 40, logo_versa_url: null })
   const [uploading, setUploading] = useState({})
   const [saving, setSaving] = useState(false)
+  const [uploadingLogoVersa, setUploadingLogoVersa] = useState(false)
 
   useEffect(() => {
     configSistemaService.get().then(d => { if (d) setCfg(p => ({ ...p, ...d })) }).catch(() => {})
   }, [])
+
+  const uploadLogoVersa = async (file) => {
+    setUploadingLogoVersa(true)
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+      const path = `logo/versa_${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('sistema-assets').upload(path, file, { upsert: true, contentType: file.type || 'image/png' })
+      if (error) throw new Error(error.message || JSON.stringify(error))
+      const { data: pub } = supabase.storage.from('sistema-assets').getPublicUrl(path)
+      await configSistemaService.save({ logo_versa_url: pub.publicUrl })
+      setCfg(p => ({ ...p, logo_versa_url: pub.publicUrl }))
+      reloadBgConfig()
+      toast.success('Logo da Versa salva!')
+    } catch (e) { toast.error('Erro: ' + e.message) }
+    setUploadingLogoVersa(false)
+  }
+
+  const removerLogoVersa = async () => {
+    await configSistemaService.save({ logo_versa_url: null }).catch(() => {})
+    setCfg(p => ({ ...p, logo_versa_url: null }))
+    reloadBgConfig()
+    toast.success('Logo removida')
+  }
 
   const upload = async (slot, file) => {
     setUploading(p => ({ ...p, [slot]: true }))
@@ -6095,6 +6121,24 @@ function AparenciaConfig() {
 
   return (
     <div>
+      <div style={{ fontWeight:600, marginBottom:10 }}>Logo da Versa Log</div>
+      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:20, padding:'12px', background:'var(--bg2)', borderRadius:10, border:'1px solid var(--border)' }}>
+        {cfg.logo_versa_url
+          ? <img src={cfg.logo_versa_url} alt="Logo Versa" style={{ height:52, objectFit:'contain', borderRadius:8, background:'#fff', padding:4 }} />
+          : <div style={{ width:52, height:52, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24 }}>🔷</div>
+        }
+        <div>
+          <div style={{ fontSize:13, fontWeight:600, marginBottom:6 }}>Logo principal (sidebar e etiquetas)</div>
+          <div style={{ display:'flex', gap:8 }}>
+            <label style={{ cursor: uploadingLogoVersa ? 'not-allowed' : 'pointer' }}>
+              <input type="file" accept="image/*" style={{ display:'none' }} disabled={uploadingLogoVersa} onChange={e => e.target.files[0] && uploadLogoVersa(e.target.files[0])} />
+              <div className="btn btn-p btn-sm">{uploadingLogoVersa ? 'Enviando...' : '⬆ Upload logo'}</div>
+            </label>
+            {cfg.logo_versa_url && <button className="btn btn-g btn-sm" onClick={removerLogoVersa}>✕ Remover</button>}
+          </div>
+        </div>
+      </div>
+
       <div style={{ fontWeight:600, marginBottom:6 }}>Imagens de Fundo</div>
       <div style={{ fontSize:11, color:'var(--t3)', marginBottom:14, padding:'6px 10px', background:'rgba(110,110,240,0.08)', borderRadius:6 }}>
         ℹ️ Pré-requisito: crie o bucket <b>sistema-assets</b> como <b>público</b> no Supabase Dashboard → Storage → New Bucket e adicione uma policy de INSERT para o papel <b>anon</b>.
@@ -6755,8 +6799,9 @@ function CadLojas() {
   ]
   const { data: lista, loading, reload } = useData(() => lojasService.list(), [])
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', cnpj:'', telefone:'', endereco:'', cidade:'', responsavel:'', ativa:true }
+  const empty = { nome:'', cnpj:'', telefone:'', endereco:'', cidade:'', responsavel:'', ativa:true, logo_url:'' }
   const [form, setForm] = useState(empty)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
@@ -6765,6 +6810,20 @@ function CadLojas() {
       await act.run(() => lojasService.upsertByNome(LOJAS_SEED))
       toast.success('Lojas importadas'); reload()
     } catch (e) { toast.error(e.message) }
+  }
+
+  const uploadLogo = async (file) => {
+    setUploadingLogo(true)
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `lojas/logo_${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('sistema-assets').upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' })
+      if (error) throw new Error(error.message || JSON.stringify(error))
+      const { data: pub } = supabase.storage.from('sistema-assets').getPublicUrl(path)
+      setForm(p => ({ ...p, logo_url: pub.publicUrl }))
+      toast.success('Logo enviada!')
+    } catch (e) { toast.error('Erro no upload: ' + e.message) }
+    setUploadingLogo(false)
   }
 
   const salvar = async () => {
@@ -6786,7 +6845,10 @@ function CadLojas() {
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           {(lista||[]).map(l => (
             <div key={l.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
-              <div style={{ width:36, height:36, borderRadius:8, background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0 }}>{l.nome?.[0]}</div>
+              {l.logo_url
+                ? <img src={l.logo_url} alt={l.nome} style={{ width:36, height:36, borderRadius:8, objectFit:'contain', flexShrink:0, background:'var(--bg3)' }} />
+                : <div style={{ width:36, height:36, borderRadius:8, background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0 }}>{l.nome?.[0]}</div>
+              }
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{l.nome}</div>
                 <div style={{ fontSize:12, color:'var(--t2)' }}>{l.cnpj || 'Sem CNPJ'} · {l.cidade || '—'}</div>
@@ -6799,6 +6861,20 @@ function CadLojas() {
       )}
       {modal && (
         <Modal title={modal.item ? 'Editar Loja' : 'Nova Loja'} onClose={() => setModal(null)}>
+          <div className="fg" style={{ marginBottom:12 }}>
+            <label className="fl">Logo da Loja</label>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              {form.logo_url
+                ? <img src={form.logo_url} alt="logo" style={{ width:48, height:48, borderRadius:8, objectFit:'contain', background:'var(--bg3)', border:'1px solid var(--border)' }} />
+                : <div style={{ width:48, height:48, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🏪</div>
+              }
+              <label style={{ cursor: uploadingLogo ? 'not-allowed' : 'pointer' }}>
+                <input type="file" accept="image/*" style={{ display:'none' }} disabled={uploadingLogo} onChange={e => e.target.files[0] && uploadLogo(e.target.files[0])} />
+                <div className="btn btn-s btn-sm">{uploadingLogo ? 'Enviando...' : '⬆ Upload logo'}</div>
+              </label>
+              {form.logo_url && <button className="btn btn-g btn-sm" onClick={() => setForm(p => ({ ...p, logo_url:'' }))}>✕</button>}
+            </div>
+          </div>
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
             <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj||''} onChange={up('cnpj')} /></div>
@@ -10589,7 +10665,7 @@ function AppContent() {
   const [lojaFiltro, setLojaFiltro] = useState('')
   const [chatTarget, setChatTargetState] = useState(null)
   const [chatUnread, setChatUnread] = useState(0)
-  const [bgConfig, setBgConfig] = useState({ activeUrl: null, blur: 8, overlay: 40 })
+  const [bgConfig, setBgConfig] = useState({ activeUrl: null, blur: 8, overlay: 40, logoVersaUrl: null })
 
   const reloadBgConfig = useCallback(async () => {
     try {
@@ -10597,7 +10673,7 @@ function AppContent() {
       if (d) {
         const key = d.bg_imagem_ativa
         const activeUrl = key ? (d[key] || null) : null
-        setBgConfig({ activeUrl, blur: d.bg_blur_intensidade ?? 8, overlay: d.bg_overlay_opacidade ?? 40 })
+        setBgConfig({ activeUrl, blur: d.bg_blur_intensidade ?? 8, overlay: d.bg_overlay_opacidade ?? 40, logoVersaUrl: d.logo_versa_url || null })
       }
     } catch {}
   }, [])
@@ -10729,6 +10805,7 @@ function AppContent() {
           collapsed={collapsed}
           mobileOpen={mobileOpen}
           setMobileOpen={setMobileOpen}
+          logoVersaUrl={bgConfig.logoVersaUrl}
         />
         <div className="content-area">
           <ContentTopbar page={page} setMobileOpen={setMobileOpen} navigateTo={navigateTo} collapsed={collapsed} onToggle={toggleSidebar} />
