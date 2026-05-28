@@ -6066,6 +6066,8 @@ function AparenciaConfig() {
   const uploadLogoVersa = async (file) => {
     setUploadingLogoVersa(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Sessão expirada. Faça login novamente.')
       const ext = (file.name.split('.').pop() || 'png').toLowerCase()
       const path = `logo/versa_${Date.now()}.${ext}`
       const { error } = await supabase.storage.from('sistema-assets').upload(path, file, { upsert: true, contentType: file.type || 'image/png' })
@@ -6089,9 +6091,10 @@ function AparenciaConfig() {
   const upload = async (slot, file) => {
     setUploading(p => ({ ...p, [slot]: true }))
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Sessão expirada. Faça login novamente.')
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
       const path = `bg/slot${slot}_${Date.now()}.${ext}`
-      // Remove old image if exists
       const old = cfg[`bg_imagem_${slot}`]
       if (old) {
         const seg = old.split('/sistema-assets/')[1]
@@ -6102,7 +6105,7 @@ function AparenciaConfig() {
         .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg', cacheControl: '3600' })
       if (upErr) throw new Error(upErr.message || upErr.error || JSON.stringify(upErr))
       const { data: pub } = supabase.storage.from('sistema-assets').getPublicUrl(path)
-      if (!pub?.publicUrl) throw new Error('Não foi possível obter a URL pública. Verifique se o bucket sistema-assets é público.')
+      if (!pub?.publicUrl) throw new Error('URL pública não obtida. Verifique se o bucket sistema-assets é público.')
       const updates = { [`bg_imagem_${slot}`]: pub.publicUrl }
       await configSistemaService.save(updates)
       setCfg(p => ({ ...p, ...updates }))
@@ -6170,10 +6173,7 @@ function AparenciaConfig() {
         </div>
       </div>
 
-      <div style={{ fontWeight:600, marginBottom:6 }}>Imagens de Fundo</div>
-      <div style={{ fontSize:11, color:'var(--t3)', marginBottom:14, padding:'6px 10px', background:'rgba(110,110,240,0.08)', borderRadius:6 }}>
-        ℹ️ Pré-requisito: crie o bucket <b>sistema-assets</b> como <b>público</b> no Supabase Dashboard → Storage → New Bucket e adicione uma policy de INSERT para o papel <b>anon</b>.
-      </div>
+      <div style={{ fontWeight:600, marginBottom:12 }}>Imagens de Fundo</div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:24 }}>
         {[1,2,3].map(slot => {
           const url = cfg[`bg_imagem_${slot}`]
