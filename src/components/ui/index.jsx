@@ -40,6 +40,8 @@ const BADGE_MAP = {
   Rascunho: 'bg', rascunho: 'bg', Inativo: 'bg', Inativa: 'bg', Normal: 'bg',
   Remarcado: 'bg-amber', Aberto: 'bg-amber', aberta: 'bg-amber',
   Alta: 'bg-amber', Urgente: 'bg-red', 'bg-accent': 'bg-accent',
+  devolvido: 'bg-red', Devolvido: 'bg-red',
+  devolvido_parcial: 'bg-amber', 'Devolvido Parcial': 'bg-amber',
 }
 export function Badge({ status, children, style, variant }) {
   const key = status || children

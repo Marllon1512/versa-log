@@ -45,7 +45,7 @@ function useEffectiveLoja() {
 const LOJAS_GRUPO = ['Templum Comércio','Templum Minas','Movelaria Olga','Santa Comércio','Alpendre Mobiliário','Arca Garden','Feirão']
 
 // ── Permissões por perfil (mantido para simulação) ────────
-const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','financeiro_loja','dp','os','fila','crm','catalogo','nf','nps','devolucao','relatorios','chat']
+const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','financeiro_loja','dp','os','fila','crm','catalogo','nf','nps','relatorios','chat']
 const PROFILE_PAGES = {
   admin:     _ALL_PAGES, gestor: _ALL_PAGES, diretor: _ALL_PAGES,
   gerente:   ['dashboard','pedidos','agenda','assistencia','conferencia','equipe','ranking','ponto','cadastros','vendas','estoque','os','crm','nps','chat'],
@@ -1314,14 +1314,20 @@ function Dashboard({ setPage }) {
 }
 
 function ModalDevolucao({ pedido, onClose, onConfirm }) {
-  const [form, setForm] = useState({ motivo:'arrependimento', descricao:'', valor_devolvido:0, estoque_revertido:true, financeiro_revertido:true })
+  const [form, setForm] = useState({ tipo:'total', motivo:'arrependimento', descricao:'', valor_devolvido:0, estoque_revertido:true, financeiro_revertido:true })
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
   const MOTIVOS = ['arrependimento','defeito','medida errada','item incorreto','outro']
   return (
-    <Modal title="Registrar Devolução" onClose={onClose}>
-      <Alert type="warning" style={{ marginBottom:12 }}>Registrar devolução alterará o status do pedido para "Devolvido".</Alert>
+    <Modal title="Solicitar Devolução" onClose={onClose}>
+      <Alert type="warning" style={{ marginBottom:12 }}>Esta ação registrará a devolução e atualizará o status do pedido.</Alert>
       <div className="grid2">
+        <div className="fg"><label className="fl">Tipo de devolução</label>
+          <select className="fi" value={form.tipo} onChange={up('tipo')}>
+            <option value="total">Total</option>
+            <option value="parcial">Parcial</option>
+          </select>
+        </div>
         <div className="fg"><label className="fl">Motivo</label>
           <select className="fi" value={form.motivo} onChange={up('motivo')}>
             {MOTIVOS.map(m => <option key={m}>{m}</option>)}
@@ -1553,6 +1559,8 @@ function PedidoCard({ pedido: p, onClick, checked, onCheck }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
         <Badge status={p.status} />
+        {p.status_fluxo === 'devolvido' && <Badge status="devolvido" style={{ fontSize: 10 }}>Devolvido</Badge>}
+        {p.status_fluxo === 'devolvido_parcial' && <Badge status="devolvido_parcial" style={{ fontSize: 10 }}>Devolvido Parcial</Badge>}
         {p.prioridade && p.prioridade !== 'Normal' && <Badge status={p.prioridade} style={{ fontSize: 10 }} />}
       </div>
       <Ic n="chev" s={13} style={{ color: 'var(--t3)', flexShrink: 0 }} />
@@ -1814,7 +1822,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
         <div className="row">
           <Btn variant="secondary" size="sm" onClick={() => gerarPDFSimples(pedido, produtos || [])}><Ic n="pdf" s={13} /> Gerar PDF</Btn>
-          {isGestor && pedido?.status === 'Entregue' && <Btn variant="secondary" size="sm" onClick={() => setShowDevolucao(true)}>↩ Devolução</Btn>}
+          {isGestor && (pedido?.status === 'Entregue' || pedido?.status_fluxo === 'entregue') && <Btn variant="secondary" size="sm" onClick={() => setShowDevolucao(true)}>↩ Solicitar Devolução</Btn>}
           {isGestor && <Btn variant="secondary" size="sm" onClick={() => setShowEdit(true)}><Ic n="edit" s={13} /></Btn>}
           {isGestor && <Btn size="sm" style={{ background: 'var(--red)', color: '#fff' }} onClick={() => setShowExcluir(true)}><Ic n="x" s={13} /> Excluir</Btn>}
         </div>
@@ -1830,9 +1838,11 @@ function PedidoDetalhe({ pedidoId, onBack }) {
         <ModalDevolucao pedido={pedido} onClose={() => setShowDevolucao(false)} onConfirm={async (devForm) => {
           try {
             await runAction(async () => {
+              const statusFluxo = devForm.tipo === 'parcial' ? 'devolvido_parcial' : 'devolvido'
+              const statusLabel = devForm.tipo === 'parcial' ? 'Devolvido Parcial' : 'Devolvido'
               await devolucoesService.create({ pedido_id: pedido.id, cliente_nome: pedido.cliente, loja: pedido.local_separacao, registrado_por: perfil?.full_name, ...devForm })
-              await pedidosService.update(pedido.id, { status: 'Devolvido' })
-              await pedidosService.addHistorico(pedido.id, 'Devolvido', `Devolução registrada. Motivo: ${devForm.motivo}`, perfil)
+              await pedidosService.update(pedido.id, { status: statusLabel, status_fluxo: statusFluxo })
+              await pedidosService.addHistorico(pedido.id, statusLabel, `Devolução ${devForm.tipo} registrada. Motivo: ${devForm.motivo}`, perfil)
               reload(); reloadHist(); setShowDevolucao(false)
             })
             toast.success('Devolução registrada')
@@ -10671,7 +10681,6 @@ function AppContent() {
     catalogo: <CatalogoPub />,
     nf: <NotaFiscal />,
     nps: <Financeiro />,
-    devolucao: <Financeiro />,
     relatorios: <Financeiro />,
     chat: <Chat />,
   }
