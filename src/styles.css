@@ -181,39 +181,99 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════════
-   LIGHT MODE — BLOCO NUCLEAR (body.light-mode)
-   Garante que absolutamente nenhum texto fique branco ou
-   cinza claro. Usa * com !important e depois exceções
-   explícitas com !important de maior especificidade.
+   LIGHT MODE — CORREÇÃO DEFINITIVA E ABRANGENTE
+   body.light-mode é aplicado ao <body> via JS e pelo
+   script anti-flash do index.html.
+   REGRA: todo texto visível = preto ou cinza escuro.
+   EXCEÇÃO: apenas badges de status coloridos.
    ══════════════════════════════════════════════════════════ */
 
-/* 1. Todos os elementos: preto */
-body.light-mode * { color: #111111 !important; }
+/* ─── 1. BASE UNIVERSAL ────────────────────────────────────
+   Cobre TODOS os elementos, incluindo inline styles do React.
+   !important sobrescreve até style={{ color:'white' }}.      */
+body.light-mode,
+body.light-mode *,
+body.light-mode *::before,
+body.light-mode *::after { color: #111111 !important; }
 
-/* 2. SVG: stroke segue currentColor (Lucide já faz isso) */
+/* ─── 2. SVG — stroke segue currentColor ─────────────────── */
 body.light-mode svg,
-body.light-mode svg path,
-body.light-mode svg line,
-body.light-mode svg circle,
-body.light-mode svg polyline,
-body.light-mode svg rect,
-body.light-mode svg ellipse { stroke: currentColor; }
+body.light-mode svg * { stroke: currentColor !important; }
 
-/* 3. Sidebar: labels de grupo levemente acinzentados */
-body.light-mode .sb-group-label { color: #555555 !important; }
+/* ─── 3. TEXTOS GERAIS (reforço explícito) ───────────────── */
+body.light-mode p,
+body.light-mode span,
+body.light-mode div,
+body.light-mode a,
+body.light-mode strong,
+body.light-mode em,
+body.light-mode small,
+body.light-mode li,
+body.light-mode dt,
+body.light-mode dd { color: #111111 !important; }
 
-/* 4. Item ativo da sidebar: mantém o roxo (accent) */
-body.light-mode .sb-item.active,
-body.light-mode .sb-item.active * { color: var(--accent) !important; }
+/* ─── 4. TÍTULOS ─────────────────────────────────────────── */
+body.light-mode h1, body.light-mode h2,
+body.light-mode h3, body.light-mode h4,
+body.light-mode h5, body.light-mode h6 { color: #111111 !important; }
 
-/* 5. Texto secundário */
+/* ─── 5. LABELS E TEXTOS SECUNDÁRIOS ────────────────────── */
+body.light-mode label,
+body.light-mode .fl { color: #333333 !important; }
 body.light-mode .ph-sub,
 body.light-mode .li-sub,
-body.light-mode .fl,
 body.light-mode .stat-lbl,
-body.light-mode .stat-l { color: #444444 !important; }
+body.light-mode .stat-l { color: #555555 !important; }
 
-/* 6. Badges de status — mantêm suas cores originais */
+/* ─── 6. SIDEBAR ─────────────────────────────────────────── */
+body.light-mode .sb-group-label,
+body.light-mode .sb-group-label * { color: #555555 !important; }
+body.light-mode .sb-item,
+body.light-mode .sb-item *,
+body.light-mode .sb-label { color: #111111 !important; }
+
+/* ─── 7. FORMULÁRIOS ─────────────────────────────────────── */
+body.light-mode .fi,
+body.light-mode input,
+body.light-mode select,
+body.light-mode textarea,
+body.light-mode option { color: #111111 !important; }
+body.light-mode input::placeholder,
+body.light-mode textarea::placeholder,
+body.light-mode .fi::placeholder { color: #888888 !important; }
+
+/* ─── 8. TABELAS ─────────────────────────────────────────── */
+body.light-mode th, body.light-mode .tbl th,
+body.light-mode th * { color: #555555 !important; }
+body.light-mode td, body.light-mode .tbl td,
+body.light-mode td * { color: #111111 !important; }
+
+/* ─── 9. CARDS, MODAIS, PÁGINAS ──────────────────────────── */
+body.light-mode .card,     body.light-mode .card *,
+body.light-mode .card-sm,  body.light-mode .card-sm *,
+body.light-mode .modal-box,body.light-mode .modal-box *,
+body.light-mode .mh,       body.light-mode .mh *,
+body.light-mode .page,     body.light-mode .page *,
+body.light-mode .stat,     body.light-mode .stat *,
+body.light-mode .rank-item,body.light-mode .rank-item * { color: #111111 !important; }
+body.light-mode .rank-num { color: #555555 !important; }
+
+/* ─── 10. TOPBAR ─────────────────────────────────────────── */
+body.light-mode .content-topbar,
+body.light-mode .content-topbar * { color: #111111 !important; }
+
+/* ─── 11. BOTÕES SECUNDÁRIOS E FILTROS ───────────────────── */
+body.light-mode .btn-s, body.light-mode .btn-s *,
+body.light-mode .btn-g, body.light-mode .btn-g *,
+body.light-mode .fb,    body.light-mode .fb * { color: #111111 !important; }
+
+/* ═══════════════════════════════════════════════════════════
+   EXCEÇÕES — elementos com fundo colorido mantêm sua cor
+   Devem vir APÓS as regras acima (mesma especificidade →
+   a última declaração vence; maior especificidade tb vence).
+   ═══════════════════════════════════════════════════════════ */
+
+/* Badges coloridos de status (Aberto, Pendente, Entregue…) */
 body.light-mode .bg-green,
 body.light-mode .bg-green * { color: var(--green) !important; }
 body.light-mode .bg-red,
@@ -225,26 +285,25 @@ body.light-mode .bg-blue * { color: var(--blue) !important; }
 body.light-mode .bg-accent,
 body.light-mode .bg-accent * { color: var(--accent) !important; }
 
-/* 7. Alertas semânticos — mantêm suas cores */
-body.light-mode .alert-w,
-body.light-mode .alert-w * { color: var(--amber) !important; }
-body.light-mode .alert-e,
-body.light-mode .alert-e * { color: var(--red) !important; }
-body.light-mode .alert-s,
-body.light-mode .alert-s * { color: var(--green) !important; }
+/* Alertas semânticos */
+body.light-mode .alert-w, body.light-mode .alert-w * { color: var(--amber) !important; }
+body.light-mode .alert-e, body.light-mode .alert-e * { color: var(--red) !important; }
+body.light-mode .alert-s, body.light-mode .alert-s * { color: var(--green) !important; }
 
-/* 8. Botão primário (fundo roxo) — texto branco */
+/* Botão primário — fundo roxo exige texto branco */
 body.light-mode .btn-p,
 body.light-mode .btn-p * { color: #ffffff !important; }
 
-/* 9. Toasts — sempre branco */
+/* Toasts — fundo colorido, texto sempre branco */
 body.light-mode .toast,
 body.light-mode .toast * { color: #ffffff !important; }
 
-/* 10. Placeholders */
-body.light-mode input::placeholder,
-body.light-mode textarea::placeholder,
-body.light-mode .fi::placeholder { color: #888888 !important; }
+/* Item ativo da sidebar — único item roxo */
+body.light-mode .sb-item.active,
+body.light-mode .sb-item.active * { color: var(--accent) !important; }
+
+/* Grupo ativo da sidebar */
+body.light-mode .sb-group-label.active-group { color: var(--accent) !important; }
 
 /* ────────────────────────────────────────────────────────── */
 
