@@ -248,7 +248,8 @@ const SIDEBAR_GROUPS = [
 function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole, modulosPermitidos } = useAuth()
   const { chatUnread } = useContext(AppCtx)
-  const allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
+  let allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
+  if (effectiveRole !== 'contador' && !allowedPages.includes('chat')) allowedPages = [...allowedPages, 'chat']
   const [msgIdx, setMsgIdx] = useState(0)
 
   useEffect(() => {
