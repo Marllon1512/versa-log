@@ -74,6 +74,7 @@ const PROFILE_LABELS = {
 }
 const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto Eletrônico',config:'Configurações',cadastros:'Cadastros',vendas:'Vendas e PDV',compras:'Compras',estoque:'Estoque',financeiro:'Financeiro',financeiro_loja:'Financeiro',dp:'Departamento Pessoal',os:'Ordens de Serviço',fila:'Fila de Liberação',crm:'CRM',catalogo:'Catálogo Digital',nf:'Nota Fiscal',nps:'NPS',relatorios:'Relatórios',chat:'Chat' }
 const fmtR = (v) => (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+const fmtNPedido = (n) => n ? String(n).padStart(6, '0') : '—'
 
 function LojaSelect({ value, onChange, className, style, placeholder }) {
   const [outra, setOutra] = useState(() => !!(value && !LOJAS_GRUPO.includes(value)))
@@ -641,7 +642,7 @@ function SeparacaoCard({ pedido: p, onClick }) {
       </div>
       <div className="li-main">
         <div className="li-title">{p.cliente}</div>
-        <div className="li-sub">#{p.numero_pedido}{p.local_separacao ? ` · ${p.local_separacao}` : ''}</div>
+        <div className="li-sub">#{fmtNPedido(p.numero_pedido)}{p.local_separacao ? ` · ${p.local_separacao}` : ''}</div>
         {p.data_entrega && (
           <div style={{ fontSize: 11, color: 'var(--t2)', marginTop: 2 }}>
             📅 {new Date(p.data_entrega + 'T12:00').toLocaleDateString('pt-BR')}
@@ -728,7 +729,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
       </div>
 
       <h1 style={{ fontSize: 20, marginBottom: 2 }}>{pedido.cliente}</h1>
-      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 4 }}>Pedido #{pedido.numero_pedido}</div>
+      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 4 }}>Pedido #{fmtNPedido(pedido.numero_pedido)}</div>
       <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
         📅 Entrega: {pedido.data_entrega ? new Date(pedido.data_entrega + 'T12:00').toLocaleDateString('pt-BR') : '—'}
       </div>
@@ -991,7 +992,7 @@ function Dashboard({ setPage }) {
                 <div key={p.id} className="li" onClick={() => setSelected(p.id)} style={{ background: dias >= 2 ? 'rgba(251,191,36,0.08)' : undefined }}>
                   <div className="li-main">
                     <div className="li-title">{p.cliente}</div>
-                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{p.numero_pedido}{dias >= 2 ? ` · ⏳ Aguardando há ${dias} dia(s)` : ''}</div>
+                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{fmtNPedido(p.numero_pedido)}{dias >= 2 ? ` · ⏳ Aguardando há ${dias} dia(s)` : ''}</div>
                   </div>
                   <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
                 </div>
@@ -1007,7 +1008,7 @@ function Dashboard({ setPage }) {
             {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
               pHoje.slice(0,5).map(p => (
                 <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
-                  <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.loja||p.local_separacao}</div></div>
+                  <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{fmtNPedido(p.numero_pedido)} · {p.loja||p.local_separacao}</div></div>
                   <Badge status={p.status} />
                 </div>
               ))}
@@ -1060,7 +1061,7 @@ function Dashboard({ setPage }) {
                 <div key={p.id} className="li" onClick={() => setSelected(p.id)} style={{ background: dias >= 2 ? 'rgba(251,191,36,0.08)' : undefined }}>
                   <div className="li-main">
                     <div className="li-title">{p.cliente}</div>
-                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{p.numero_pedido}{dias >= 2 ? ` · ⏳ Aguardando há ${dias} dia(s)` : ''}</div>
+                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{fmtNPedido(p.numero_pedido)}{dias >= 2 ? ` · ⏳ Aguardando há ${dias} dia(s)` : ''}</div>
                   </div>
                   <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
                 </div>
@@ -1074,7 +1075,7 @@ function Dashboard({ setPage }) {
             {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
               pHoje.slice(0,5).map(p => (
                 <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
-                  <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido}</div></div>
+                  <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{fmtNPedido(p.numero_pedido)}</div></div>
                   <Badge status={p.status} />
                 </div>
               ))}
@@ -1151,7 +1152,7 @@ function Dashboard({ setPage }) {
           {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
             pHoje.map(p => (
               <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
-                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.entregador_nome||'Sem entregador'}</div></div>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{fmtNPedido(p.numero_pedido)} · {p.entregador_nome||'Sem entregador'}</div></div>
                 <Badge status={p.status} />
               </div>
             ))}
@@ -1164,7 +1165,7 @@ function Dashboard({ setPage }) {
             </div>
             {separadosParaAgendar.slice(0, 5).map(p => (
               <div key={p.id} className="li" onClick={() => setSelected(p.id)}>
-                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.local_separacao||''}</div></div>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{fmtNPedido(p.numero_pedido)} · {p.local_separacao||''}</div></div>
                 <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
               </div>
             ))}
@@ -1179,7 +1180,7 @@ function Dashboard({ setPage }) {
             </div>
             {separacoesPendHoje.slice(0, 5).map(p => (
               <div key={p.id} className="li" onClick={() => setSelected(p.id)}>
-                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido}</div></div>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{fmtNPedido(p.numero_pedido)}</div></div>
                 <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
               </div>
             ))}
@@ -1193,7 +1194,7 @@ function Dashboard({ setPage }) {
             </div>
             {pAtrasados.slice(0, 5).map(p => (
               <div key={p.id} className="li" onClick={() => setSelected(p.id)}>
-                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.data_entrega}</div></div>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{fmtNPedido(p.numero_pedido)} · {p.data_entrega}</div></div>
                 <Ic n="chev" s={12} style={{ color: 'var(--red)' }} />
               </div>
             ))}
@@ -1213,7 +1214,7 @@ function Dashboard({ setPage }) {
           {lPed ? <Spinner /> : pHoje.filter(p=>!['Entregue','Cancelado'].includes(p.status)).length === 0 ? <Empty icon="📋" text="Nenhum pedido na fila" /> :
             pHoje.filter(p=>!['Entregue','Cancelado'].includes(p.status)).map(p => (
               <div className="li" key={p.id}>
-                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.loja||p.local_separacao}</div></div>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{fmtNPedido(p.numero_pedido)} · {p.loja||p.local_separacao}</div></div>
                 <Badge status={p.status} />
               </div>
             ))}
@@ -1240,7 +1241,7 @@ function Dashboard({ setPage }) {
                 <div key={p.id} className="li" onClick={() => setSelected(p.id)} style={{ background: dias >= 2 ? 'rgba(251,191,36,0.08)' : undefined }}>
                   <div className="li-main">
                     <div className="li-title">{p.cliente}</div>
-                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{p.numero_pedido}{dias >= 2 ? ` · ⏳ ${dias} dia(s)` : ''}</div>
+                    <div className="li-sub" style={{ color: dias >= 2 ? 'var(--amber)' : undefined }}>#{fmtNPedido(p.numero_pedido)}{dias >= 2 ? ` · ⏳ ${dias} dia(s)` : ''}</div>
                   </div>
                   <Ic n="chev" s={12} style={{ color: 'var(--t3)' }} />
                 </div>
@@ -1303,7 +1304,7 @@ function Dashboard({ setPage }) {
           {lPed ? <Spinner /> : pHoje.length === 0 ? <Empty icon="📦" text="Nenhum pedido hoje" /> :
             pHoje.map(p => (
               <div className="li" key={p.id} onClick={() => setSelected(p.id)}>
-                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{p.numero_pedido} · {p.endereco}</div></div>
+                <div className="li-main"><div className="li-title">{p.cliente}</div><div className="li-sub">#{fmtNPedido(p.numero_pedido)} · {p.endereco}</div></div>
                 <Badge status={p.status} />
               </div>
             ))}
@@ -1399,7 +1400,7 @@ function Pedidos() {
 
   // Mapeia campos da UI para colunas reais da tabela pedidos
   const mapPedidoDB = (dados) => {
-    const COLS = ['numero_pedido','cliente','telefone','endereco','cidade','data_entrega','status','prioridade','observacoes','local_separacao','entregador_id','entregador_nome','motivo_remarcacao','motivo_cancelamento']
+    const COLS = ['cliente','telefone','endereco','cidade','data_entrega','status','prioridade','observacoes','local_separacao','entregador_id','entregador_nome','motivo_remarcacao','motivo_cancelamento']
     return Object.fromEntries(COLS.filter(k => dados[k] !== undefined).map(k => [k, dados[k]]))
   }
   // Mapeia produto da UI → colunas reais de produtos (sem acabamento/medida)
@@ -1553,7 +1554,7 @@ function PedidoCard({ pedido: p, onClick, checked, onCheck }) {
       )}
       <div className="li-main">
         <div className="li-title">{p.cliente}</div>
-        <div className="li-sub">#{p.numero_pedido} · {p.endereco}{p.cidade ? `, ${p.cidade}` : ''}</div>
+        <div className="li-sub">#{fmtNPedido(p.numero_pedido)} · {p.endereco}{p.cidade ? `, ${p.cidade}` : ''}</div>
         {d && <div style={{ fontSize: 11, color: d.color, marginTop: 2 }}>📅 {d.text}</div>}
         {p.local_separacao && <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 1 }}>🏪 {p.local_separacao}</div>}
       </div>
@@ -1852,7 +1853,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
 
       <Badge status={pedido.status} style={{ marginBottom: 8 }} />
       <h1 style={{ fontSize: 20, marginBottom: 2 }}>{pedido.cliente}</h1>
-      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 4 }}>Pedido #{pedido.numero_pedido}</div>
+      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 4 }}>Pedido #{fmtNPedido(pedido.numero_pedido)}</div>
       {d && <div style={{ fontSize: 13, color: d.color, marginBottom: 4 }}>📅 Entrega: {d.text}</div>}
       {pedido.local_separacao && <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>🏪 {pedido.local_separacao}</div>}
 
@@ -2143,7 +2144,7 @@ function HistoricoCliente({ pedidos, pedidoAtualId }) {
       {outros.slice(0, 6).map(p => (
         <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>#{p.numero_pedido}</div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>#{fmtNPedido(p.numero_pedido)}</div>
             <div style={{ fontSize: 12, color: 'var(--t2)' }}>
               {p.data_entrega ? new Date(p.data_entrega + 'T12:00').toLocaleDateString('pt-BR') : '—'}
               {p.local_separacao ? ` · ${p.local_separacao}` : ''}
@@ -2209,7 +2210,7 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
       <div className="grid2">
         <div className="fg">
           <label className="fl">Nº Pedido</label>
-          <input className="fi" value={form.numero_pedido} onChange={up('numero_pedido')} placeholder="Ex: 40001" />
+          <input className="fi" value={form.numero_pedido ? fmtNPedido(form.numero_pedido) : ''} disabled placeholder="Gerado automaticamente" style={{ opacity: 0.6 }} />
         </div>
         <div className="fg">
           <label className="fl">Prioridade</label>
@@ -4161,7 +4162,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 100, maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,.25)' }}>
             {pedidosFiltrados.map(p => (
               <div key={p.id} onMouseDown={() => selecionarPedido(p)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                <span style={{ fontWeight: 600 }}>#{p.numero_pedido}</span> — {p.cliente}
+                <span style={{ fontWeight: 600 }}>#{fmtNPedido(p.numero_pedido)}</span> — {p.cliente}
                 {p.local_separacao && <span style={{ color: 'var(--t3)', marginLeft: 6, fontSize: 11 }}>{p.local_separacao}</span>}
               </div>
             ))}
@@ -4541,7 +4542,7 @@ function NovoRoteiroModal({ onClose, onSave, tipo = 'entregas' }) {
                   return (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 4px', borderBottom: '1px solid var(--border)' }}>
                       <div style={{ fontSize: 12 }}>
-                        <span style={{ fontWeight: 500 }}>#{p.numero_pedido}</span> — {p.cliente}
+                        <span style={{ fontWeight: 500 }}>#{fmtNPedido(p.numero_pedido)}</span> — {p.cliente}
                         {p.local_separacao && <span style={{ color: 'var(--t3)', marginLeft: 6 }}>{p.local_separacao}</span>}
                       </div>
                       <Btn size="sm" variant={adicionado ? 'secondary' : 'primary'} onClick={() => addSeparado(p)} disabled={adicionado}>{adicionado ? '✓' : '+'}</Btn>
@@ -5099,7 +5100,7 @@ function Mapa() {
                       <div style={{ fontSize: 12, fontWeight: 500 }}>{p.cliente?.split(' ').slice(0, 2).join(' ')}</div>
                       <Badge status={p.status} style={{ fontSize: 10 }} />
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--t2)' }}>#{p.numero_pedido}</div>
+                    <div style={{ fontSize: 11, color: 'var(--t2)' }}>#{fmtNPedido(p.numero_pedido)}</div>
                     <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>{p.endereco}</div>
                   </div>
                 ))}
@@ -5488,7 +5489,7 @@ function MinhaRota() {
                 <div className="li" key={p.id}>
                   <div className="li-main">
                     <div className="li-title">{p.cliente}</div>
-                    <div className="li-sub">#{p.numero_pedido} · {p.endereco}</div>
+                    <div className="li-sub">#{fmtNPedido(p.numero_pedido)} · {p.endereco}</div>
                   </div>
                   <Btn size="sm" onClick={() => iniciarEntrega(p)}>Iniciar</Btn>
                 </div>
@@ -5504,7 +5505,7 @@ function MinhaRota() {
                 <div className="card" key={p.id} style={{ marginBottom:8, display:'flex', alignItems:'center', gap:12 }}>
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:600, fontSize:13 }}>{p.cliente}</div>
-                    <div style={{ fontSize:12, color:'var(--t2)' }}>#{p.numero_pedido} · {p.endereco}</div>
+                    <div style={{ fontSize:12, color:'var(--t2)' }}>#{fmtNPedido(p.numero_pedido)} · {p.endereco}</div>
                   </div>
                   <Btn size="sm" style={{ background:'var(--orange,#f97316)', color:'#fff' }} loading={actionLoading} onClick={() => concluirMontagem(p)}>
                     ✓ Montagem feita
@@ -5522,7 +5523,7 @@ function MinhaRota() {
                 <div className="li" key={p.id} style={{ opacity: 0.6, cursor: 'default' }}>
                   <div className="li-main">
                     <div className="li-title">{p.cliente}</div>
-                    <div className="li-sub">#{p.numero_pedido}</div>
+                    <div className="li-sub">#{fmtNPedido(p.numero_pedido)}</div>
                   </div>
                   <Badge status="Entregue" />
                 </div>
@@ -6588,6 +6589,7 @@ function CadCatalogo() {
               <div style={{ flex:1 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                   <span style={{ fontWeight:600, fontSize:14 }}>{p.nome}</span>
+                  {p.codigo_produto && <span style={{ fontSize:11, color:'var(--t3)', fontFamily:'monospace' }}>#{p.codigo_produto}</span>}
                   <Badge variant="bg">{p.tipo}</Badge>
                   {!temFoto && <Badge variant="bg-red">Sem foto</Badge>}
                   {p.estoque_atual <= p.estoque_minimo && <Badge variant="bg-red">Estoque baixo</Badge>}
@@ -9868,7 +9870,7 @@ function FilaLiberacao() {
               <div key={p.id} className="card">
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
                   <div>
-                    <div style={{ fontWeight:700 }}>Pedido #{p.numero_pedido}</div>
+                    <div style={{ fontWeight:700 }}>Pedido #{fmtNPedido(p.numero_pedido)}</div>
                     <div style={{ fontSize:13, color:'var(--t2)' }}>{p.cliente} · {p.loja}</div>
                     <div style={{ fontSize:12, color:'var(--t2)' }}>Entrega: {fmtData(p.data_entrega)}</div>
                   </div>

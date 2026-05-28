@@ -296,7 +296,8 @@ export const catalogoService = {
     return data || []
   },
   async create(p) {
-    const { data, error } = await supabase.from('catalogo_produtos').insert(p).select().single()
+    const { codigo_produto: _cp, codigo_barras: _cb, ...rest } = p
+    const { data, error } = await supabase.from('catalogo_produtos').insert(rest).select().single()
     if (error) throw error
     return data
   },

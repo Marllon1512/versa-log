@@ -76,9 +76,10 @@ export const pedidosService = {
   },
 
   async create(pedido) {
+    const { numero_pedido: _np, ...rest } = pedido
     const { data, error } = await supabase
       .from('pedidos')
-      .insert(pedido)
+      .insert(rest)
       .select()
       .single()
     if (error) throw error
