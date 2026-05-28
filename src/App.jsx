@@ -6104,8 +6104,9 @@ function AparenciaConfig() {
       if (!pub?.publicUrl) throw new Error('URL pública não obtida. Verifique se o bucket sistema-assets é público.')
       const updates = { [`bg_imagem_${slot}`]: pub.publicUrl }
       await configSistemaService.save(updates)
-      setCfg(p => ({ ...p, ...updates }))
-      reloadBgConfig()
+      const newCfg = { ...cfg, ...updates }
+      setCfg(newCfg)
+      reloadBgConfig(newCfg)
       toast.success('Imagem salva!')
     } catch (e) {
       toast.error('Erro no upload: ' + (e?.message || String(e)))
@@ -6115,9 +6116,10 @@ function AparenciaConfig() {
 
   const ativar = async (slot) => {
     const key = slot ? `bg_imagem_${slot}` : null
-    await configSistemaService.save({ bg_imagem_ativa: key }).catch(() => {})
-    setCfg(p => ({ ...p, bg_imagem_ativa: key }))
-    reloadBgConfig()
+    const newCfg = { ...cfg, bg_imagem_ativa: key }
+    setCfg(newCfg)
+    reloadBgConfig(newCfg)
+    configSistemaService.save({ bg_imagem_ativa: key }).catch(() => {})
     toast.success(slot ? 'Imagem ativada como fundo!' : 'Fundo desativado')
   }
 
@@ -10964,9 +10966,9 @@ function AppContent() {
   const [chatUnread, setChatUnread] = useState(0)
   const [bgConfig, setBgConfig] = useState({ activeUrl: null, blur: 8, overlay: 40, logoVersaUrl: null })
 
-  const reloadBgConfig = useCallback(async () => {
+  const reloadBgConfig = useCallback(async (directConfig) => {
     try {
-      const d = await configSistemaService.get()
+      const d = directConfig ?? await configSistemaService.get()
       if (d) {
         const key = d.bg_imagem_ativa
         const activeUrl = key ? (d[key] || null) : null
