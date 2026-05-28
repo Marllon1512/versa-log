@@ -1207,3 +1207,43 @@ export const cercasVirtuaisService = {
     return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)))
   },
 }
+
+// ── Conciliação Bancária ──────────────────────────────────
+export const conciliacaoService = {
+  async listExtratos(lojaId) {
+    let q = supabase.from('extratos_bancarios').select('*').order('created_at', { ascending: false })
+    if (lojaId) q = q.eq('loja_id', lojaId)
+    const { data, error } = await q
+    if (error) throw error
+    return data || []
+  },
+  async createExtrato(payload) {
+    const { data, error } = await supabase.from('extratos_bancarios').insert(payload).select().single()
+    if (error) throw error
+    return data
+  },
+  async deleteExtrato(id) {
+    const { error } = await supabase.from('extratos_bancarios').delete().eq('id', id)
+    if (error) throw error
+  },
+  async listTransacoes(extratoId) {
+    const { data, error } = await supabase.from('extrato_transacoes').select('*').eq('extrato_id', extratoId).order('data')
+    if (error) throw error
+    return data || []
+  },
+  async addTransacao(payload) {
+    const { data, error } = await supabase.from('extrato_transacoes').insert(payload).select().single()
+    if (error) throw error
+    return data
+  },
+  async conciliar(transacaoId, conciliado) {
+    const { data, error } = await supabase.from('extrato_transacoes').update({ conciliado }).eq('id', transacaoId).select().single()
+    if (error) throw error
+    return data
+  },
+  async deleteTransacao(id) {
+    const { error } = await supabase.from('extrato_transacoes').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+

@@ -24,6 +24,7 @@ import {
   pedidosTimelineService, pedidosFollowupService, pedidosAnexosService,
   notificacoesService, chatService,
   escalasTrabalhoService, pontoOcorrenciasService, cercasVirtuaisService,
+  conciliacaoService,
 } from './services/index'
 
 // ── Filtro global de loja ─────────────────────────────────
@@ -8692,17 +8693,287 @@ function FinanceiroRelatorios() {
   )
 }
 
+function FinanceiroConciliacao() {
+  const { perfil } = useAuth()
+  const lojaEf = useEffectiveLoja()
+  const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+  const fmtData  = (d) => d ? new Date(d+'T12:00').toLocaleDateString('pt-BR') : '-'
+
+  const [extratos, setExtratos] = useState([])
+  const [loadingEx, setLoadingEx] = useState(true)
+  const [selected, setSelected] = useState(null)
+  const [transacoes, setTransacoes] = useState([])
+  const [loadingTr, setLoadingTr] = useState(false)
+  const [showNovoEx, setShowNovoEx] = useState(false)
+  const [showNovaTr, setShowNovaTr] = useState(false)
+  const [savingEx, setSavingEx] = useState(false)
+  const [savingTr, setSavingTr] = useState(false)
+  const [formEx, setFormEx] = useState({ banco:'', agencia:'', conta:'', data_inicio:'', data_fim:'', saldo_inicial:'', saldo_final:'' })
+  const [formTr, setFormTr] = useState({ data:'', descricao:'', valor:'', tipo:'credito' })
+
+  const loadExtratos = async () => {
+    setLoadingEx(true)
+    try { setExtratos(await conciliacaoService.listExtratos(lojaEf)) } catch { toast.error('Erro ao carregar extratos') }
+    setLoadingEx(false)
+  }
+  const loadTransacoes = async (id) => {
+    setLoadingTr(true)
+    try { setTransacoes(await conciliacaoService.listTransacoes(id)) } catch { toast.error('Erro ao carregar transações') }
+    setLoadingTr(false)
+  }
+
+  useEffect(() => { loadExtratos() }, [lojaEf]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const criarExtrato = async () => {
+    if (!formEx.banco || !formEx.data_inicio || !formEx.data_fim) return toast.error('Preencha banco e período')
+    setSavingEx(true)
+    try {
+      const d = await conciliacaoService.createExtrato({ ...formEx, loja_id: lojaEf||null, saldo_inicial: parseFloat(formEx.saldo_inicial)||0, saldo_final: parseFloat(formEx.saldo_final)||0, importado_por: perfil?.id })
+      setExtratos(p => [d, ...p])
+      setShowNovoEx(false)
+      setFormEx({ banco:'', agencia:'', conta:'', data_inicio:'', data_fim:'', saldo_inicial:'', saldo_final:'' })
+      toast.success('Extrato criado!')
+    } catch { toast.error('Erro ao criar extrato') }
+    setSavingEx(false)
+  }
+
+  const excluirExtrato = async (id) => {
+    try {
+      await conciliacaoService.deleteExtrato(id)
+      setExtratos(p => p.filter(e => e.id !== id))
+      if (selected?.id === id) { setSelected(null); setTransacoes([]) }
+      toast.success('Extrato removido')
+    } catch { toast.error('Erro ao remover') }
+  }
+
+  const selecionarExtrato = (ex) => { setSelected(ex); loadTransacoes(ex.id) }
+
+  const adicionarTransacao = async () => {
+    if (!formTr.data || !formTr.descricao || !formTr.valor) return toast.error('Preencha todos os campos')
+    setSavingTr(true)
+    try {
+      const d = await conciliacaoService.addTransacao({ ...formTr, extrato_id: selected.id, valor: parseFloat(formTr.valor) })
+      setTransacoes(p => [...p, d])
+      setShowNovaTr(false)
+      setFormTr({ data:'', descricao:'', valor:'', tipo:'credito' })
+      toast.success('Transação adicionada!')
+    } catch { toast.error('Erro ao adicionar') }
+    setSavingTr(false)
+  }
+
+  const toggleConciliado = async (tr) => {
+    try {
+      const upd = await conciliacaoService.conciliar(tr.id, !tr.conciliado)
+      setTransacoes(p => p.map(t => t.id === tr.id ? upd : t))
+      toast.success(upd.conciliado ? 'Conciliado!' : 'Desmarcado')
+    } catch { toast.error('Erro ao atualizar') }
+  }
+
+  const excluirTransacao = async (id) => {
+    try {
+      await conciliacaoService.deleteTransacao(id)
+      setTransacoes(p => p.filter(t => t.id !== id))
+      toast.success('Transação removida')
+    } catch { toast.error('Erro ao remover') }
+  }
+
+  const exportarPDF = () => {
+    if (!selected) return
+    const cred = transacoes.filter(t=>t.tipo==='credito').reduce((s,t)=>s+parseFloat(t.valor||0),0)
+    const deb  = transacoes.filter(t=>t.tipo==='debito').reduce((s,t)=>s+parseFloat(t.valor||0),0)
+    const saldoCalc = parseFloat(selected.saldo_inicial||0) + cred - deb
+    const saldoEx   = parseFloat(selected.saldo_final||0)
+    const dif = saldoEx - saldoCalc
+    const pend = transacoes.filter(t=>!t.conciliado)
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Conciliação</title>
+    <style>body{font-family:Arial,sans-serif;padding:30px;font-size:12px}h1{font-size:17px}h2{font-size:13px;margin:14px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:#f0f0f0;font-weight:600}.cr{color:#16a34a}.db{color:#dc2626}.dif{font-weight:700;color:${dif!==0?'#dc2626':'#16a34a'}}.pend{background:#fef9c3}.foot{margin-top:36px;border-top:1px solid #ccc;padding-top:12px}</style></head><body>
+    <h1>Relatório de Conciliação Bancária</h1>
+    <p><b>Banco:</b> ${selected.banco}${selected.agencia?` | Agência: ${selected.agencia}`:''}${selected.conta?` | Conta: ${selected.conta}`:''}</p>
+    <p><b>Período:</b> ${fmtData(selected.data_inicio)} a ${fmtData(selected.data_fim)}</p>
+    <p><b>Emitido em:</b> ${new Date().toLocaleString('pt-BR')}</p>
+    <h2>Resumo</h2>
+    <table><tr><th>Item</th><th>Valor</th></tr>
+    <tr><td>Saldo Inicial (Extrato)</td><td>${fmtMoeda(selected.saldo_inicial)}</td></tr>
+    <tr><td>Total Créditos</td><td class="cr">${fmtMoeda(cred)}</td></tr>
+    <tr><td>Total Débitos</td><td class="db">${fmtMoeda(deb)}</td></tr>
+    <tr><td>Saldo Final (Extrato)</td><td>${fmtMoeda(saldoEx)}</td></tr>
+    <tr><td>Saldo Calculado (Sistema)</td><td>${fmtMoeda(saldoCalc)}</td></tr>
+    <tr><td><b>Diferença</b></td><td class="dif">${fmtMoeda(dif)}</td></tr></table>
+    <h2>Transações (${transacoes.length})</h2>
+    <table><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Conciliado</th></tr>
+    ${transacoes.map(t=>`<tr class="${!t.conciliado?'pend':''}"><td>${fmtData(t.data)}</td><td>${t.descricao}</td><td class="${t.tipo==='credito'?'cr':'db'}">${t.tipo==='credito'?'Crédito':'Débito'}</td><td class="${t.tipo==='credito'?'cr':'db'}">${fmtMoeda(t.valor)}</td><td>${t.conciliado?'✓ Sim':'⚠ Não'}</td></tr>`).join('')}
+    </table>
+    ${pend.length?`<h2>Pendências (${pend.length} não conciliadas)</h2><table><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th></tr>${pend.map(t=>`<tr class="pend"><td>${fmtData(t.data)}</td><td>${t.descricao}</td><td>${t.tipo==='credito'?'Crédito':'Débito'}</td><td>${fmtMoeda(t.valor)}</td></tr>`).join('')}</table>`:''}
+    <div class="foot"><p><b>Responsável:</b> ___________________________________</p><p><b>Data/Assinatura:</b> ___________________________________</p></div>
+    <script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`
+    const win = window.open('','_blank','width=820,height=640')
+    if (win) win.document.write(html)
+  }
+
+  // Derived values for selected extrato
+  const cred = transacoes.filter(t=>t.tipo==='credito').reduce((s,t)=>s+parseFloat(t.valor||0),0)
+  const deb  = transacoes.filter(t=>t.tipo==='debito').reduce((s,t)=>s+parseFloat(t.valor||0),0)
+  const saldoCalc = selected ? parseFloat(selected.saldo_inicial||0) + cred - deb : 0
+  const saldoEx   = selected ? parseFloat(selected.saldo_final||0) : 0
+  const dif = saldoEx - saldoCalc
+  const pendentes = transacoes.filter(t=>!t.conciliado)
+
+  if (selected) return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+        <button className="btn btn-g btn-sm" onClick={() => { setSelected(null); setTransacoes([]) }}>← Voltar</button>
+        <span style={{ fontWeight:600, fontSize:15 }}>{selected.banco} — {fmtData(selected.data_inicio)} a {fmtData(selected.data_fim)}</span>
+        <button className="btn btn-g btn-sm" style={{ marginLeft:'auto' }} onClick={exportarPDF}>📄 Exportar PDF</button>
+      </div>
+
+      {/* Resumo */}
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ fontWeight:600, marginBottom:12 }}>Resumo da Conciliação</div>
+        <div className="stats">
+          <div className="stat"><div className="stat-n" style={{ color:'var(--t1)' }}>{fmtMoeda(selected.saldo_inicial)}</div><div className="stat-l">Saldo Inicial</div></div>
+          <div className="stat"><div className="stat-n" style={{ color:'var(--green)' }}>{fmtMoeda(cred)}</div><div className="stat-l">Total Créditos</div></div>
+          <div className="stat"><div className="stat-n" style={{ color:'var(--red)' }}>{fmtMoeda(deb)}</div><div className="stat-l">Total Débitos</div></div>
+          <div className="stat"><div className="stat-n" style={{ color:'var(--accent)' }}>{fmtMoeda(saldoEx)}</div><div className="stat-l">Saldo Final (Extrato)</div></div>
+          <div className="stat"><div className="stat-n" style={{ color:'var(--accent)' }}>{fmtMoeda(saldoCalc)}</div><div className="stat-l">Saldo Calculado</div></div>
+          <div className="stat">
+            <div className="stat-n" style={{ color: dif === 0 ? 'var(--green)' : 'var(--red)' }}>{fmtMoeda(dif)}</div>
+            <div className="stat-l">Diferença</div>
+          </div>
+        </div>
+        {dif !== 0 && <div style={{ marginTop:8, padding:'8px 12px', background:'rgba(239,68,68,0.12)', borderRadius:8, fontSize:13, color:'var(--red)', fontWeight:500 }}>⚠ Há diferença de {fmtMoeda(Math.abs(dif))} entre o extrato bancário e o sistema.</div>}
+        {pendentes.length > 0 && <div style={{ marginTop:8, padding:'8px 12px', background:'rgba(245,158,11,0.12)', borderRadius:8, fontSize:13, color:'var(--amber)', fontWeight:500 }}>⏳ {pendentes.length} transação(ões) pendente(s) de conciliação.</div>}
+      </div>
+
+      {/* Transações */}
+      <div className="card">
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+          <div style={{ fontWeight:600 }}>Transações ({transacoes.length})</div>
+          <button className="btn btn-p btn-sm" onClick={() => setShowNovaTr(true)}>+ Transação</button>
+        </div>
+        {loadingTr ? <Spinner /> : transacoes.length === 0 ? <Empty text="Nenhuma transação lançada" /> : (
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom:'1px solid var(--border)' }}>
+                  {['Data','Descrição','Tipo','Valor','Conciliado',''].map(h => (
+                    <th key={h} style={{ padding:'6px 10px', textAlign:'left', fontSize:12, color:'var(--t3)', fontWeight:600, whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {transacoes.map(tr => (
+                  <tr key={tr.id} style={{ borderBottom:'1px solid var(--border)', background: !tr.conciliado ? 'rgba(245,158,11,0.07)' : undefined }}>
+                    <td style={{ padding:'7px 10px', fontSize:13, whiteSpace:'nowrap' }}>{fmtData(tr.data)}</td>
+                    <td style={{ padding:'7px 10px', fontSize:13 }}>{tr.descricao}</td>
+                    <td style={{ padding:'7px 10px', fontSize:12 }}>
+                      <span style={{ padding:'2px 8px', borderRadius:4, background: tr.tipo==='credito' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', color: tr.tipo==='credito' ? 'var(--green)' : 'var(--red)', fontWeight:600, fontSize:11 }}>
+                        {tr.tipo==='credito' ? 'Crédito' : 'Débito'}
+                      </span>
+                    </td>
+                    <td style={{ padding:'7px 10px', fontSize:13, fontWeight:600, color: tr.tipo==='credito' ? 'var(--green)' : 'var(--red)', whiteSpace:'nowrap' }}>{fmtMoeda(tr.valor)}</td>
+                    <td style={{ padding:'7px 10px' }}>
+                      <button onClick={() => toggleConciliado(tr)} style={{ padding:'3px 10px', borderRadius:6, border:'none', cursor:'pointer', fontSize:11, fontWeight:600, background: tr.conciliado ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)', color: tr.conciliado ? 'var(--green)' : 'var(--amber)' }}>
+                        {tr.conciliado ? '✓ Conciliado' : '⚠ Pendente'}
+                      </button>
+                    </td>
+                    <td style={{ padding:'7px 10px' }}>
+                      <button onClick={() => excluirTransacao(tr.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--t3)', fontSize:14 }}>🗑</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Modal nova transação */}
+      {showNovaTr && (
+        <Modal title="Adicionar Transação" onClose={() => setShowNovaTr(false)}>
+          <div className="fg"><label className="fl">Data *</label><input className="fi" type="date" value={formTr.data} onChange={e => setFormTr(p=>({...p,data:e.target.value}))} /></div>
+          <div className="fg"><label className="fl">Descrição *</label><input className="fi" value={formTr.descricao} onChange={e => setFormTr(p=>({...p,descricao:e.target.value}))} /></div>
+          <div className="grid2">
+            <div className="fg">
+              <label className="fl">Tipo *</label>
+              <select className="fi" value={formTr.tipo} onChange={e => setFormTr(p=>({...p,tipo:e.target.value}))}>
+                <option value="credito">Crédito</option>
+                <option value="debito">Débito</option>
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Valor (R$) *</label><input className="fi" type="number" step="0.01" min="0" value={formTr.valor} onChange={e => setFormTr(p=>({...p,valor:e.target.value}))} /></div>
+          </div>
+          <button className="btn btn-p" onClick={adicionarTransacao} disabled={savingTr}>{savingTr?'Salvando...':'Adicionar'}</button>
+        </Modal>
+      )}
+    </div>
+  )
+
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div style={{ fontWeight:600 }}>Extratos Bancários</div>
+        <button className="btn btn-p btn-sm" onClick={() => setShowNovoEx(true)}>+ Novo Extrato</button>
+      </div>
+
+      {loadingEx ? <Spinner /> : extratos.length === 0 ? (
+        <div className="card"><Empty text="Nenhum extrato importado ainda" /></div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {extratos.map(ex => {
+            const total = ex.saldo_final - ex.saldo_inicial
+            return (
+              <div key={ex.id} className="card" style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer' }} onClick={() => selecionarExtrato(ex)}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:600, fontSize:14 }}>{ex.banco}</div>
+                  <div style={{ fontSize:12, color:'var(--t3)', marginTop:2 }}>
+                    {fmtData(ex.data_inicio)} a {fmtData(ex.data_fim)}
+                    {ex.agencia && ` · Ag. ${ex.agencia}`}
+                    {ex.conta && ` · Cc. ${ex.conta}`}
+                  </div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:13, fontWeight:600, color: total >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtMoeda(ex.saldo_final)}</div>
+                  <div style={{ fontSize:11, color:'var(--t3)' }}>Saldo final</div>
+                </div>
+                <button onClick={e => { e.stopPropagation(); excluirExtrato(ex.id) }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--t3)', fontSize:16, padding:'4px' }}>🗑</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Modal novo extrato */}
+      {showNovoEx && (
+        <Modal title="Novo Extrato Bancário" onClose={() => setShowNovoEx(false)}>
+          <div className="grid2">
+            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Banco *</label><input className="fi" value={formEx.banco} onChange={e => setFormEx(p=>({...p,banco:e.target.value}))} placeholder="Ex: Sicoob, Bradesco..." /></div>
+            <div className="fg"><label className="fl">Agência</label><input className="fi" value={formEx.agencia} onChange={e => setFormEx(p=>({...p,agencia:e.target.value}))} /></div>
+            <div className="fg"><label className="fl">Conta</label><input className="fi" value={formEx.conta} onChange={e => setFormEx(p=>({...p,conta:e.target.value}))} /></div>
+            <div className="fg"><label className="fl">Data Início *</label><input className="fi" type="date" value={formEx.data_inicio} onChange={e => setFormEx(p=>({...p,data_inicio:e.target.value}))} /></div>
+            <div className="fg"><label className="fl">Data Fim *</label><input className="fi" type="date" value={formEx.data_fim} onChange={e => setFormEx(p=>({...p,data_fim:e.target.value}))} /></div>
+            <div className="fg"><label className="fl">Saldo Inicial (R$)</label><input className="fi" type="number" step="0.01" value={formEx.saldo_inicial} onChange={e => setFormEx(p=>({...p,saldo_inicial:e.target.value}))} /></div>
+            <div className="fg"><label className="fl">Saldo Final (R$)</label><input className="fi" type="number" step="0.01" value={formEx.saldo_final} onChange={e => setFormEx(p=>({...p,saldo_final:e.target.value}))} /></div>
+          </div>
+          <button className="btn btn-p" onClick={criarExtrato} disabled={savingEx}>{savingEx?'Salvando...':'Criar Extrato'}</button>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 function Financeiro() {
   const { effectiveRole } = useAuth()
   const isAssistenteAdmin = effectiveRole === 'assistente_admin'
+  const podeVerConciliacao = ['admin','diretor','assistente_admin'].includes(effectiveRole)
   const [tab, setTab] = useState('receber')
   const ALL_TABS = [
-    { id:'resumo',     label:'Resumo',        hide: isAssistenteAdmin },
-    { id:'receber',    label:'A Receber' },
-    { id:'pagar',      label:'A Pagar' },
-    { id:'dre',        label:'DRE',           hide: isAssistenteAdmin },
-    { id:'nps',        label:'NPS',           hide: isAssistenteAdmin },
-    { id:'relatorios', label:'Rentabilidade', hide: isAssistenteAdmin },
+    { id:'resumo',       label:'Resumo',        hide: isAssistenteAdmin },
+    { id:'receber',      label:'A Receber' },
+    { id:'pagar',        label:'A Pagar' },
+    { id:'dre',          label:'DRE',           hide: isAssistenteAdmin },
+    { id:'nps',          label:'NPS',           hide: isAssistenteAdmin },
+    { id:'relatorios',   label:'Rentabilidade', hide: isAssistenteAdmin },
+    { id:'conciliacao',  label:'Conciliação',   hide: !podeVerConciliacao },
   ]
   const TABS = ALL_TABS.filter(t => !t.hide)
   return (
@@ -8711,12 +8982,13 @@ function Financeiro() {
       <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
         {TABS.map(t => <button key={t.id} className={`btn btn-${tab===t.id?'p':'s'} btn-sm`} onClick={() => setTab(t.id)}>{t.label}</button>)}
       </div>
-      {tab === 'resumo' && <FinanceiroResumo />}
-      {tab === 'receber' && <FinanceiroLista tipo="receber" />}
-      {tab === 'pagar' && <FinanceiroLista tipo="pagar" />}
-      {tab === 'dre' && <FinanceiroDRE />}
-      {tab === 'nps' && <NPSDashboard />}
-      {tab === 'relatorios' && <FinanceiroRelatorios />}
+      {tab === 'resumo'      && <FinanceiroResumo />}
+      {tab === 'receber'     && <FinanceiroLista tipo="receber" />}
+      {tab === 'pagar'       && <FinanceiroLista tipo="pagar" />}
+      {tab === 'dre'         && <FinanceiroDRE />}
+      {tab === 'nps'         && <NPSDashboard />}
+      {tab === 'relatorios'  && <FinanceiroRelatorios />}
+      {tab === 'conciliacao' && <FinanceiroConciliacao />}
     </div>
   )
 }
