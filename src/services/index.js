@@ -326,12 +326,12 @@ export const catalogoService = {
 const CFG_ID = '00000000-0000-0000-0000-000000000001'
 export const configSistemaService = {
   async get() {
-    const { data, error } = await supabase.from('configuracoes').select('*').eq('id', CFG_ID).maybeSingle()
+    const { data, error } = await supabase.from('configuracoes').select('*').eq('chave', 'sistema').maybeSingle()
     console.log('[configSistema] get:', { data, error })
     return data || {}
   },
   async save(updates) {
-    const payload = { id: CFG_ID, ...updates }
+    const payload = { id: CFG_ID, chave: 'sistema', ...updates }
     const { data, error } = await supabase
       .from('configuracoes')
       .upsert(payload, { onConflict: 'id' })
