@@ -53,48 +53,84 @@ body {
 }
 
 /* ── Light mode overrides ────────────────────────────────── */
-[data-theme="light"] body { background: var(--bg0); color: var(--t1); }
+[data-theme="light"] body { background: #f4f4f8; color: #333333; }
 
 [data-theme="light"] .sidebar {
   background: #ffffff;
-  border-right-color: rgba(0,0,0,0.08);
-  box-shadow: 2px 0 16px rgba(0,0,0,0.06);
+  border-right: 1px solid #e5e5e5;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.06);
 }
-[data-theme="light"] .sb-item { color: var(--t2); }
-[data-theme="light"] .sb-item:hover { background: rgba(0,0,0,0.04); color: var(--t1); }
-[data-theme="light"] .sb-item.active { background: var(--adim); color: var(--accent); }
-[data-theme="light"] .sb-group-label { color: var(--t3); }
+[data-theme="light"] .sb-group-label { color: #999999 !important; }
+[data-theme="light"] .sb-item { color: #555555 !important; }
+[data-theme="light"] .sb-item:hover { background: #f5f5f8 !important; color: #333333 !important; }
+[data-theme="light"] .sb-item.active { background: rgba(110,110,240,0.10) !important; color: var(--accent) !important; border-left-color: var(--accent) !important; }
 
 [data-theme="light"] .content-topbar {
   background: #ffffff;
-  border-bottom-color: rgba(0,0,0,0.08);
-  box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+  border-bottom: 1px solid #e5e5e5;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
 }
 
 [data-theme="light"] .card,
 [data-theme="light"] .card-sm {
   background: #ffffff;
-  border-color: rgba(0,0,0,0.08);
+  border-color: #ebebeb;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  color: #333333;
 }
 [data-theme="light"] .stat {
   background: #ffffff;
-  border-color: rgba(0,0,0,0.08);
+  border-color: #ebebeb;
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
+[data-theme="light"] .stat-lbl,
+[data-theme="light"] .stat-l { color: #666666; }
+[data-theme="light"] .stat-val,
+[data-theme="light"] .stat-n { color: #333333; }
+
+[data-theme="light"] .ph h1,
+[data-theme="light"] .ph h2,
+[data-theme="light"] h1, [data-theme="light"] h2, [data-theme="light"] h3 { color: #222222; }
+[data-theme="light"] .ph-sub,
+[data-theme="light"] .li-sub { color: #666666; }
+[data-theme="light"] .fl { color: #555555; }
+
+[data-theme="light"] .fi {
+  background: #f5f5f5;
+  border-color: #e0e0e0;
+  color: #333333;
+}
+[data-theme="light"] .fi:focus { border-color: var(--accent); }
+[data-theme="light"] .fi::placeholder { color: #aaaaaa; }
+
+[data-theme="light"] .btn-s {
+  background: #f5f5f5;
+  color: #333333;
+  border-color: #e0e0e0;
+}
+[data-theme="light"] .btn-s:hover:not(:disabled) { background: #ebebeb; }
+[data-theme="light"] .btn-g { color: #555555; }
+[data-theme="light"] .btn-g:hover:not(:disabled) { background: #f0f0f0; color: #333333; }
 
 [data-theme="light"] .modal-box {
   background: #ffffff;
-  border-color: rgba(0,0,0,0.10);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.20);
+  border-color: #e5e5e5;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.18);
 }
-[data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.40); }
+[data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.35); }
 
-[data-theme="light"] .tbl th { color: var(--t3); border-bottom-color: rgba(0,0,0,0.08); }
-[data-theme="light"] .tbl td { border-bottom-color: rgba(0,0,0,0.06); }
-[data-theme="light"] .rank-item { background: #ffffff; border-color: rgba(0,0,0,0.08); box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+[data-theme="light"] .tbl th { color: #888888; border-bottom-color: #ebebeb; }
+[data-theme="light"] .tbl td { color: #333333; border-bottom-color: #f0f0f0; }
+[data-theme="light"] .rank-item { background: #ffffff; border-color: #ebebeb; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+[data-theme="light"] .rank-num { color: #aaaaaa; }
 
+[data-theme="light"] .tag { background: #eeeeee; color: #555555; }
+[data-theme="light"] .empty { color: #aaaaaa; }
+[data-theme="light"] .divider { background: #ebebeb; }
+[data-theme="light"] .search { background: #f5f5f5; border-color: #e0e0e0; color: #333333; }
+[data-theme="light"] .search::placeholder { color: #aaaaaa; }
 [data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
+[data-theme="light"] ::-webkit-scrollbar-track { background: #f0f0f0; }
 
 /* Light + has-bg-img: glassmorphism branco */
 [data-theme="light"] body.has-bg-img .sidebar {

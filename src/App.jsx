@@ -1,5 +1,15 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import './styles.css'
+import {
+  LayoutDashboard, Package, ClipboardList, CheckSquare,
+  Route, Truck, Map, Trophy,
+  ShoppingCart, Target, ShoppingBag, Star,
+  Wrench, Calendar, Settings2,
+  Archive, CreditCard, TrendingUp,
+  Briefcase, Users, Clock,
+  Store, Settings, MessageCircle,
+  BookOpen, FileText, ListOrdered
+} from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
@@ -209,45 +219,48 @@ const MOTIVATIONAL_MSGS = [
 
 const SIDEBAR_GROUPS = [
   { group: 'OPERACIONAL', items: [
-    { id: 'dashboard',   label: 'Dashboard',   icon: '🏠' },
-    { id: 'pedidos',     label: 'Pedidos',     icon: '📦' },
-    { id: 'separacao',   label: 'Separação',   icon: '📋' },
-    { id: 'conferencia', label: 'Conferência', icon: '☑️' },
+    { id: 'dashboard',   label: 'Dashboard',   Icon: LayoutDashboard },
+    { id: 'pedidos',     label: 'Pedidos',     Icon: Package },
+    { id: 'separacao',   label: 'Separação',   Icon: ClipboardList },
+    { id: 'conferencia', label: 'Conferência', Icon: CheckSquare },
   ]},
   { group: 'LOGÍSTICA', items: [
-    { id: 'roteiro', label: 'Roteiro',    icon: '📍' },
-    { id: 'rota',    label: 'Minha Rota', icon: '🚚' },
-    { id: 'mapa',    label: 'Mapa',       icon: '🗺️' },
-    { id: 'ranking', label: 'Ranking',    icon: '🏆' },
+    { id: 'roteiro', label: 'Roteiro',    Icon: Route },
+    { id: 'rota',    label: 'Minha Rota', Icon: Truck },
+    { id: 'mapa',    label: 'Mapa',       Icon: Map },
+    { id: 'ranking', label: 'Ranking',    Icon: Trophy },
   ]},
   { group: 'COMERCIAL', items: [
-    { id: 'vendas',  label: 'Vendas e PDV', icon: '💰' },
-    { id: 'crm',     label: 'CRM',          icon: '🎯' },
-    { id: 'compras', label: 'Compras',      icon: '🛒' },
-    { id: 'nps',     label: 'NPS',          icon: '⭐' },
+    { id: 'vendas',  label: 'Vendas e PDV', Icon: ShoppingCart },
+    { id: 'crm',     label: 'CRM',          Icon: Target },
+    { id: 'compras', label: 'Compras',      Icon: ShoppingBag },
+    { id: 'nps',     label: 'NPS',          Icon: Star },
   ]},
   { group: 'ATENDIMENTO', items: [
-    { id: 'assistencia', label: 'Assistência',       icon: '🔧' },
-    { id: 'agenda',      label: 'Agenda',            icon: '📅' },
-    { id: 'os',          label: 'Ordens de Serviço', icon: '🛠️' },
+    { id: 'assistencia', label: 'Assistência',       Icon: Wrench },
+    { id: 'agenda',      label: 'Agenda',            Icon: Calendar },
+    { id: 'os',          label: 'Ordens de Serviço', Icon: Settings2 },
   ]},
   { group: 'ESTOQUE', items: [
-    { id: 'estoque', label: 'Estoque', icon: '📊' },
+    { id: 'estoque',  label: 'Estoque',  Icon: Archive },
+    { id: 'catalogo', label: 'Catálogo', Icon: BookOpen },
+    { id: 'nf',       label: 'NF Entrada', Icon: FileText },
+    { id: 'fila',     label: 'Fila',     Icon: ListOrdered },
   ]},
   { group: 'FINANCEIRO', items: [
-    { id: 'financeiro',      label: 'Financeiro',  icon: '💳' },
-    { id: 'financeiro_loja', label: 'Financeiro',  icon: '💳' },
-    { id: 'relatorios',      label: 'Relatórios',  icon: '📈' },
+    { id: 'financeiro',      label: 'Financeiro',  Icon: CreditCard },
+    { id: 'financeiro_loja', label: 'Financeiro',  Icon: CreditCard },
+    { id: 'relatorios',      label: 'Relatórios',  Icon: TrendingUp },
   ]},
   { group: 'PESSOAS', items: [
-    { id: 'dp',     label: 'Departamento Pessoal', icon: '👔' },
-    { id: 'equipe', label: 'Equipe',               icon: '👥' },
-    { id: 'ponto',  label: 'Ponto Eletrônico',     icon: '⏰' },
+    { id: 'dp',     label: 'Departamento Pessoal', Icon: Briefcase },
+    { id: 'equipe', label: 'Equipe',               Icon: Users },
+    { id: 'ponto',  label: 'Ponto Eletrônico',     Icon: Clock },
   ]},
   { group: 'SISTEMA', items: [
-    { id: 'cadastros', label: 'Cadastros',     icon: '🏪' },
-    { id: 'config',    label: 'Configurações', icon: '⚙️' },
-    { id: 'chat',      label: 'Chat',          icon: '💬' },
+    { id: 'cadastros', label: 'Cadastros',     Icon: Store },
+    { id: 'config',    label: 'Configurações', Icon: Settings },
+    { id: 'chat',      label: 'Chat',          Icon: MessageCircle },
   ]},
 ]
 
@@ -343,7 +356,7 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
                     title={collapsed ? it.label : undefined}
                     style={collapsed ? { justifyContent:'center', padding:'10px 0', margin:'1px 4px', width:'calc(100% - 8px)', borderLeft:'none' } : {}}
                   >
-                    <span className="sb-icon">{it.icon}</span>
+                    <span className="sb-icon"><it.Icon size={17} strokeWidth={1.7} /></span>
                     {!collapsed && <span className="sb-label">{it.label}</span>}
                     {it.id === 'chat' && chatUnread > 0 && (
                       <span style={{ marginLeft:'auto', background:'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, minWidth:16, height:16, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px' }}>

@@ -14,6 +14,7 @@
     "jsbarcode": "^3.12.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "lucide-react": "^1.17.0",
     "pdfjs-dist": "^5.7.284",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
