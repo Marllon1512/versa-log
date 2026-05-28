@@ -35,7 +35,7 @@ body {
 
 /* ── Sidebar ─────────────────────────────────────────────── */
 .sidebar {
-  width: 240px; height: 100vh; background: var(--bg1);
+  width: 264px; height: 100vh; background: var(--bg1);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0;
   transition: width 250ms ease; overflow: hidden;
@@ -48,19 +48,21 @@ body {
 .sb-group-label {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--t3); padding: 16px 0 4px 20px; font-weight: 600; white-space: nowrap;
+  transition: color 150ms ease;
 }
+.sb-group-label.active-group { color: var(--accent); }
 .sb-item {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 12px; border-radius: 8px; margin: 1px 8px;
   cursor: pointer; transition: all 150ms ease; color: var(--t3);
-  font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden;
+  font-size: 13px; font-weight: 500;
   border: none; background: transparent; font-family: var(--font);
   text-align: left; border-left: 2px solid transparent; width: calc(100% - 16px);
 }
 .sb-item:hover { background: rgba(255,255,255,0.05); color: var(--t1); }
 .sb-item.active { background: var(--adim); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
 .sb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; line-height: 1; }
-.sb-label { overflow: hidden; text-overflow: ellipsis; }
+.sb-label { white-space: nowrap; }
 .sb-overlay {
   display: none; position: fixed; inset: 0;
   background: rgba(0,0,0,0.7); z-index: 98;

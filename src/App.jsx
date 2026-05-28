@@ -204,44 +204,50 @@ const MOTIVATIONAL_MSGS = [
 ]
 
 const SIDEBAR_GROUPS = [
-  { group:'OPERACIONAL', items:[
-    { id:'dashboard',  label:'Painel',          icon:'🏠' },
-    { id:'pedidos',    label:'Pedidos',          icon:'📦' },
-    { id:'separacao',  label:'Separação',        icon:'📋' },
-    { id:'agenda',     label:'Agenda',           icon:'📅' },
-    { id:'mapa',       label:'Mapa',             icon:'🗺️' },
-    { id:'rota',       label:'Minha Rota',       icon:'🚚' },
-    { id:'fila',       label:'Fila Liberação',   icon:'✅' },
+  { group: 'OPERACIONAL', items: [
+    { id: 'dashboard',   label: 'Dashboard',    icon: '🏠' },
+    { id: 'pedidos',     label: 'Pedidos',      icon: '📦' },
+    { id: 'separacao',   label: 'Separação',    icon: '📋' },
+    { id: 'conferencia', label: 'Conferência',  icon: '☑️' },
+    { id: 'fila',        label: 'Fila de Liberação', icon: '✅' },
   ]},
-  { group:'COMERCIAL', items:[
-    { id:'vendas',          label:'Vendas (PDV)',     icon:'💰' },
-    { id:'crm',             label:'CRM',              icon:'🎯' },
-    { id:'compras',         label:'Compras',          icon:'🛒' },
-    { id:'estoque',         label:'Estoque',          icon:'📊' },
-    { id:'financeiro',      label:'Financeiro',       icon:'💳' },
-    { id:'financeiro_loja', label:'Financeiro',       icon:'💳' },
-    { id:'catalogo',        label:'Catálogo Digital', icon:'🛍️' },
-    { id:'nps',             label:'NPS',              icon:'⭐' },
-    { id:'devolucao',       label:'Devoluções',       icon:'↩️' },
-    { id:'relatorios',      label:'Relatórios',       icon:'📈' },
+  { group: 'LOGÍSTICA', items: [
+    { id: 'roteiro', label: 'Roteiro',    icon: '📍' },
+    { id: 'rota',    label: 'Minha Rota', icon: '🚚' },
+    { id: 'mapa',    label: 'Mapa',       icon: '🗺️' },
   ]},
-  { group:'ATENDIMENTO', items:[
-    { id:'assistencia', label:'Assistência',    icon:'🔧' },
-    { id:'roteiro',     label:'Roteiro',         icon:'📍' },
-    { id:'conferencia', label:'Conferência',    icon:'☑️' },
+  { group: 'COMERCIAL', items: [
+    { id: 'vendas',   label: 'Vendas e PDV',     icon: '💰' },
+    { id: 'crm',      label: 'CRM',              icon: '🎯' },
+    { id: 'compras',  label: 'Compras',          icon: '🛒' },
+    { id: 'catalogo', label: 'Catálogo Digital', icon: '🛍️' },
+    { id: 'nps',      label: 'NPS',              icon: '⭐' },
   ]},
-  { group:'GESTÃO', items:[
-    { id:'equipe',   label:'Equipe',             icon:'👥' },
-    { id:'ranking',  label:'Ranking',            icon:'🏆' },
-    { id:'ponto',    label:'Ponto',              icon:'⏰' },
-    { id:'dp',       label:'Dep. Pessoal',       icon:'👔' },
-    { id:'os',       label:'Ordens de Serviço',  icon:'🛠️' },
+  { group: 'ATENDIMENTO', items: [
+    { id: 'assistencia', label: 'Assistência',       icon: '🔧' },
+    { id: 'agenda',      label: 'Agenda',            icon: '📅' },
+    { id: 'os',          label: 'Ordens de Serviço', icon: '🛠️' },
+    { id: 'devolucao',   label: 'Devolução e Troca', icon: '↩️' },
   ]},
-  { group:'SISTEMA', items:[
-    { id:'chat',      label:'Chat',              icon:'💬' },
-    { id:'config',    label:'Configurações',     icon:'⚙️' },
-    { id:'cadastros', label:'Cadastros',         icon:'🏪' },
-    { id:'nf',        label:'Nota Fiscal',       icon:'📄' },
+  { group: 'ESTOQUE', items: [
+    { id: 'estoque', label: 'Estoque', icon: '📊' },
+  ]},
+  { group: 'FINANCEIRO', items: [
+    { id: 'financeiro',      label: 'Financeiro',  icon: '💳' },
+    { id: 'financeiro_loja', label: 'Financeiro',  icon: '💳' },
+    { id: 'nf',              label: 'Nota Fiscal', icon: '📄' },
+    { id: 'relatorios',      label: 'Relatórios',  icon: '📈' },
+  ]},
+  { group: 'PESSOAS', items: [
+    { id: 'dp',      label: 'Departamento Pessoal', icon: '👔' },
+    { id: 'equipe',  label: 'Equipe',               icon: '👥' },
+    { id: 'ponto',   label: 'Ponto Eletrônico',     icon: '⏰' },
+    { id: 'ranking', label: 'Ranking',              icon: '🏆' },
+  ]},
+  { group: 'SISTEMA', items: [
+    { id: 'cadastros', label: 'Cadastros',     icon: '🏪' },
+    { id: 'config',    label: 'Configurações', icon: '⚙️' },
+    { id: 'chat',      label: 'Chat',          icon: '💬' },
   ]},
 ]
 
@@ -326,10 +332,11 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobile
           {SIDEBAR_GROUPS.map(grp => {
             const visible = grp.items.filter(it => allowedPages.includes(it.id))
             if (!visible.length) return null
+            const isActiveGroup = visible.some(it => it.id === page)
             return (
               <div key={grp.group}>
                 {!collapsed
-                  ? <div className="sb-group-label">{grp.group}</div>
+                  ? <div className={`sb-group-label${isActiveGroup ? ' active-group' : ''}`}>{grp.group}</div>
                   : <div style={{ height:10 }} />
                 }
                 {visible.map(it => (
@@ -10153,7 +10160,8 @@ function AppContent() {
   }, [perfil?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const allowed = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
+    let allowed = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
+    if (effectiveRole !== 'contador' && !allowed.includes('chat')) allowed = [...allowed, 'chat']
     if (!allowed.includes(page)) navigateTo(allowed[0] || 'dashboard')
   }, [simulatedRole]) // eslint-disable-line react-hooks/exhaustive-deps
 
