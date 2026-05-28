@@ -33,7 +33,7 @@ import {
 const LojaCtx = createContext({ lojaFiltro: '', setLojaFiltro: () => {} })
 export const useLojaFiltro = () => useContext(LojaCtx)
 
-const AppCtx = createContext({ navigateTo: () => {}, chatTarget: null, clearChatTarget: () => {}, openChatWith: () => {}, chatUnread: 0, setChatUnread: () => {}, reloadBgConfig: () => {} })
+const AppCtx = createContext({ navigateTo: () => {}, chatTarget: null, clearChatTarget: () => {}, openChatWith: () => {}, chatUnread: 0, setChatUnread: () => {}, reloadBgConfig: () => {}, tema: 'dark', toggleTema: () => {} })
 
 // Retorna filtro de loja efetivo: automático para usuários sem acesso global
 function useEffectiveLoja() {
@@ -500,6 +500,7 @@ function NotifBell({ navigateTo }) {
 function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle }) {
   const { perfil, isSimulating, simulatedRole, isGestor } = useAuth()
   const { lojaFiltro, setLojaFiltro } = useLojaFiltro()
+  const { tema, toggleTema } = useContext(AppCtx)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef()
 
@@ -535,6 +536,15 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
           👁 {PROFILE_LABELS[simulatedRole] || simulatedRole}
         </span>
       )}
+      <button
+        onClick={toggleTema}
+        title={tema === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+        style={{ width:34, height:34, borderRadius:10, border:'1px solid var(--border)', background:'var(--bg2)', color:'var(--t1)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, flexShrink:0, transition:'background 0.3s ease, border-color 0.3s ease, transform 0.3s ease' }}
+        onMouseEnter={e => e.currentTarget.style.transform='rotate(20deg)'}
+        onMouseLeave={e => e.currentTarget.style.transform='rotate(0deg)'}
+      >
+        {tema === 'dark' ? '☀️' : '🌙'}
+      </button>
       <NotifBell navigateTo={navigateTo} />
       <div ref={menuRef} style={{ position:'relative' }}>
         <button
@@ -10965,6 +10975,14 @@ function AppContent() {
   const [chatTarget, setChatTargetState] = useState(null)
   const [chatUnread, setChatUnread] = useState(0)
   const [bgConfig, setBgConfig] = useState({ activeUrl: null, blur: 8, overlay: 40, logoVersaUrl: null })
+  const [tema, setTema] = useState(() => localStorage.getItem('tema_versa_log') || 'dark')
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', tema)
+    localStorage.setItem('tema_versa_log', tema)
+  }, [tema])
+
+  const toggleTema = useCallback(() => setTema(t => t === 'dark' ? 'light' : 'dark'), [])
 
   const reloadBgConfig = useCallback(async (directConfig) => {
     try {
@@ -11089,7 +11107,7 @@ function AppContent() {
   }
 
   return (
-    <AppCtx.Provider value={{ navigateTo, chatTarget, clearChatTarget, openChatWith, chatUnread, setChatUnread, reloadBgConfig }}>
+    <AppCtx.Provider value={{ navigateTo, chatTarget, clearChatTarget, openChatWith, chatUnread, setChatUnread, reloadBgConfig, tema, toggleTema }}>
     <LojaCtx.Provider value={{ lojaFiltro, setLojaFiltro }}>
       {bgConfig.activeUrl && (
         <div className="sys-bg-container">

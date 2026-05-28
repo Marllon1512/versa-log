@@ -17,6 +17,32 @@
   --radius-lg: 14px;
 }
 
+/* ── Light mode variables ────────────────────────────────── */
+[data-theme="light"] {
+  --bg0: #f4f4f8;
+  --bg1: #ffffff;
+  --bg2: #f0f0f6;
+  --bg3: #e8e8f0;
+  --bg4: #dcdce8;
+  --border: rgba(0,0,0,0.08);
+  --borderh: rgba(0,0,0,0.16);
+  --t1: #111118;
+  --t2: #52525e;
+  --t3: #888898;
+  --adim: rgba(110,110,240,0.12);
+  --gdim: rgba(34,197,94,0.10);
+  --adim2: rgba(245,158,11,0.10);
+  --rdim: rgba(239,68,68,0.10);
+  --bdim: rgba(59,130,246,0.10);
+}
+
+/* ── Theme transition (smooth 0.3s) ─────────────────────── */
+html { transition: background-color 0.3s ease; }
+body, .sidebar, .content-topbar, .content-area,
+.card, .card-sm, .stat, .fi, .modal-box,
+.btn-s, .btn-g, .sb-item, .sb-group-label, .rank-item,
+.tbl th, .tbl td, .tbl tr { transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; }
+
 body {
   background: var(--bg0);
   color: var(--t1);
@@ -24,6 +50,94 @@ body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── Light mode overrides ────────────────────────────────── */
+[data-theme="light"] body { background: var(--bg0); color: var(--t1); }
+
+[data-theme="light"] .sidebar {
+  background: #ffffff;
+  border-right-color: rgba(0,0,0,0.08);
+  box-shadow: 2px 0 16px rgba(0,0,0,0.06);
+}
+[data-theme="light"] .sb-item { color: var(--t2); }
+[data-theme="light"] .sb-item:hover { background: rgba(0,0,0,0.04); color: var(--t1); }
+[data-theme="light"] .sb-item.active { background: var(--adim); color: var(--accent); }
+[data-theme="light"] .sb-group-label { color: var(--t3); }
+
+[data-theme="light"] .content-topbar {
+  background: #ffffff;
+  border-bottom-color: rgba(0,0,0,0.08);
+  box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] .card,
+[data-theme="light"] .card-sm {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+[data-theme="light"] .stat {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.08);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+[data-theme="light"] .modal-box {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.10);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.20);
+}
+[data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.40); }
+
+[data-theme="light"] .tbl th { color: var(--t3); border-bottom-color: rgba(0,0,0,0.08); }
+[data-theme="light"] .tbl td { border-bottom-color: rgba(0,0,0,0.06); }
+[data-theme="light"] .rank-item { background: #ffffff; border-color: rgba(0,0,0,0.08); box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
+
+/* Light + has-bg-img: glassmorphism branco */
+[data-theme="light"] body.has-bg-img .sidebar {
+  background: rgba(255,255,255,0.88) !important;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-right-color: rgba(0,0,0,0.08) !important;
+  box-shadow: 2px 0 20px rgba(0,0,0,0.10) !important;
+}
+[data-theme="light"] body.has-bg-img .content-topbar {
+  background: rgba(255,255,255,0.85) !important;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom-color: rgba(0,0,0,0.08) !important;
+}
+[data-theme="light"] body.has-bg-img .card,
+[data-theme="light"] body.has-bg-img .card-sm {
+  background: rgba(255,255,255,0.82) !important;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-color: rgba(255,255,255,0.60) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.10) !important;
+}
+[data-theme="light"] body.has-bg-img .stat {
+  background: rgba(255,255,255,0.82) !important;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+/* Texto escuro no light+bg (não branco) */
+[data-theme="light"] body.has-bg-img,
+[data-theme="light"] body.has-bg-img .card,
+[data-theme="light"] body.has-bg-img .card-sm,
+[data-theme="light"] body.has-bg-img h1,
+[data-theme="light"] body.has-bg-img h2,
+[data-theme="light"] body.has-bg-img h3 {
+  color: #111118 !important;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.6) !important;
+}
+[data-theme="light"] body.has-bg-img .fi {
+  background: rgba(255,255,255,0.85) !important;
+  border-color: rgba(0,0,0,0.12) !important;
+  color: #111118 !important;
+}
+[data-theme="light"] body.has-bg-img .btn-s {
+  background: rgba(255,255,255,0.85) !important;
+  color: #111118 !important;
+  border-color: rgba(0,0,0,0.12) !important;
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
