@@ -666,6 +666,8 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
   const [produtos, setProdutos] = useState([])
   const [sucesso, setSucesso] = useState('')
   const [uploadingIds, setUploadingIds] = useState(new Set())
+  const [scanner, setScanner] = useState(false)
+  const [scanHighlight, setScanHighlight] = useState(null)
 
   useEffect(() => {
     if (pedido?.produtos) {
@@ -729,7 +731,10 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
     <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
-        <Badge status={pedido.status} />
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <Btn size="sm" variant="secondary" onClick={() => setScanner(true)}>📷 Escanear</Btn>
+          <Badge status={pedido.status} />
+        </div>
       </div>
 
       <h1 style={{ fontSize: 20, marginBottom: 2 }}>{pedido.cliente}</h1>
@@ -744,11 +749,18 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
 
       <div style={{ fontWeight: 600, marginBottom: 12 }}>Produtos ({produtos.length})</div>
 
+      {scanner && <LeitorCodigoBarras onScan={code => {
+        const match = produtos.find(p => p.referencia === code || p.codigo_barras === code || p.nome_produto?.toLowerCase().includes(code.toLowerCase()))
+        if (match) { setScanHighlight(match.id); setTimeout(() => setScanHighlight(null), 3000) }
+        else toast.error('Produto não encontrado: ' + code)
+        setScanner(false)
+      }} onClose={() => setScanner(false)} />}
+
       {produtos.map(pr => (
         <div key={pr.id} style={{
-          background: pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.05)' : 'var(--bg1)',
-          border: `1px solid ${pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
-          borderRadius: 12, padding: 16, marginBottom: 12,
+          background: scanHighlight === pr.id ? 'rgba(99,102,241,0.12)' : pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.05)' : 'var(--bg1)',
+          border: `1px solid ${scanHighlight === pr.id ? '#6366f1' : pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+          borderRadius: 12, padding: 16, marginBottom: 12, transition:'border-color .3s, background .3s',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
@@ -4082,6 +4094,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
   const [fotos, setFotos] = useState({ frente: null, costas: null, ladoEsq: null, ladoDir: null })
   const [saveErr, setSaveErr] = useState('')
   const [buscaPedido, setBuscaPedido] = useState('')
+  const [scannerConf, setScannerConf] = useState(false)
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null)
   const [pedidoProdutos, setPedidoProdutos] = useState([])
   const [showDrop, setShowDrop] = useState(false)
@@ -4185,7 +4198,13 @@ function NovaConferenciaModal({ onClose, onSave }) {
         </div>
       )}
       <div className="fg"><label className="fl">Nota Fiscal *</label><input className="fi" value={form.numero_nf} onChange={up('numero_nf')} /></div>
-      <div className="fg"><label className="fl">Produto *</label><input className="fi" value={form.produto} onChange={up('produto')} /></div>
+      <div className="fg"><label className="fl">Produto *</label>
+        <div style={{ display:'flex', gap:6 }}>
+          <input className="fi" style={{ flex:1 }} value={form.produto} onChange={up('produto')} />
+          <button type="button" className="btn btn-s btn-sm" onClick={() => setScannerConf(true)} title="Escanear código">📷</button>
+        </div>
+      </div>
+      {scannerConf && <LeitorCodigoBarras onScan={code => { setForm(p => ({ ...p, produto: code })); setScannerConf(false) }} onClose={() => setScannerConf(false)} />}
       <div className="fg"><label className="fl">Fornecedor *</label><input className="fi" value={form.fornecedor} onChange={up('fornecedor')} /></div>
       <div className="fg">
         <label className="fl">Resultado *</label>
@@ -4302,6 +4321,7 @@ function RoteiroDetalhe({ id, onBack }) {
   const [itens, setItens] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [scannerRot, setScannerRot] = useState(false)
 
   const carregar = () => {
     supabase.from('roteiros').select('*').eq('id', id).single().then(({ data: r }) => {
@@ -4356,8 +4376,17 @@ function RoteiroDetalhe({ id, onBack }) {
     <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
-        <Btn variant="secondary" size="sm" onClick={() => gerarPDFRoteiro(roteiro, itens)}><Ic n="pdf" s={13} /> Imprimir</Btn>
+        <div style={{ display:'flex', gap:6 }}>
+          <Btn size="sm" variant="secondary" onClick={() => setScannerRot(true)}>📷 Escanear</Btn>
+          <Btn variant="secondary" size="sm" onClick={() => gerarPDFRoteiro(roteiro, itens)}><Ic n="pdf" s={13} /> Imprimir</Btn>
+        </div>
       </div>
+      {scannerRot && <LeitorCodigoBarras onScan={code => {
+        const match = itens.find(it => !it.concluido && (String(it.pedido_ref) === code || it.cliente?.toLowerCase().includes(code.toLowerCase())))
+        if (match) baixarParada(match.id)
+        else toast.error('Parada não encontrada: ' + code)
+        setScannerRot(false)
+      }} onClose={() => setScannerRot(false)} />}
 
       <h1 style={{ fontSize: 18, marginBottom: 4 }}>
         Roteiro — {roteiro.data ? new Date(roteiro.data + 'T12:00').toLocaleDateString('pt-BR') : '—'}
@@ -8536,6 +8565,81 @@ function EtiquetaModal({ produto, onClose }) {
   )
 }
 
+function LeitorCodigoBarras({ onScan, onClose }) {
+  const videoRef = useRef(null)
+  const readerRef = useRef(null)
+  const [erro, setErro] = useState(null)
+  const [ultimo, setUltimo] = useState(null)
+  const ultimoRef = useRef(null)
+
+  const beep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = 880; osc.type = 'sine'
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15)
+    } catch {}
+  }
+
+  useEffect(() => {
+    let active = true
+    const start = async () => {
+      try {
+        const { BrowserMultiFormatReader } = await import('@zxing/library')
+        const reader = new BrowserMultiFormatReader()
+        readerRef.current = reader
+        const devices = await reader.listVideoInputDevices()
+        if (!devices.length) { setErro('Nenhuma câmera encontrada'); return }
+        const deviceId = devices.find(d => /back|rear|environment/i.test(d.label))?.deviceId || devices[0]?.deviceId
+        await reader.decodeFromVideoDevice(deviceId, videoRef.current, (result, err) => {
+          if (!active || !result) return
+          const text = result.getText()
+          if (text === ultimoRef.current) return
+          ultimoRef.current = text
+          setUltimo(text)
+          beep()
+          onScan(text)
+        })
+      } catch (e) { if (active) setErro('Câmera indisponível: ' + (e.message || e)) }
+    }
+    start()
+    return () => { active = false; readerRef.current?.reset() }
+  }, [])
+
+  const fechar = () => { readerRef.current?.reset(); onClose() }
+
+  return (
+    <Modal title="Escanear Código de Barras" onClose={fechar}>
+      {erro ? <Alert type="error">{erro}</Alert> : (
+        <div style={{ position:'relative', borderRadius:12, overflow:'hidden', background:'#000', maxWidth:400, margin:'0 auto' }}>
+          <video ref={videoRef} style={{ width:'100%', display:'block' }} />
+          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+            <div style={{ width:220, height:90, border:'2px solid #6366f1', borderRadius:8, boxShadow:'0 0 0 9999px rgba(0,0,0,0.45)', position:'relative' }}>
+              {[['top:-2px','left:-2px','borderTop','borderLeft','4px 0 0 0'],['top:-2px','right:-2px','borderTop','borderRight','0 4px 0 0'],['bottom:-2px','left:-2px','borderBottom','borderLeft','0 0 0 4px'],['bottom:-2px','right:-2px','borderBottom','borderRight','0 0 4px 0']].map(([t,s,b1,b2,r], i) => (
+                <div key={i} style={{ position:'absolute', [t.split(':')[0]]:t.split(':')[1], [s.split(':')[0]]:s.split(':')[1], width:20, height:20, [b1]:'3px solid #6366f1', [b2]:'3px solid #6366f1', borderRadius:r }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {ultimo && (
+        <div style={{ marginTop:12, padding:'10px 14px', background:'rgba(99,102,241,.12)', borderRadius:8, textAlign:'center' }}>
+          <div style={{ fontSize:11, color:'var(--t2)' }}>Lido</div>
+          <div style={{ fontWeight:700, fontSize:16, fontFamily:'monospace', color:'var(--accent)' }}>{ultimo}</div>
+        </div>
+      )}
+      <div style={{ marginTop:12, textAlign:'center', fontSize:13, color:'var(--t2)' }}>
+        Aponte a câmera para o código de barras
+      </div>
+      <button className="btn btn-s" style={{ width:'100%', marginTop:10 }} onClick={fechar}>Fechar</button>
+    </Modal>
+  )
+}
+
 function EstoqueEtiquetas() {
   const lojaEf = useEffectiveLoja()
   const { data: itens, loading } = useData(() => estoqueService.list(lojaEf), [lojaEf])
@@ -8722,6 +8826,7 @@ function EstoqueMov() {
   const { data: estoqueItens } = useData(() => estoqueService.list(lojaEf), [lojaEf])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ tipo:'entrada', descricao:'', quantidade:1, loja:'', referencia:'' })
+  const [scanner, setScanner] = useState(false)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
@@ -8764,7 +8869,12 @@ function EstoqueMov() {
               <option value="ajuste">Ajuste</option>
             </select>
           </div>
-          <div className="fg"><label className="fl">Descrição / Produto</label><input className="fi" value={form.descricao} onChange={up('descricao')} /></div>
+          <div className="fg"><label className="fl">Descrição / Produto</label>
+            <div style={{ display:'flex', gap:6 }}>
+              <input className="fi" style={{ flex:1 }} value={form.descricao} onChange={up('descricao')} />
+              <button type="button" className="btn btn-s btn-sm" onClick={() => setScanner(true)} title="Escanear código de barras">📷</button>
+            </div>
+          </div>
           <div className="grid2">
             <div className="fg"><label className="fl">Quantidade</label><input className="fi" type="number" value={form.quantidade} onChange={up('quantidade')} /></div>
             <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
@@ -8775,6 +8885,7 @@ function EstoqueMov() {
           </div>
         </Modal>
       )}
+      {scanner && <LeitorCodigoBarras onScan={code => { setForm(p => ({ ...p, descricao: code })); setScanner(false) }} onClose={() => setScanner(false)} />}
     </div>
   )
 }
