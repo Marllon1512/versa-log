@@ -8,7 +8,10 @@ import {
   Archive, CreditCard, TrendingUp,
   Briefcase, Users, Clock,
   Store, Settings, MessageCircle,
-  BookOpen, FileText, ListOrdered, Camera
+  BookOpen, FileText, ListOrdered, Camera,
+  Menu, Bell, Sun, Moon, Trash2, Paperclip, Send,
+  Mail, Tag, MapPin, Eye, Edit2, Printer, Share2,
+  AlertTriangle, Image, BarChart2
 } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import JsBarcode from 'jsbarcode'
@@ -470,8 +473,8 @@ function NotifBell({ navigateTo }) {
   return (
     <div ref={ref} style={{ position:'relative' }}>
       <button onClick={abrirPainel}
-        style={{ position:'relative', width:34, height:34, borderRadius:8, border:'none', background:'var(--bg3)', color:'var(--t1)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>
-        🔔
+        style={{ position:'relative', width:34, height:34, borderRadius:8, border:'none', background:'var(--bg3)', color:'var(--t1)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <Bell size={17} strokeWidth={1.8} />
         {count > 0 && (
           <span style={{ position:'absolute', top:-4, right:-4, background:'var(--red)', color:'#fff', fontSize:9, fontWeight:700, minWidth:16, height:16, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px', lineHeight:1 }}>
             {count > 99 ? '99+' : count}
@@ -529,7 +532,7 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
 
   return (
     <div className="content-topbar">
-      <button className="btn btn-g btn-ico btn-sm sb-mobile-btn" onClick={() => setMobileOpen(o => !o)}>☰</button>
+      <button className="btn btn-g btn-ico btn-sm sb-mobile-btn" onClick={() => setMobileOpen(o => !o)}><Menu size={18} /></button>
       <button className="sb-desktop-toggle" onClick={onToggle} title={collapsed ? 'Expandir sidebar' : 'Recolher sidebar'}>
         <Ic n="chev" s={17} style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 250ms ease' }} />
       </button>
@@ -547,18 +550,20 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
         </select>
       )}
       {isSimulating && (
-        <span style={{ fontSize:11, background:'#f97316', color:'#fff', padding:'2px 10px', borderRadius:20, fontWeight:600, whiteSpace:'nowrap' }}>
-          👁 {PROFILE_LABELS[simulatedRole] || simulatedRole}
+        <span style={{ fontSize:11, background:'#f97316', color:'#fff', padding:'2px 10px', borderRadius:20, fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:4 }}>
+          <Eye size={11} /> {PROFILE_LABELS[simulatedRole] || simulatedRole}
         </span>
       )}
       <button
         onClick={toggleTema}
         title={tema === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
-        style={{ width:34, height:34, borderRadius:10, border:'1px solid var(--border)', background:'var(--bg2)', color:'var(--t1)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, flexShrink:0, transition:'background 0.3s ease, border-color 0.3s ease, transform 0.3s ease' }}
-        onMouseEnter={e => e.currentTarget.style.transform='rotate(20deg)'}
-        onMouseLeave={e => e.currentTarget.style.transform='rotate(0deg)'}
+        style={{ width:52, height:28, borderRadius:14, border:'1px solid var(--border)', background: tema === 'dark' ? '#111113' : '#e8e8f0', cursor:'pointer', display:'flex', alignItems:'center', padding:'0 3px', flexShrink:0, position:'relative', transition:'background 0.3s ease, border-color 0.3s ease' }}
       >
-        {tema === 'dark' ? '☀️' : '🌙'}
+        <div style={{ width:22, height:22, borderRadius:'50%', background: tema === 'dark' ? '#ffffff' : '#1a1a1a', display:'flex', alignItems:'center', justifyContent:'center', transform: tema === 'dark' ? 'translateX(0)' : 'translateX(24px)', transition:'transform 0.3s ease, background 0.3s ease', flexShrink:0 }}>
+          {tema === 'dark'
+            ? <Moon size={12} color="#111113" strokeWidth={2.2} />
+            : <Sun size={12} color="#ffffff" strokeWidth={2.2} />}
+        </div>
       </button>
       <NotifBell navigateTo={navigateTo} />
       <div ref={menuRef} style={{ position:'relative' }}>
@@ -759,7 +764,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <Btn size="sm" variant="secondary" onClick={() => setScanner(true)}>📷 Escanear</Btn>
+          <Btn size="sm" variant="secondary" onClick={() => setScanner(true)}><Camera size={13} strokeWidth={1.8} /> Escanear</Btn>
           <Badge status={pedido.status} />
         </div>
       </div>
@@ -854,7 +859,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
                     />
                   ) : (
                     <>
-                      <div style={{ fontSize: 24, marginBottom: 4 }}>📷</div>
+                      <Camera size={22} color="var(--t3)" strokeWidth={1.5} style={{ marginBottom: 4 }} />
                       <div style={{ fontSize: 13 }}>Toque para fotografar</div>
                     </>
                   )}
@@ -1909,22 +1914,22 @@ function PedidoDetalhe({ pedidoId, onBack }) {
             {pedido.rejeitado_gerente_motivo || pedido.rejeitado_financeiro_motivo || 'Sem motivo informado'}
           </div>
           {isGestor && (
-            <Btn size="sm" onClick={() => { setCorrigirMode(true); setShowEdit(true) }}>✏️ Corrigir e Reenviar</Btn>
+            <Btn size="sm" onClick={() => { setCorrigirMode(true); setShowEdit(true) }}><Edit2 size={13} strokeWidth={1.8} /> Corrigir e Reenviar</Btn>
           )}
         </div>
       )}
 
       {isGerente && pedido.status_fluxo === 'aguardando_gerente' && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <Btn style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }} loading={actionLoading} onClick={handleAprovarGerente}>✅ Aprovar</Btn>
-          <Btn variant="secondary" style={{ flex: 1, justifyContent: 'center', color: 'var(--red)' }} onClick={() => { setTipoRejeicao('gerente'); setShowRejeitar(true) }}>❌ Rejeitar</Btn>
+          <Btn style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }} loading={actionLoading} onClick={handleAprovarGerente}><CheckSquare size={14} strokeWidth={1.8} /> Aprovar</Btn>
+          <Btn variant="secondary" style={{ flex: 1, justifyContent: 'center', color: 'var(--red)' }} onClick={() => { setTipoRejeicao('gerente'); setShowRejeitar(true) }}>Rejeitar</Btn>
         </div>
       )}
 
       {isFinanceiro && pedido.status_fluxo === 'aguardando_financeiro' && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <Btn style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }} loading={actionLoading} onClick={handleAprovarFinanceiro}>✅ Aprovar Financeiro</Btn>
-          <Btn variant="secondary" style={{ flex: 1, justifyContent: 'center', color: 'var(--red)' }} onClick={() => { setTipoRejeicao('financeiro'); setShowRejeitar(true) }}>❌ Rejeitar</Btn>
+          <Btn style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }} loading={actionLoading} onClick={handleAprovarFinanceiro}><CheckSquare size={14} strokeWidth={1.8} /> Aprovar Financeiro</Btn>
+          <Btn variant="secondary" style={{ flex: 1, justifyContent: 'center', color: 'var(--red)' }} onClick={() => { setTipoRejeicao('financeiro'); setShowRejeitar(true) }}>Rejeitar</Btn>
         </div>
       )}
 
@@ -1932,12 +1937,12 @@ function PedidoDetalhe({ pedidoId, onBack }) {
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 10 }}>Agendar Entrega</div>
           <input type="date" className="fi" value={dataAgendamento} min={todayStr} onChange={e => setDataAgendamento(e.target.value)} />
-          <Btn style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} loading={actionLoading} onClick={handleAgendarEntrega}>📅 Confirmar Agendamento</Btn>
+          <Btn style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} loading={actionLoading} onClick={handleAgendarEntrega}><Calendar size={14} strokeWidth={1.8} /> Confirmar Agendamento</Btn>
         </div>
       )}
 
       {isSeparador && pedido.status_fluxo === 'aprovado_entrega' && pedido.data_entrega_agendada === todayStr && (
-        <Btn style={{ width: '100%', justifyContent: 'center', marginBottom: 16, background: 'var(--amber)', color: '#fff', borderColor: 'var(--amber)' }} loading={actionLoading} onClick={handleIniciarSeparacao}>📋 Iniciar Separação</Btn>
+        <Btn style={{ width: '100%', justifyContent: 'center', marginBottom: 16, background: 'var(--amber)', color: '#fff', borderColor: 'var(--amber)' }} loading={actionLoading} onClick={handleIniciarSeparacao}><ClipboardList size={14} strokeWidth={1.8} /> Iniciar Separação</Btn>
       )}
 
       {showRejeitar && (
@@ -2030,7 +2035,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
 
       {isGestor && !['Entregue', 'Cancelado'].includes(pedido.status) && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <button className="btn btn-s" style={{ flex: 1, justifyContent: 'center', color: 'var(--amber)' }} onClick={() => setShowRemarcar(true)}>📅 Remarcar</button>
+          <button className="btn btn-s" style={{ flex: 1, justifyContent: 'center', color: 'var(--amber)', display:'flex', alignItems:'center', gap:5 }} onClick={() => setShowRemarcar(true)}><Calendar size={13} strokeWidth={1.8} /> Remarcar</button>
           <button className="btn btn-d" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowCancelar(true)}>Cancelar</button>
         </div>
       )}
@@ -2128,7 +2133,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <input type="file" ref={followUpFileRef} multiple accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => { setFilesFollowUp(prev => [...prev, ...Array.from(e.target.files || [])]); e.target.value = '' }} />
-          <Btn variant="secondary" size="sm" onClick={() => followUpFileRef.current?.click()}>📎 Anexar</Btn>
+          <Btn variant="secondary" size="sm" onClick={() => followUpFileRef.current?.click()}><Paperclip size={13} strokeWidth={1.8} /> Anexar</Btn>
           <Btn size="sm" loading={loadingFollowUp} disabled={loadingFollowUp || (!textoFollowUp.trim() && filesFollowUp.length === 0)} onClick={adicionarFollowUp}>Adicionar Follow-up</Btn>
         </div>
       </div>
@@ -2748,7 +2753,7 @@ function ImportarLoteModal({ onClose, onImport }) {
         <div>
           <label className="upload-zone" style={{ display: 'block' }}>
             <input type="file" multiple accept=".pdf" style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files))} />
-            <div style={{ fontSize: 28, marginBottom: 8 }}>📄</div>
+            <FileText size={26} color="var(--t3)" strokeWidth={1.5} style={{ marginBottom: 8 }} />
             <div style={{ fontWeight: 500, marginBottom: 4 }}>Toque para selecionar fichas PDF</div>
             <div style={{ fontSize: 12, color: 'var(--t2)' }}>Múltiplos arquivos PDF</div>
           </label>
@@ -2756,7 +2761,7 @@ function ImportarLoteModal({ onClose, onImport }) {
             <div style={{ marginTop: 14 }}>
               {files.map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg2)', borderRadius: 6, marginBottom: 5 }}>
-                  <span style={{ fontSize: 14 }}>📄</span>
+                  <FileText size={14} color="var(--t3)" strokeWidth={1.6} />
                   <span style={{ flex: 1, fontSize: 12 }}>{f.name}</span>
                   <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => setFiles(prev => prev.filter((_, fi) => fi !== i))}><Ic n="x" s={12} /></button>
                 </div>
@@ -3064,7 +3069,7 @@ function Assistencia() {
             const url = `${window.location.origin}${window.location.pathname}#/solicitar`
             const txt = encodeURIComponent(`Solicite assistência técnica aqui: ${url}`)
             window.open(`https://wa.me/?text=${txt}`, '_blank')
-          }}>📲 WhatsApp</Btn>
+          }}><Share2 size={13} strokeWidth={1.8} /> WhatsApp</Btn>
           <Btn variant="secondary" size="sm" onClick={() => setShowImport(true)}><Ic n="save" s={13} /> Excel</Btn>
           <Btn size="sm" onClick={() => setShowNew(true)}><Ic n="plus" s={13} /> Nova</Btn>
         </div>
@@ -3267,13 +3272,13 @@ function AssistenciaMensagensAba({ assistenciaId, assistencia: a, perfil }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Btn variant={tipo === 'wpp' && showTpl ? 'primary' : 'secondary'} size="sm" onClick={() => { setTipo('wpp'); setShowTpl(true) }}>💬 WhatsApp</Btn>
-        <Btn variant={tipo === 'email' && showTpl ? 'primary' : 'secondary'} size="sm" onClick={() => { setTipo('email'); setShowTpl(true) }}>📧 Email Fábrica</Btn>
+        <Btn variant={tipo === 'wpp' && showTpl ? 'primary' : 'secondary'} size="sm" onClick={() => { setTipo('wpp'); setShowTpl(true) }}><MessageCircle size={13} strokeWidth={1.8} /> WhatsApp</Btn>
+        <Btn variant={tipo === 'email' && showTpl ? 'primary' : 'secondary'} size="sm" onClick={() => { setTipo('email'); setShowTpl(true) }}><Mail size={13} strokeWidth={1.8} /> Email Fábrica</Btn>
       </div>
 
       {showTpl && (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>{tipo === 'wpp' ? '💬 Templates WhatsApp (cliente)' : '📧 Templates Email (fábrica)'}</div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, display:'flex', alignItems:'center', gap:6 }}>{tipo === 'wpp' ? <><MessageCircle size={14} strokeWidth={1.8} /> Templates WhatsApp (cliente)</> : <><Mail size={14} strokeWidth={1.8} /> Templates Email (fábrica)</>}</div>
           {(tipo === 'wpp' ? TEMPLATES_WPP : TEMPLATES_EMAIL).map((tpl, i) => {
             const txt = tpl.gerar(a); const subj = tpl.assunto ? tpl.assunto(a) : ''; const k = `${tipo}_${i}`
             return (
@@ -3282,7 +3287,7 @@ function AssistenciaMensagensAba({ assistenciaId, assistencia: a, perfil }) {
                 {subj && <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>Assunto: {subj}</div>}
                 <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 8, whiteSpace: 'pre-line' }}>{txt}</div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <Btn variant="secondary" size="sm" onClick={() => copiar(txt, k)}>{copiado === k ? '✓ Copiado!' : '📋 Copiar'}</Btn>
+                  <Btn variant="secondary" size="sm" onClick={() => copiar(txt, k)}>{copiado === k ? '✓ Copiado!' : <><ClipboardList size={13} strokeWidth={1.8} /> Copiar</>}</Btn>
                   <Btn size="sm" loading={saving} onClick={() => salvar(tipo, tipo === 'wpp' ? 'cliente' : 'fabrica', subj, txt)}>Salvar registro</Btn>
                 </div>
               </div>
@@ -3303,7 +3308,7 @@ function AssistenciaMensagensAba({ assistenciaId, assistencia: a, perfil }) {
           <div key={i.id} style={{ background: 'var(--bg1)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
               <div style={{ display: 'flex', gap: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: i.tipo === 'wpp' ? '#25d366' : 'var(--accent)' }}>{i.tipo === 'wpp' ? '💬 WhatsApp' : '📧 Email'}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: i.tipo === 'wpp' ? '#25d366' : 'var(--accent)', display:'flex', alignItems:'center', gap:3 }}>{i.tipo === 'wpp' ? <><MessageCircle size={11} /> WhatsApp</> : <><Mail size={11} /> Email</>}</span>
                 <span style={{ fontSize: 11, color: 'var(--t3)' }}>→ {i.destinatario}</span>
               </div>
               <span style={{ fontSize: 11, color: 'var(--t3)' }}>{new Date(i.created_at).toLocaleDateString('pt-BR')} · {i.usuario_nome}</span>
@@ -4057,7 +4062,7 @@ function ConferenciaDetalhe({ id, onBack, onEncaminharAssistencia }) {
         <div style={{ display: 'flex', gap: 6 }}>
           {temAvaria && onEncaminharAssistencia && (
             <Btn size="sm" style={{ background: 'var(--amber)', color: '#fff' }}
-              onClick={() => onEncaminharAssistencia(c)}>🔧 Encaminhar p/ Assistência</Btn>
+              onClick={() => onEncaminharAssistencia(c)}><Wrench size={13} strokeWidth={1.8} /> Encaminhar p/ Assistência</Btn>
           )}
           <Btn variant="secondary" size="sm" onClick={() => gerarPDFConferencia(c)}><Ic n="pdf" s={13} /> PDF</Btn>
         </div>
@@ -4102,7 +4107,7 @@ function FotoCaptura({ label, value, onChange }) {
         </div>
       ) : (
         <label style={{ width: 90, height: 90, borderRadius: 8, border: '2px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', gap: 4 }}>
-          <span style={{ fontSize: 24 }}>📷</span>
+          <Camera size={20} color="var(--t3)" strokeWidth={1.5} />
           <span style={{ fontSize: 10, color: 'var(--t3)' }}>Tirar foto</span>
           <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => {
             const f = e.target.files?.[0]
@@ -4228,7 +4233,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
       <div className="fg"><label className="fl">Produto *</label>
         <div style={{ display:'flex', gap:6 }}>
           <input className="fi" style={{ flex:1 }} value={form.produto} onChange={up('produto')} />
-          <button type="button" className="btn btn-s btn-sm" onClick={() => setScannerConf(true)} title="Escanear código">📷</button>
+          <button type="button" className="btn btn-s btn-sm" onClick={() => setScannerConf(true)} title="Escanear código"><Camera size={13} strokeWidth={1.8} /></button>
         </div>
       </div>
       {scannerConf && <LeitorCodigoBarras onScan={code => { setForm(p => ({ ...p, produto: code })); setScannerConf(false) }} onClose={() => setScannerConf(false)} />}
@@ -4316,15 +4321,15 @@ function Roteiro() {
       </div>
 
       <div className="filters" style={{ marginBottom: 16 }}>
-        <button className={`fb${tipoTab === 'entregas' ? ' on' : ''}`} onClick={() => setTipoTab('entregas')}>🚚 Roteiro de Entregas</button>
-        <button className={`fb${tipoTab === 'assistencias' ? ' on' : ''}`} onClick={() => setTipoTab('assistencias')}>🔧 Roteiro de Assistências</button>
+        <button className={`fb${tipoTab === 'entregas' ? ' on' : ''}`} onClick={() => setTipoTab('entregas')} style={{display:'flex',alignItems:'center',gap:5}}><Truck size={13} strokeWidth={1.8} /> Roteiro de Entregas</button>
+        <button className={`fb${tipoTab === 'assistencias' ? ' on' : ''}`} onClick={() => setTipoTab('assistencias')} style={{display:'flex',alignItems:'center',gap:5}}><Wrench size={13} strokeWidth={1.8} /> Roteiro de Assistências</button>
       </div>
 
       {loading ? <Spinner /> : filtrados.length === 0 ? <Empty icon="🗺️" text={`Nenhum roteiro de ${tipoTab === 'entregas' ? 'entregas' : 'assistências'}`} /> :
         filtrados.map(r => (
           <div key={r.id} className="li" onClick={() => setSelectedId(r.id)}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
-              {r.tipo === 'assistencias' ? '🔧' : '🗺️'}
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--t2)' }}>
+              {r.tipo === 'assistencias' ? <Wrench size={17} strokeWidth={1.6} /> : <Map size={17} strokeWidth={1.6} />}
             </div>
             <div className="li-main">
               <div className="li-title">Roteiro {r.data ? new Date(r.data + 'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
@@ -4404,7 +4409,7 @@ function RoteiroDetalhe({ id, onBack }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
         <Btn variant="ghost" size="sm" onClick={onBack}><Ic n="back" s={13} /> Voltar</Btn>
         <div style={{ display:'flex', gap:6 }}>
-          <Btn size="sm" variant="secondary" onClick={() => setScannerRot(true)}>📷 Escanear</Btn>
+          <Btn size="sm" variant="secondary" onClick={() => setScannerRot(true)}><Camera size={13} strokeWidth={1.8} /> Escanear</Btn>
           <Btn variant="secondary" size="sm" onClick={() => gerarPDFRoteiro(roteiro, itens)}><Ic n="pdf" s={13} /> Imprimir</Btn>
         </div>
       </div>
@@ -4418,8 +4423,8 @@ function RoteiroDetalhe({ id, onBack }) {
       <h1 style={{ fontSize: 18, marginBottom: 4 }}>
         Roteiro — {roteiro.data ? new Date(roteiro.data + 'T12:00').toLocaleDateString('pt-BR') : '—'}
       </h1>
-      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 16 }}>
-        🚗 {roteiro.motorista_nome || '—'}{roteiro.montador_nome ? ` · 👤 ${roteiro.montador_nome}` : ''}
+      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 16, display:'flex', alignItems:'center', gap:6 }}>
+        <Truck size={14} strokeWidth={1.7} /> {roteiro.motorista_nome || '—'}{roteiro.montador_nome ? <><Users size={13} strokeWidth={1.7} style={{marginLeft:6}} /> {roteiro.montador_nome}</> : ''}
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -4713,8 +4718,8 @@ function Equipe() {
                 <div style={{ fontWeight: 600 }}>{e.nome}</div>
                 <Badge status={e.status || 'Ativa'} />
               </div>
-              <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 4 }}>🚗 {e.motorista_nome || 'Sem motorista'}</div>
-              <div style={{ fontSize: 12, color: 'var(--t2)' }}>👤 {(e.entregadores_nomes || []).join(', ') || 'Sem entregadores'}</div>
+              <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 4, display:'flex', alignItems:'center', gap:4 }}><Truck size={12} strokeWidth={1.7} /> {e.motorista_nome || 'Sem motorista'}</div>
+              <div style={{ fontSize: 12, color: 'var(--t2)', display:'flex', alignItems:'center', gap:4 }}><Users size={12} strokeWidth={1.7} /> {(e.entregadores_nomes || []).join(', ') || 'Sem entregadores'}</div>
             </div>
           ))}
         </div>
@@ -5094,8 +5099,8 @@ function Ranking() {
     <div className="page">
       <div className="ph"><h1>Ranking</h1></div>
       <div style={{display:'flex',gap:6,marginBottom:16}}>
-        <button className={`btn btn-${tab==='ranking'?'p':'s'} btn-sm`} onClick={()=>setTab('ranking')}>🏆 Entregadores</button>
-        <button className={`btn btn-${tab==='metas'?'p':'s'} btn-sm`} onClick={()=>setTab('metas')}>🎯 Metas</button>
+        <button className={`btn btn-${tab==='ranking'?'p':'s'} btn-sm`} onClick={()=>setTab('ranking')} style={{display:'flex',alignItems:'center',gap:5}}><Trophy size={13} strokeWidth={1.8} /> Entregadores</button>
+        <button className={`btn btn-${tab==='metas'?'p':'s'} btn-sm`} onClick={()=>setTab('metas')} style={{display:'flex',alignItems:'center',gap:5}}><Target size={13} strokeWidth={1.8} /> Metas</button>
       </div>
       {tab==='ranking' && <RankingEntregadores />}
       {tab==='metas' && <RankingMetas />}
@@ -5174,8 +5179,8 @@ function Mapa() {
         <Btn variant="secondary" size="sm" onClick={reload}><Ic n="refresh" s={13} /> Atualizar</Btn>
       </div>
       <div style={{ display:'flex', gap:6, marginBottom:12 }}>
-        <button className={`btn btn-${abaMapa==='entregas'?'p':'s'} btn-sm`} onClick={()=>setAbaMapa('entregas')}>🗺 Entregas</button>
-        <button className={`btn btn-${abaMapa==='equipe'?'p':'s'} btn-sm`} onClick={()=>setAbaMapa('equipe')}>👥 Equipe em Campo</button>
+        <button className={`btn btn-${abaMapa==='entregas'?'p':'s'} btn-sm`} onClick={()=>setAbaMapa('entregas')} style={{display:'flex',alignItems:'center',gap:5}}><Map size={13} strokeWidth={1.8} /> Entregas</button>
+        <button className={`btn btn-${abaMapa==='equipe'?'p':'s'} btn-sm`} onClick={()=>setAbaMapa('equipe')} style={{display:'flex',alignItems:'center',gap:5}}><Users size={13} strokeWidth={1.8} /> Equipe em Campo</button>
       </div>
       {abaMapa === 'equipe' ? <MapaEquipe /> : (
         <div className="map-layout">
@@ -5493,7 +5498,7 @@ function MinhaRota() {
               </div>
             )) : (
               <div className="upload-zone" style={{ marginBottom: 12 }} onClick={() => setFotos(prev => [...prev, `foto_${Date.now()}`])}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>📷</div>
+                <Camera size={26} color="var(--t3)" strokeWidth={1.5} style={{ marginBottom: 8 }} />
                 <div>Toque para fotografar</div>
               </div>
             )}
@@ -6217,7 +6222,7 @@ function AparenciaConfig() {
       <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:20, padding:'12px', background:'var(--bg2)', borderRadius:10, border:'1px solid var(--border)' }}>
         {cfg.logo_versa_url
           ? <img src={cfg.logo_versa_url} alt="Logo Versa" style={{ height:52, objectFit:'contain', borderRadius:8, background:'#fff', padding:4 }} />
-          : <div style={{ width:52, height:52, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24 }}>🔷</div>
+          : <div style={{ width:52, height:52, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center' }}><Image size={22} color="var(--t3)" strokeWidth={1.5} /></div>
         }
         <div>
           <div style={{ fontSize:13, fontWeight:600, marginBottom:6 }}>Logo principal (sidebar e etiquetas)</div>
@@ -6241,7 +6246,7 @@ function AparenciaConfig() {
               <div style={{ height:120, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg3)' }}>
                 {url
                   ? <img src={url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                  : <div style={{ textAlign:'center', color:'var(--t3)' }}><div style={{ fontSize:28 }}>🖼️</div><div style={{ fontSize:11, marginTop:4 }}>Sem imagem</div></div>
+                  : <div style={{ textAlign:'center', color:'var(--t3)' }}><Image size={26} strokeWidth={1.5} style={{ marginBottom:4 }} /><div style={{ fontSize:11, marginTop:4 }}>Sem imagem</div></div>
                 }
                 {isActive && <div style={{ position:'absolute', top:6, right:6, background:'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6 }}>ATIVO</div>}
               </div>
@@ -6723,7 +6728,7 @@ function CadCatalogo() {
             <div key={p.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer' }} onClick={() => setDetalhe(p)}>
               {temFoto
                 ? <img src={p.fotos[0]} alt={p.nome} style={{ width:48, height:48, borderRadius:8, objectFit:'cover', flexShrink:0 }} />
-                : <div style={{ width:48, height:48, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>📷</div>
+                : <div style={{ width:48, height:48, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Camera size={20} color="var(--t3)" strokeWidth={1.5} /></div>
               }
               <div style={{ flex:1 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
@@ -6742,7 +6747,7 @@ function CadCatalogo() {
                   Custo: {fmtMoeda(p.preco_custo)} · Venda: {fmtMoeda(p.preco_venda)} · Estoque: {p.estoque_atual} {p.unidade}
                 </div>
               </div>
-              <button className="btn btn-p btn-sm" onClick={e => { e.stopPropagation(); setEtiqueta(p) }}>🏷</button>
+              <button className="btn btn-p btn-sm" onClick={e => { e.stopPropagation(); setEtiqueta(p) }}><Tag size={13} strokeWidth={1.8} /></button>
               <button className="btn btn-s btn-sm" onClick={e => { e.stopPropagation(); abrirModal(p) }}>Editar</button>
               <button className="btn btn-g btn-sm" onClick={e => { e.stopPropagation(); excluir(p.id) }}>✕</button>
             </div>
@@ -6959,7 +6964,7 @@ function CadLojas() {
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               {form.logo_url
                 ? <img src={form.logo_url} alt="logo" style={{ width:48, height:48, borderRadius:8, objectFit:'contain', background:'var(--bg3)', border:'1px solid var(--border)' }} />
-                : <div style={{ width:48, height:48, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🏪</div>
+                : <div style={{ width:48, height:48, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center' }}><Store size={20} color="var(--t3)" strokeWidth={1.5} /></div>
               }
               <label style={{ cursor: uploadingLogo ? 'not-allowed' : 'pointer' }}>
                 <input type="file" accept="image/*" style={{ display:'none' }} disabled={uploadingLogo} onChange={e => e.target.files[0] && uploadLogo(e.target.files[0])} />
@@ -7457,8 +7462,8 @@ function CRM() {
         <div className="stat"><div className="stat-n" style={{ color:'var(--accent)', fontSize:18 }}>{fmtR(totalValor)}</div><div className="stat-l">Pipeline</div></div>
       </div>
       <div style={{ display:'flex', gap:6, marginBottom:16 }}>
-        <button className={`btn btn-${tab==='kanban'?'p':'s'} btn-sm`} onClick={()=>setTab('kanban')}>🎯 Kanban</button>
-        <button className={`btn btn-${tab==='visitas'?'p':'s'} btn-sm`} onClick={()=>setTab('visitas')}>📅 Agenda Visitas</button>
+        <button className={`btn btn-${tab==='kanban'?'p':'s'} btn-sm`} onClick={()=>setTab('kanban')} style={{display:'flex',alignItems:'center',gap:5}}><Target size={13} strokeWidth={1.8} /> Kanban</button>
+        <button className={`btn btn-${tab==='visitas'?'p':'s'} btn-sm`} onClick={()=>setTab('visitas')} style={{display:'flex',alignItems:'center',gap:5}}><Calendar size={13} strokeWidth={1.8} /> Agenda Visitas</button>
       </div>
       {tab === 'kanban' && <CRMKanban openNew={openNew} onOpenNewConsumed={() => setOpenNew(false)} />}
       {tab === 'visitas' && <CRMVisitas />}
@@ -7523,7 +7528,7 @@ function CatalogoPub() {
             <div key={p.id} className="card" style={{ padding:12, display:'flex', flexDirection:'column', gap:6 }}>
               {p.foto_url
                 ? <img src={p.foto_url} alt={p.nome} style={{ width:'100%', height:120, objectFit:'cover', borderRadius:8, background:'var(--bg2)' }} />
-                : <div style={{ width:'100%', height:120, borderRadius:8, background:'var(--bg2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32 }}>🛍️</div>
+                : <div style={{ width:'100%', height:120, borderRadius:8, background:'var(--bg2)', display:'flex', alignItems:'center', justifyContent:'center' }}><ShoppingBag size={30} color="var(--t3)" strokeWidth={1.3} /></div>
               }
               <div style={{ fontWeight:600, fontSize:13 }}>{p.nome}</div>
               {p.categoria && <div style={{ fontSize:11, color:'var(--t2)' }}>{p.categoria}</div>}
@@ -7726,8 +7731,8 @@ function Vendas() {
         <button className="btn btn-p btn-sm" onClick={() => setNovaVenda(true)}>+ Nova Venda</button>
       </div>
       <div style={{display:'flex',gap:6,marginBottom:16}}>
-        <button className={`btn btn-${tab==='vendas'?'p':'s'} btn-sm`} onClick={()=>setTab('vendas')}>💰 Vendas</button>
-        <button className={`btn btn-${tab==='orcamentos'?'p':'s'} btn-sm`} onClick={()=>setTab('orcamentos')}>📝 Orçamentos</button>
+        <button className={`btn btn-${tab==='vendas'?'p':'s'} btn-sm`} onClick={()=>setTab('vendas')} style={{display:'flex',alignItems:'center',gap:5}}><ShoppingCart size={13} strokeWidth={1.8} /> Vendas</button>
+        <button className={`btn btn-${tab==='orcamentos'?'p':'s'} btn-sm`} onClick={()=>setTab('orcamentos')} style={{display:'flex',alignItems:'center',gap:5}}><FileText size={13} strokeWidth={1.8} /> Orçamentos</button>
       </div>
       {tab==='vendas' && <VendasLista onNovaVenda={()=>setNovaVenda(true)} />}
       {tab==='orcamentos' && <Orcamentos />}
@@ -8157,8 +8162,8 @@ function Compras() {
         {tab === 'pedidos' && <button className="btn btn-p btn-sm" onClick={() => setModal({ mode:'new' })}>+ Novo Pedido</button>}
       </div>
       <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
-        <button className={`btn btn-${tab==='pedidos'?'p':'s'} btn-sm`} onClick={()=>setTab('pedidos')}>🛒 Pedidos</button>
-        <button className={`btn btn-${tab==='previsao'?'p':'s'} btn-sm`} onClick={()=>setTab('previsao')}>📊 Previsão</button>
+        <button className={`btn btn-${tab==='pedidos'?'p':'s'} btn-sm`} onClick={()=>setTab('pedidos')} style={{display:'flex',alignItems:'center',gap:5}}><ShoppingBag size={13} strokeWidth={1.8} /> Pedidos</button>
+        <button className={`btn btn-${tab==='previsao'?'p':'s'} btn-sm`} onClick={()=>setTab('previsao')} style={{display:'flex',alignItems:'center',gap:5}}><BarChart2 size={13} strokeWidth={1.8} /> Previsão</button>
       </div>
       {tab === 'previsao' && <ComprasPrevisao />}
       {tab === 'pedidos' && (
@@ -8381,7 +8386,7 @@ function InventarioTab() {
   if (loading) return <Spinner />
   if (!iniciado) return (
     <div style={{ textAlign:'center', padding:'40px 16px' }}>
-      <div style={{ fontSize:48, marginBottom:12 }}>📋</div>
+      <ClipboardList size={48} color="var(--t3)" strokeWidth={1.2} style={{ marginBottom:12 }} />
       <div style={{ fontWeight:600, fontSize:18, marginBottom:8 }}>Inventário de Estoque</div>
       <div style={{ color:'var(--t2)', fontSize:13, marginBottom:20 }}>Conte os produtos físicos e compare com o sistema.</div>
       <button className="btn btn-p" onClick={() => setIniciado(true)}>Iniciar Inventário</button>
@@ -8615,7 +8620,7 @@ function EtiquetaModal({ produto, onClose }) {
       </div>
       <div style={{ display:'flex', gap:8, marginTop:12 }}>
         <button className="btn btn-p" style={{ flex:1 }} onClick={gerarPDF} disabled={imprimindo}>
-          {imprimindo ? 'Gerando...' : '🖨 Imprimir Etiqueta'}
+          {imprimindo ? 'Gerando...' : <><Printer size={14} strokeWidth={1.8} /> Imprimir Etiqueta</>}
         </button>
         <button className="btn btn-s" onClick={onClose}>Fechar</button>
       </div>
@@ -8720,7 +8725,7 @@ function EstoqueEtiquetas() {
               <div style={{ fontSize:11, color:'var(--t2)' }}>{p.referencia||p.codigo_barras||'—'} · {p.loja||'—'}</div>
             </div>
             <div style={{ fontWeight:700, color:'var(--accent)', fontSize:14 }}>{fmtR(p.preco_venda)}</div>
-            <button className="btn btn-p btn-sm" onClick={() => setEtiqueta(p)}>🏷 Etiqueta</button>
+            <button className="btn btn-p btn-sm" onClick={() => setEtiqueta(p)} style={{display:'flex',alignItems:'center',gap:4}}><Tag size={13} strokeWidth={1.8} /> Etiqueta</button>
           </div>
         ))}
       </div>
@@ -8930,7 +8935,7 @@ function EstoqueMov() {
           <div className="fg"><label className="fl">Descrição / Produto</label>
             <div style={{ display:'flex', gap:6 }}>
               <input className="fi" style={{ flex:1 }} value={form.descricao} onChange={up('descricao')} />
-              <button type="button" className="btn btn-s btn-sm" onClick={() => setScanner(true)} title="Escanear código de barras">📷</button>
+              <button type="button" className="btn btn-s btn-sm" onClick={() => setScanner(true)} title="Escanear código de barras"><Camera size={13} strokeWidth={1.8} /></button>
             </div>
           </div>
           <div className="grid2">
@@ -9017,7 +9022,7 @@ function FinanceiroDRE() {
           <option value="">Consolidado grupo</option>
           {LOJAS_GRUPO.map(l => <option key={l}>{l}</option>)}
         </select>
-        <button className="btn btn-s btn-sm" onClick={exportarPDF}>📄 Exportar PDF</button>
+        <button className="btn btn-s btn-sm" onClick={exportarPDF} style={{display:'flex',alignItems:'center',gap:5}}><FileText size={13} strokeWidth={1.8} /> Exportar PDF</button>
       </div>
       <div className="card">
         <div style={{ fontWeight:700, fontSize:15, marginBottom:12, color:'var(--accent)' }}>DRE — {mes}{lojaFiltro ? ' · '+lojaFiltro : ' · Consolidado'}</div>
@@ -9293,7 +9298,7 @@ function FinanceiroConciliacao() {
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
         <button className="btn btn-g btn-sm" onClick={() => { setSelected(null); setTransacoes([]) }}>← Voltar</button>
         <span style={{ fontWeight:600, fontSize:15 }}>{selected.banco} — {fmtData(selected.data_inicio)} a {fmtData(selected.data_fim)}</span>
-        <button className="btn btn-g btn-sm" style={{ marginLeft:'auto' }} onClick={exportarPDF}>📄 Exportar PDF</button>
+        <button className="btn btn-g btn-sm" style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:5 }} onClick={exportarPDF}><FileText size={13} strokeWidth={1.8} /> Exportar PDF</button>
       </div>
 
       {/* Resumo */}
@@ -9347,7 +9352,7 @@ function FinanceiroConciliacao() {
                       </button>
                     </td>
                     <td style={{ padding:'7px 10px' }}>
-                      <button onClick={() => excluirTransacao(tr.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--t3)', fontSize:14 }}>🗑</button>
+                      <button onClick={() => excluirTransacao(tr.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--t3)', display:'flex', alignItems:'center' }}><Trash2 size={14} strokeWidth={1.8} /></button>
                     </td>
                   </tr>
                 ))}
@@ -9405,7 +9410,7 @@ function FinanceiroConciliacao() {
                   <div style={{ fontSize:13, fontWeight:600, color: total >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtMoeda(ex.saldo_final)}</div>
                   <div style={{ fontSize:11, color:'var(--t3)' }}>Saldo final</div>
                 </div>
-                <button onClick={e => { e.stopPropagation(); excluirExtrato(ex.id) }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--t3)', fontSize:16, padding:'4px' }}>🗑</button>
+                <button onClick={e => { e.stopPropagation(); excluirExtrato(ex.id) }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--t3)', padding:'4px', display:'flex', alignItems:'center' }}><Trash2 size={15} strokeWidth={1.8} /></button>
               </div>
             )
           })}
@@ -9580,7 +9585,7 @@ function FinanceiroLista({ tipo }) {
                 <div style={{ fontWeight:700 }}>{fmtMoeda(item.valor)}</div>
                 {item.status !== 'pago' && <button className="btn btn-p btn-sm" style={{ marginTop:4 }} onClick={() => marcarPago(item)}>Pagar</button>}
               </div>
-              <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...item }); setModal({ item }) }}>✎</button>
+              <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...item }); setModal({ item }) }}><Edit2 size={13} strokeWidth={1.8} /></button>
             </div>
           ))}
         </div>
@@ -10136,7 +10141,7 @@ function DPCercaVirtual() {
             <div className="fg"><label className="fl">Longitude *</label><input className="fi" type="number" step="any" value={form.longitude} onChange={up('longitude')} /></div>
             <div className="fg"><label className="fl">Raio (metros)</label><input className="fi" type="number" value={form.raio_metros} onChange={up('raio_metros')} /></div>
             <div className="fg" style={{ display:'flex', alignItems:'flex-end' }}>
-              <button className="btn btn-s" style={{ width:'100%' }} onClick={capturarGPS}>📍 Usar minha localização</button>
+              <button className="btn btn-s" style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }} onClick={capturarGPS}><MapPin size={14} strokeWidth={1.8} /> Usar minha localização</button>
             </div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
@@ -10808,9 +10813,9 @@ function Chat() {
           value={texto} onChange={e => setTexto(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }} />
         <input ref={fileRef} type="file" multiple hidden onChange={e => { enviar([...e.target.files]); e.target.value = '' }} />
-        <button className="btn btn-s btn-sm btn-ico" onClick={() => fileRef.current?.click()} title="Anexar" style={{ width:38, height:40, flexShrink:0 }}>📎</button>
-        <button className="btn btn-p btn-sm" onClick={() => enviar()} disabled={enviando} style={{ height:40, padding:'0 14px', flexShrink:0 }}>
-          {enviando ? '...' : '➤'}
+        <button className="btn btn-s btn-sm btn-ico" onClick={() => fileRef.current?.click()} title="Anexar" style={{ width:38, height:40, flexShrink:0 }}><Paperclip size={15} strokeWidth={1.8} /></button>
+        <button className="btn btn-p btn-sm" onClick={() => enviar()} disabled={enviando} style={{ height:40, padding:'0 14px', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          {enviando ? '...' : <Send size={14} strokeWidth={1.8} />}
         </button>
       </div>
     </div>
