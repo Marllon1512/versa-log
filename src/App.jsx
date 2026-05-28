@@ -206,29 +206,27 @@ const MOTIVATIONAL_MSGS = [
 
 const SIDEBAR_GROUPS = [
   { group: 'OPERACIONAL', items: [
-    { id: 'dashboard',   label: 'Dashboard',    icon: '🏠' },
-    { id: 'pedidos',     label: 'Pedidos',      icon: '📦' },
-    { id: 'separacao',   label: 'Separação',    icon: '📋' },
-    { id: 'conferencia', label: 'Conferência',  icon: '☑️' },
-    { id: 'fila',        label: 'Fila de Liberação', icon: '✅' },
+    { id: 'dashboard',   label: 'Dashboard',   icon: '🏠' },
+    { id: 'pedidos',     label: 'Pedidos',     icon: '📦' },
+    { id: 'separacao',   label: 'Separação',   icon: '📋' },
+    { id: 'conferencia', label: 'Conferência', icon: '☑️' },
   ]},
   { group: 'LOGÍSTICA', items: [
     { id: 'roteiro', label: 'Roteiro',    icon: '📍' },
     { id: 'rota',    label: 'Minha Rota', icon: '🚚' },
     { id: 'mapa',    label: 'Mapa',       icon: '🗺️' },
+    { id: 'ranking', label: 'Ranking',    icon: '🏆' },
   ]},
   { group: 'COMERCIAL', items: [
-    { id: 'vendas',   label: 'Vendas e PDV',     icon: '💰' },
-    { id: 'crm',      label: 'CRM',              icon: '🎯' },
-    { id: 'compras',  label: 'Compras',          icon: '🛒' },
-    { id: 'catalogo', label: 'Catálogo Digital', icon: '🛍️' },
-    { id: 'nps',      label: 'NPS',              icon: '⭐' },
+    { id: 'vendas',  label: 'Vendas e PDV', icon: '💰' },
+    { id: 'crm',     label: 'CRM',          icon: '🎯' },
+    { id: 'compras', label: 'Compras',      icon: '🛒' },
+    { id: 'nps',     label: 'NPS',          icon: '⭐' },
   ]},
   { group: 'ATENDIMENTO', items: [
     { id: 'assistencia', label: 'Assistência',       icon: '🔧' },
     { id: 'agenda',      label: 'Agenda',            icon: '📅' },
     { id: 'os',          label: 'Ordens de Serviço', icon: '🛠️' },
-    { id: 'devolucao',   label: 'Devolução e Troca', icon: '↩️' },
   ]},
   { group: 'ESTOQUE', items: [
     { id: 'estoque', label: 'Estoque', icon: '📊' },
@@ -236,14 +234,12 @@ const SIDEBAR_GROUPS = [
   { group: 'FINANCEIRO', items: [
     { id: 'financeiro',      label: 'Financeiro',  icon: '💳' },
     { id: 'financeiro_loja', label: 'Financeiro',  icon: '💳' },
-    { id: 'nf',              label: 'Nota Fiscal', icon: '📄' },
     { id: 'relatorios',      label: 'Relatórios',  icon: '📈' },
   ]},
   { group: 'PESSOAS', items: [
-    { id: 'dp',      label: 'Departamento Pessoal', icon: '👔' },
-    { id: 'equipe',  label: 'Equipe',               icon: '👥' },
-    { id: 'ponto',   label: 'Ponto Eletrônico',     icon: '⏰' },
-    { id: 'ranking', label: 'Ranking',              icon: '🏆' },
+    { id: 'dp',     label: 'Departamento Pessoal', icon: '👔' },
+    { id: 'equipe', label: 'Equipe',               icon: '👥' },
+    { id: 'ponto',  label: 'Ponto Eletrônico',     icon: '⏰' },
   ]},
   { group: 'SISTEMA', items: [
     { id: 'cadastros', label: 'Cadastros',     icon: '🏪' },
