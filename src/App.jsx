@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import './styles.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import JsBarcode from 'jsbarcode'
+import { jsPDF } from 'jspdf'
 import { useData, useAction, useDateInfo, usePrazo, usePagination, usePullToRefresh } from './hooks/index'
 import { Btn, Badge, Modal, ConfirmModal, Ic, Logo, Alert, Spinner, Empty, Input } from './components/ui/index'
 import * as XLSX from 'xlsx'
@@ -6527,6 +6529,7 @@ function CadCatalogo() {
   const [filtroTipo, setFiltroTipo] = useState('')
   const [modal, setModal] = useState(null)
   const [detalhe, setDetalhe] = useState(null)
+  const [etiqueta, setEtiqueta] = useState(null)
   const empty = { nome:'', tipo:'produto', referencia:'', preco_custo:'', preco_venda:'', unidade:'un', estoque_atual:0, estoque_minimo:0, descricao:'', fotos:[] }
   const [form, setForm] = useState(empty)
   const [fotosNovas, setFotosNovas] = useState([]) // { file, preview }
@@ -6652,12 +6655,15 @@ function CadCatalogo() {
                   Custo: {fmtMoeda(p.preco_custo)} · Venda: {fmtMoeda(p.preco_venda)} · Estoque: {p.estoque_atual} {p.unidade}
                 </div>
               </div>
+              <button className="btn btn-p btn-sm" onClick={e => { e.stopPropagation(); setEtiqueta(p) }}>🏷</button>
               <button className="btn btn-s btn-sm" onClick={e => { e.stopPropagation(); abrirModal(p) }}>Editar</button>
               <button className="btn btn-g btn-sm" onClick={e => { e.stopPropagation(); excluir(p.id) }}>✕</button>
             </div>
           )})}
         </div>
       )}
+
+      {etiqueta && <EtiquetaModal produto={etiqueta} onClose={() => setEtiqueta(null)} />}
 
       {/* Modal detalhe com galeria */}
       {detalhe && (
@@ -8326,53 +8332,237 @@ function InventarioTab() {
   )
 }
 
+function EtiquetaModal({ produto, onClose }) {
+  const { perfil } = useAuth()
+  const [logoVersa, setLogoVersa] = useState(null)
+  const [logoLoja, setLogoLoja] = useState(null)
+  const [nomeLoja, setNomeLoja] = useState(produto?.loja || perfil?.loja || 'Grupo Versa')
+  const [origem, setOrigem] = useState('Estoque')
+  const [nf, setNf] = useState('')
+  const [numPedido, setNumPedido] = useState('')
+  const [volumes, setVolumes] = useState(1)
+  const [totalVolumes, setTotalVolumes] = useState(1)
+  const [quantidade, setQuantidade] = useState(1)
+  const [nomeCliente, setNomeCliente] = useState('')
+  const [copias, setCopias] = useState(1)
+  const [imprimindo, setImprimindo] = useState(false)
+  const barcodeRef = useRef(null)
+
+  const nomeProduto = produto?.nome || produto?.nome_produto || ''
+  const codigoBarras = String(produto?.codigo_barras || produto?.referencia || produto?.sku || '0000000000000')
+  const dataEmissao = new Date().toLocaleDateString('pt-BR')
+  const nomeEmitente = perfil?.full_name || perfil?.email || ''
+
+  useEffect(() => {
+    configSistemaService.get().then(d => {
+      if (d?.logo_versa_url) setLogoVersa(d.logo_versa_url)
+    }).catch(() => {})
+    const ljNome = produto?.loja || perfil?.loja
+    if (ljNome) {
+      lojasService.list().then(lojas => {
+        const found = lojas.find(l => l.nome === ljNome)
+        if (found) {
+          setNomeLoja(found.nome)
+          if (found.logo_url) setLogoLoja(found.logo_url)
+        }
+      }).catch(() => {})
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!barcodeRef.current) return
+    try {
+      JsBarcode(barcodeRef.current, codigoBarras, {
+        format: 'CODE128', width: 2, height: 50,
+        displayValue: true, fontSize: 11, margin: 4,
+        background: '#ffffff', lineColor: '#000000',
+      })
+    } catch {}
+  }, [])
+
+  const loadImgAsDataUrl = async (url) => {
+    try {
+      const resp = await fetch(url)
+      const blob = await resp.blob()
+      return new Promise(res => {
+        const fr = new FileReader()
+        fr.onload = () => res(fr.result)
+        fr.onerror = () => res(null)
+        fr.readAsDataURL(blob)
+      })
+    } catch { return null }
+  }
+
+  const gerarPDF = async () => {
+    setImprimindo(true)
+    try {
+      const doc = new jsPDF({ unit: 'mm', format: [100, 150], orientation: 'portrait' })
+
+      const bCanvas = document.createElement('canvas')
+      let barcodeImg = null, bCanvasH = 0, bCanvasW = 0
+      try {
+        JsBarcode(bCanvas, codigoBarras, {
+          format: 'CODE128', width: 2, height: 60,
+          displayValue: true, fontSize: 12, margin: 6,
+          background: '#ffffff', lineColor: '#000000',
+        })
+        barcodeImg = bCanvas.toDataURL('image/png')
+        bCanvasH = bCanvas.height
+        bCanvasW = bCanvas.width
+      } catch {}
+
+      const [imgVersa, imgLoja] = await Promise.all([
+        logoVersa ? loadImgAsDataUrl(logoVersa) : Promise.resolve(null),
+        logoLoja ? loadImgAsDataUrl(logoLoja) : Promise.resolve(null),
+      ])
+
+      for (let i = 0; i < copias; i++) {
+        if (i > 0) doc.addPage()
+        let y = 7
+
+        if (imgVersa || imgLoja) {
+          if (imgVersa) { try { doc.addImage(imgVersa, 'PNG', 5, y, 28, 13) } catch {} }
+          if (imgLoja) { try { doc.addImage(imgLoja, 'PNG', 67, y, 28, 13) } catch {} }
+          y += 17
+        }
+
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold')
+        doc.text(nomeLoja, 50, y, { align: 'center' }); y += 6
+
+        doc.setDrawColor(180, 180, 180); doc.line(5, y, 95, y); y += 5
+
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+        const pLines = doc.splitTextToSize(nomeProduto, 85)
+        doc.text(pLines, 5, y); y += pLines.length * 5 + 2
+
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+        doc.text(`Origem: ${origem}`, 5, y); y += 5
+        doc.text(`NF: ${nf || '—'}`, 5, y)
+        doc.text(`Pedido: ${numPedido || '—'}`, 52, y); y += 5
+        doc.text(`Volume: ${volumes} de ${totalVolumes}`, 5, y)
+        doc.text(`Qtd: ${quantidade}`, 52, y); y += 5
+        doc.setFontSize(8)
+        doc.text(`Emissão: ${dataEmissao}   Emitido por: ${nomeEmitente}`, 5, y); y += 5
+
+        if (nomeCliente) {
+          doc.setFontSize(9); doc.setFont('helvetica', 'bold')
+          doc.text(`Cliente: ${nomeCliente}`, 5, y)
+          doc.setFont('helvetica', 'normal'); y += 5
+        }
+
+        doc.setDrawColor(180, 180, 180); doc.line(5, y, 95, y); y += 4
+
+        if (barcodeImg && bCanvasW > 0) {
+          const bw = 85
+          const bh = (bCanvasH / bCanvasW) * bw
+          doc.addImage(barcodeImg, 'PNG', 7, y, bw, bh)
+        }
+      }
+
+      doc.autoPrint()
+      window.open(doc.output('bloburl'), '_blank')
+    } catch (e) { toast.error('Erro ao gerar PDF: ' + e.message) }
+    setImprimindo(false)
+  }
+
+  return (
+    <Modal title="Gerar Etiqueta" onClose={onClose}>
+      <div style={{ background:'#fff', color:'#000', border:'2px solid #ddd', borderRadius:8, padding:'12px 16px', maxWidth:340, margin:'0 auto 16px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8, minHeight:28 }}>
+          {logoVersa ? <img src={logoVersa} alt="Versa" style={{ height:26, objectFit:'contain', maxWidth:90 }} /> : <span style={{ fontSize:11, fontWeight:700, color:'#6366f1' }}>VERSA</span>}
+          {logoLoja ? <img src={logoLoja} alt="Loja" style={{ height:26, objectFit:'contain', maxWidth:90 }} /> : <span style={{ fontSize:10, color:'#888' }}>{nomeLoja}</span>}
+        </div>
+        <div style={{ borderBottom:'1px solid #ddd', paddingBottom:5, marginBottom:5, textAlign:'center', fontWeight:700, fontSize:13 }}>{nomeLoja}</div>
+        <div style={{ fontWeight:700, fontSize:12, marginBottom:3 }}>{nomeProduto}</div>
+        <div style={{ fontSize:11, color:'#555' }}>Origem: <b>{origem}</b></div>
+        <div style={{ display:'flex', gap:12, fontSize:11, color:'#555', margin:'2px 0' }}>
+          <span>NF: <b>{nf || '—'}</b></span>
+          <span>Pedido: <b>{numPedido || '—'}</b></span>
+        </div>
+        <div style={{ display:'flex', gap:12, fontSize:11, color:'#555', margin:'2px 0' }}>
+          <span>Vol: <b>{volumes}/{totalVolumes}</b></span>
+          <span>Qtd: <b>{quantidade}</b></span>
+        </div>
+        <div style={{ fontSize:10, color:'#777', margin:'2px 0' }}>{dataEmissao} · {nomeEmitente}</div>
+        {nomeCliente && <div style={{ fontSize:11, fontWeight:700, margin:'2px 0' }}>Cliente: {nomeCliente}</div>}
+        <div style={{ borderTop:'1px solid #ddd', marginTop:6, paddingTop:6, textAlign:'center' }}>
+          <canvas ref={barcodeRef} style={{ maxWidth:'100%' }} />
+        </div>
+      </div>
+
+      <div className="grid2">
+        <div className="fg">
+          <label className="fl">Origem</label>
+          <select className="fi" value={origem} onChange={e => setOrigem(e.target.value)}>
+            {['Estoque','Showroom','Depósito','CD'].map(o => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+        <div className="fg">
+          <label className="fl">Cópias</label>
+          <input className="fi" type="number" min={1} max={50} value={copias} onChange={e => setCopias(Math.max(1, parseInt(e.target.value)||1))} />
+        </div>
+        <div className="fg">
+          <label className="fl">Nota Fiscal</label>
+          <input className="fi" value={nf} onChange={e => setNf(e.target.value)} placeholder="Nº da NF" />
+        </div>
+        <div className="fg">
+          <label className="fl">Nº Pedido</label>
+          <input className="fi" value={numPedido} onChange={e => setNumPedido(e.target.value)} placeholder="Nº do pedido" />
+        </div>
+        <div className="fg">
+          <label className="fl">Volume atual</label>
+          <input className="fi" type="number" min={1} value={volumes} onChange={e => setVolumes(Math.max(1, parseInt(e.target.value)||1))} />
+        </div>
+        <div className="fg">
+          <label className="fl">Total de volumes</label>
+          <input className="fi" type="number" min={1} value={totalVolumes} onChange={e => setTotalVolumes(Math.max(1, parseInt(e.target.value)||1))} />
+        </div>
+        <div className="fg">
+          <label className="fl">Quantidade</label>
+          <input className="fi" type="number" min={1} value={quantidade} onChange={e => setQuantidade(Math.max(1, parseInt(e.target.value)||1))} />
+        </div>
+        <div className="fg">
+          <label className="fl">Nome do cliente</label>
+          <input className="fi" value={nomeCliente} onChange={e => setNomeCliente(e.target.value)} placeholder="Destinatário" />
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:8, marginTop:12 }}>
+        <button className="btn btn-p" style={{ flex:1 }} onClick={gerarPDF} disabled={imprimindo}>
+          {imprimindo ? 'Gerando...' : '🖨 Imprimir Etiqueta'}
+        </button>
+        <button className="btn btn-s" onClick={onClose}>Fechar</button>
+      </div>
+    </Modal>
+  )
+}
+
 function EstoqueEtiquetas() {
   const lojaEf = useEffectiveLoja()
   const { data: itens, loading } = useData(() => estoqueService.list(lojaEf), [lojaEf])
-  const [selecionados, setSelecionados] = useState([])
-  const [copias, setCopias] = useState(1)
-  const toggle = (id) => setSelecionados(p => p.includes(id) ? p.filter(x => x!==id) : [...p, id])
-  const imprimir = () => {
-    const sel = (itens||[]).filter(i => selecionados.includes(i.id))
-    if (!sel.length) return toast.error('Selecione ao menos um produto')
-    const win = window.open('','_blank','width=600,height=500')
-    const linhas = sel.flatMap(p => Array(copias).fill(null).map(() =>
-      `<div style="border:1px solid #ccc;border-radius:8px;padding:8px 12px;margin:4px;display:inline-block;width:160px;vertical-align:top;font-family:sans-serif">
-        <div style="font-size:11px;color:#666;">${p.referencia||p.sku||''}</div>
-        <div style="font-size:13px;font-weight:600;margin:2px 0">${p.nome}</div>
-        ${p.loja ? `<div style="font-size:10px;color:#888">${p.loja}</div>` : ''}
-        <div style="font-size:18px;font-weight:700;color:#6366f1;margin-top:4px">${fmtR(p.preco_venda)}</div>
-      </div>`
-    ))
-    win.document.write(`<!DOCTYPE html><html><body style="background:#fff">${linhas.join('')}<script>window.onload=()=>{window.print();window.close()}<\/script></body></html>`)
-    win.document.close()
-  }
-
+  const [busca, setBusca] = useState('')
+  const [etiqueta, setEtiqueta] = useState(null)
   if (loading) return <Spinner />
+  const filtrado = (itens||[]).filter(i =>
+    !busca ||
+    (i.nome||i.nome_produto||'').toLowerCase().includes(busca.toLowerCase()) ||
+    (i.referencia||'').toLowerCase().includes(busca.toLowerCase())
+  )
   return (
     <div>
-      <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:12, flexWrap:'wrap' }}>
-        <div style={{ fontSize:13, color:'var(--t2)' }}>{selecionados.length} selecionado(s)</div>
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <label style={{ fontSize:12, color:'var(--t2)' }}>Cópias:</label>
-          <input type="number" min={1} max={10} value={copias} onChange={e=>setCopias(parseInt(e.target.value)||1)} style={{ width:50, padding:'4px 6px', border:'1px solid var(--border)', borderRadius:6 }} />
-        </div>
-        <button className="btn btn-p btn-sm" onClick={imprimir} disabled={!selecionados.length}>🖨 Imprimir Etiquetas</button>
-        <button className="btn btn-s btn-sm" onClick={() => setSelecionados((itens||[]).map(i => i.id))}>Selecionar tudo</button>
-        <button className="btn btn-s btn-sm" onClick={() => setSelecionados([])}>Limpar</button>
-      </div>
+      <input className="fi" style={{ marginBottom:12 }} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-        {(itens||[]).map(p => (
-          <div key={p.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', cursor:'pointer', background: selecionados.includes(p.id) ? 'var(--adim)' : undefined, borderLeft: selecionados.includes(p.id) ? '3px solid var(--accent)' : '3px solid transparent' }} onClick={() => toggle(p.id)}>
-            <input type="checkbox" checked={selecionados.includes(p.id)} onChange={()=>toggle(p.id)} style={{ flexShrink:0 }} />
+        {filtrado.length === 0 ? <Empty text="Nenhum produto encontrado" /> : filtrado.map(p => (
+          <div key={p.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px' }}>
             <div style={{ flex:1 }}>
-              <div style={{ fontWeight:600, fontSize:13 }}>{p.nome}</div>
-              <div style={{ fontSize:11, color:'var(--t2)' }}>{p.referencia||p.sku||'—'} · {p.loja||'—'}</div>
+              <div style={{ fontWeight:600, fontSize:13 }}>{p.nome||p.nome_produto}</div>
+              <div style={{ fontSize:11, color:'var(--t2)' }}>{p.referencia||p.codigo_barras||'—'} · {p.loja||'—'}</div>
             </div>
-            <div style={{ fontWeight:700, color:'var(--accent)', fontSize:15 }}>{fmtR(p.preco_venda)}</div>
+            <div style={{ fontWeight:700, color:'var(--accent)', fontSize:14 }}>{fmtR(p.preco_venda)}</div>
+            <button className="btn btn-p btn-sm" onClick={() => setEtiqueta(p)}>🏷 Etiqueta</button>
           </div>
         ))}
       </div>
+      {etiqueta && <EtiquetaModal produto={etiqueta} onClose={() => setEtiqueta(null)} />}
     </div>
   )
 }
