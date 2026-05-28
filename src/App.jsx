@@ -8,7 +8,7 @@ import {
   Archive, CreditCard, TrendingUp,
   Briefcase, Users, Clock,
   Store, Settings, MessageCircle,
-  BookOpen, FileText, ListOrdered
+  BookOpen, FileText, ListOrdered, Camera
 } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import JsBarcode from 'jsbarcode'
@@ -301,8 +301,10 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
         {/* User profile */}
         <div style={{ padding:'12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, overflow:'hidden' }}>
-            <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,var(--accent),#a78bfa)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:13, flexShrink:0 }}>
-              {perfil?.full_name?.[0]?.toUpperCase() || 'U'}
+            <div style={{ width:32, height:32, borderRadius:'50%', background: perfil?.foto_url ? 'transparent' : 'linear-gradient(135deg,var(--accent),#a78bfa)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:13, flexShrink:0, overflow:'hidden' }}>
+              {perfil?.foto_url
+                ? <img src={perfil.foto_url} alt="" style={{ width:32, height:32, objectFit:'cover', borderRadius:'50%' }} />
+                : perfil?.full_name?.[0]?.toUpperCase() || 'U'}
             </div>
             {!collapsed && (
               <div style={{ overflow:'hidden', flex:1 }}>
@@ -562,8 +564,10 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
       <div ref={menuRef} style={{ position:'relative' }}>
         <button
           onClick={() => setMenuOpen(o => !o)}
-          style={{ width:34, height:34, borderRadius:'50%', border:'none', background:'linear-gradient(135deg,var(--accent),#a78bfa)', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          {perfil?.full_name?.[0]?.toUpperCase() || 'U'}
+          style={{ width:34, height:34, borderRadius:'50%', border:'none', background: perfil?.foto_url ? 'transparent' : 'linear-gradient(135deg,var(--accent),#a78bfa)', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', padding:0 }}>
+          {perfil?.foto_url
+            ? <img src={perfil.foto_url} alt="" style={{ width:34, height:34, objectFit:'cover', borderRadius:'50%' }} />
+            : perfil?.full_name?.[0]?.toUpperCase() || 'U'}
         </button>
         {menuOpen && (
           <div style={{ position:'absolute', right:0, top:'calc(100% + 8px)', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'6px', minWidth:180, zIndex:300, boxShadow:'0 8px 32px rgba(0,0,0,.5)' }}>
@@ -954,20 +958,20 @@ function Dashboard({ setPage }) {
   const metaPessPct = metaPess ? Math.min(100, totalMMes / (metaPess.valor_meta || 1) * 100) : 0
 
   const ATALHOS = isEntregador
-    ? [{label:'Minha Rota',icon:'🚚',page:'rota'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    ? [{label:'Minha Rota',Icon:Truck,page:'rota'},{label:'Ponto',Icon:Clock,page:'ponto'}]
     : isOperacional
     ? effectiveRole === 'separador'
-      ? [{label:'Separações',icon:'📋',page:'separacao'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+      ? [{label:'Separações',Icon:ClipboardList,page:'separacao'},{label:'Ponto',Icon:Clock,page:'ponto'}]
       : effectiveRole === 'conferente'
-      ? [{label:'Conferências',icon:'☑️',page:'conferencia'},{label:'Ponto',icon:'⏰',page:'ponto'}]
-      : [{label:'Pedidos',icon:'📦',page:'pedidos'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+      ? [{label:'Conferências',Icon:CheckSquare,page:'conferencia'},{label:'Ponto',Icon:Clock,page:'ponto'}]
+      : [{label:'Pedidos',Icon:Package,page:'pedidos'},{label:'Ponto',Icon:Clock,page:'ponto'}]
     : isVendedor
-    ? [{label:'Nova Venda',icon:'💰',page:'vendas'},{label:'CRM',icon:'🎯',page:'crm'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    ? [{label:'Nova Venda',Icon:ShoppingCart,page:'vendas'},{label:'CRM',Icon:Target,page:'crm'},{label:'Ponto',Icon:Clock,page:'ponto'}]
     : isTecnicoAtend
-    ? [{label:'Assistências',icon:'🔧',page:'assistencia'},{label:'Agenda',icon:'📅',page:'agenda'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    ? [{label:'Assistências',Icon:Wrench,page:'assistencia'},{label:'Agenda',Icon:Calendar,page:'agenda'},{label:'Ponto',Icon:Clock,page:'ponto'}]
     : isAssistenteAdmin
-    ? [{label:'Compras',icon:'🛒',page:'compras'},{label:'Financeiro',icon:'💳',page:'financeiro_loja'},{label:'Ponto',icon:'⏰',page:'ponto'}]
-    : [{label:'Nova Venda',icon:'💰',page:'vendas'},{label:'Novo Pedido',icon:'📦',page:'pedidos'},{label:'Assistência',icon:'🔧',page:'assistencia'},{label:'Ponto',icon:'⏰',page:'ponto'}]
+    ? [{label:'Compras',Icon:ShoppingBag,page:'compras'},{label:'Financeiro',Icon:CreditCard,page:'financeiro_loja'},{label:'Ponto',Icon:Clock,page:'ponto'}]
+    : [{label:'Nova Venda',Icon:ShoppingCart,page:'vendas'},{label:'Novo Pedido',Icon:Package,page:'pedidos'},{label:'Assistência',Icon:Wrench,page:'assistencia'},{label:'Ponto',Icon:Clock,page:'ponto'}]
 
   const StatBox = ({ label, val, color, bg, icon, sm }) => (
     <div className="stat">
@@ -1003,7 +1007,7 @@ function Dashboard({ setPage }) {
       <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
         {ATALHOS.map(a => (
           <button key={a.page} className="btn btn-s" style={{flex:'1 1 100px',flexDirection:'column',padding:'14px 10px',gap:4,minWidth:90,fontSize:13}} onClick={() => setPage?.(a.page)}>
-            <span style={{fontSize:20}}>{a.icon}</span>
+            <a.Icon size={22} strokeWidth={1.7} />
             <span>{a.label}</span>
           </button>
         ))}
@@ -4874,9 +4878,25 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
     loja: u.loja || '',
     telefone: u.telefone || '',
     nova_senha: '',
+    foto_url: u.foto_url || '',
   })
+  const [uploadingFoto, setUploadingFoto] = useState(false)
   const { run, loading } = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const uploadFoto = async (file) => {
+    setUploadingFoto(true)
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `usuarios/${u.id}/foto.${ext}`
+      const { error } = await supabase.storage.from('sistema-assets').upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' })
+      if (error) throw new Error(error.message || JSON.stringify(error))
+      const { data: pub } = supabase.storage.from('sistema-assets').getPublicUrl(path)
+      setForm(p => ({ ...p, foto_url: pub.publicUrl + '?t=' + Date.now() }))
+      toast.success('Foto enviada!')
+    } catch (e) { toast.error('Erro no upload: ' + e.message) }
+    setUploadingFoto(false)
+  }
 
   const handleSave = async () => {
     try {
@@ -4886,6 +4906,7 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
         role: form.perfil,
         loja: form.loja || null,
         telefone: form.telefone,
+        foto_url: form.foto_url || null,
       }
       if (form.nova_senha.length >= 4) {
         const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(form.nova_senha))
@@ -4908,6 +4929,22 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
         </>
       }
     >
+      <div className="fg">
+        <label className="fl">Foto de Perfil</label>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ width:56, height:56, borderRadius:'50%', background: form.foto_url ? 'transparent' : 'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, border:'2px solid var(--border)' }}>
+            {form.foto_url
+              ? <img src={form.foto_url} alt="" style={{ width:56, height:56, objectFit:'cover' }} />
+              : <Camera size={22} color="var(--t3)" />}
+          </div>
+          <label style={{ cursor:'pointer' }}>
+            <input type="file" accept="image/*" style={{ display:'none' }} onChange={e => e.target.files?.[0] && uploadFoto(e.target.files[0])} />
+            <span className="btn btn-s" style={{ pointerEvents:'none' }}>
+              {uploadingFoto ? 'Enviando...' : 'Escolher foto'}
+            </span>
+          </label>
+        </div>
+      </div>
       <div className="fg"><label className="fl">Nome Completo *</label><input className="fi" value={form.full_name} onChange={up('full_name')} /></div>
       <div className="grid2">
         <div className="fg">
@@ -9619,10 +9656,26 @@ function DPFuncionarios({ lojaFiltro }) {
   const filtroAtivo = lojaEf || lojaFiltro || null
   const { data: lista, loading, reload } = useData(() => dpService.listFuncionarios(filtroAtivo), [filtroAtivo])
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', cpf:'', cargo:'', departamento:'', admissao:'', salario:'', status:'ativo', email:'', telefone:'', loja:'' }
+  const empty = { nome:'', cpf:'', cargo:'', departamento:'', admissao:'', salario:'', status:'ativo', email:'', telefone:'', loja:'', foto_url:'' }
   const [form, setForm] = useState(empty)
+  const [uploadingFoto, setUploadingFoto] = useState(false)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const uploadFoto = async (file) => {
+    const itemId = modal?.item?.id || 'novo_' + Date.now()
+    setUploadingFoto(true)
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `usuarios/${itemId}/foto.${ext}`
+      const { error } = await supabase.storage.from('sistema-assets').upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' })
+      if (error) throw new Error(error.message || JSON.stringify(error))
+      const { data: pub } = supabase.storage.from('sistema-assets').getPublicUrl(path)
+      setForm(p => ({ ...p, foto_url: pub.publicUrl + '?t=' + Date.now() }))
+      toast.success('Foto enviada!')
+    } catch (e) { toast.error('Erro no upload: ' + e.message) }
+    setUploadingFoto(false)
+  }
 
   const salvar = async () => {
     if (!form.nome || !form.cargo) return toast.error('Nome e cargo obrigatórios')
@@ -9645,7 +9698,11 @@ function DPFuncionarios({ lojaFiltro }) {
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           {(lista||[]).map(f => (
             <div key={f.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
-              <div style={{ width:36, height:36, borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0 }}>{f.nome?.[0]?.toUpperCase()}</div>
+              <div style={{ width:36, height:36, borderRadius:'50%', background: f.foto_url ? 'transparent' : 'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0, overflow:'hidden' }}>
+                {f.foto_url
+                  ? <img src={f.foto_url} alt="" style={{ width:36, height:36, objectFit:'cover' }} />
+                  : f.nome?.[0]?.toUpperCase()}
+              </div>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{f.nome}</div>
                 <div style={{ fontSize:12, color:'var(--t2)' }}>{f.cargo} · {f.departamento} · {fmtMoeda(f.salario)}</div>
@@ -9658,6 +9715,22 @@ function DPFuncionarios({ lojaFiltro }) {
       )}
       {modal && (
         <Modal title={modal.item ? 'Editar Funcionário' : 'Novo Funcionário'} onClose={() => setModal(null)}>
+          <div className="fg">
+            <label className="fl">Foto de Perfil</label>
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ width:56, height:56, borderRadius:'50%', background: form.foto_url ? 'transparent' : 'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, border:'2px solid var(--border)' }}>
+                {form.foto_url
+                  ? <img src={form.foto_url} alt="" style={{ width:56, height:56, objectFit:'cover' }} />
+                  : <Camera size={22} color="var(--t3)" />}
+              </div>
+              <label style={{ cursor:'pointer' }}>
+                <input type="file" accept="image/*" style={{ display:'none' }} onChange={e => e.target.files?.[0] && uploadFoto(e.target.files[0])} />
+                <span className="btn btn-s" style={{ pointerEvents:'none' }}>
+                  {uploadingFoto ? 'Enviando...' : 'Escolher foto'}
+                </span>
+              </label>
+            </div>
+          </div>
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
             <div className="fg"><label className="fl">CPF</label><input className="fi" value={form.cpf} onChange={up('cpf')} /></div>
