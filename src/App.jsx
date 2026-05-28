@@ -11,7 +11,7 @@ import {
   BookOpen, FileText, ListOrdered, Camera,
   Menu, Bell, Sun, Moon, Trash2, Paperclip, Send,
   Mail, Tag, MapPin, Eye, Edit2, Printer, Share2,
-  AlertTriangle, Image, BarChart2
+  AlertTriangle, Image, BarChart2, Rocket
 } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import JsBarcode from 'jsbarcode'
@@ -213,11 +213,11 @@ function Login() {
 // SIDEBAR
 // ============================================================
 const MOTIVATIONAL_MSGS = [
-  'Cada entrega é uma promessa cumprida. 🚀',
-  'Excelência em logística começa com você. 💪',
-  'Juntos somos o melhor do Brasil! 🇧🇷',
-  'Organização hoje, sucesso amanhã. ⭐',
-  'Sua dedicação faz a diferença. 🏆',
+  'Cada entrega é uma promessa cumprida.',
+  'Excelência em logística começa com você.',
+  'Juntos somos o melhor do Brasil!',
+  'Organização hoje, sucesso amanhã.',
+  'Sua dedicação faz a diferença.',
 ]
 
 const SIDEBAR_GROUPS = [
@@ -378,7 +378,8 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
         {/* Footer */}
         {!collapsed ? (
           <div style={{ padding:'12px 16px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-            <div style={{ fontSize:12, color:'var(--t3)', lineHeight:1.55, marginBottom:8, minHeight:38, transition:'opacity .3s' }}>
+            <div style={{ fontSize:12, color:'var(--t3)', lineHeight:1.55, marginBottom:8, minHeight:38, transition:'opacity .3s', display:'flex', alignItems:'flex-start', gap:6 }}>
+              <Rocket size={13} strokeWidth={1.6} style={{ flexShrink:0, marginTop:2, opacity:0.6 }} />
               {MOTIVATIONAL_MSGS[msgIdx]}
             </div>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -11070,6 +11071,7 @@ function AppContent() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', tema)
+    document.body.classList.toggle('light-mode', tema === 'light')
     localStorage.setItem('tema_versa_log', tema)
   }, [tema])
 

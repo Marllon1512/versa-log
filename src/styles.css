@@ -180,80 +180,71 @@ body {
   border-color: rgba(0,0,0,0.12) !important;
 }
 
-/* ── Light mode: bloco global de contraste (all-dark) ───────
+/* ══════════════════════════════════════════════════════════
+   LIGHT MODE — BLOCO NUCLEAR (body.light-mode)
    Garante que absolutamente nenhum texto fique branco ou
-   cinza claro no modo claro. Usa !important para sobrescrever
-   inline styles e qualquer outra regra de menor especificidade. */
-[data-theme="light"] body,
-[data-theme="light"] .content-area,
-[data-theme="light"] .page { color: #111111 !important; }
+   cinza claro. Usa * com !important e depois exceções
+   explícitas com !important de maior especificidade.
+   ══════════════════════════════════════════════════════════ */
 
-/* Containers principais */
-[data-theme="light"] .card,
-[data-theme="light"] .card-sm,
-[data-theme="light"] .modal-box,
-[data-theme="light"] .mh,
-[data-theme="light"] .stat,
-[data-theme="light"] .rank-item { color: #111111 !important; }
+/* 1. Todos os elementos: preto */
+body.light-mode * { color: #111111 !important; }
 
-/* Topbar */
-[data-theme="light"] .content-topbar { color: #111111 !important; }
-[data-theme="light"] .content-topbar span,
-[data-theme="light"] .content-topbar div { color: #111111 !important; }
+/* 2. SVG: stroke segue currentColor (Lucide já faz isso) */
+body.light-mode svg,
+body.light-mode svg path,
+body.light-mode svg line,
+body.light-mode svg circle,
+body.light-mode svg polyline,
+body.light-mode svg rect,
+body.light-mode svg ellipse { stroke: currentColor; }
 
-/* Sidebar */
-[data-theme="light"] .sb-group-label { color: #333333 !important; }
-[data-theme="light"] .sb-item,
-[data-theme="light"] .sb-label { color: #111111 !important; }
+/* 3. Sidebar: labels de grupo levemente acinzentados */
+body.light-mode .sb-group-label { color: #555555 !important; }
 
-/* Títulos */
-[data-theme="light"] h1,
-[data-theme="light"] h2,
-[data-theme="light"] h3,
-[data-theme="light"] h4,
-[data-theme="light"] h5 { color: #111111 !important; }
+/* 4. Item ativo da sidebar: mantém o roxo (accent) */
+body.light-mode .sb-item.active,
+body.light-mode .sb-item.active * { color: var(--accent) !important; }
 
-/* Texto secundário — sublabels, datas, descrições */
-[data-theme="light"] .ph-sub,
-[data-theme="light"] .li-sub,
-[data-theme="light"] .fl { color: #444444 !important; }
+/* 5. Texto secundário */
+body.light-mode .ph-sub,
+body.light-mode .li-sub,
+body.light-mode .fl,
+body.light-mode .stat-lbl,
+body.light-mode .stat-l { color: #444444 !important; }
 
-/* Stats */
-[data-theme="light"] .stat-val,
-[data-theme="light"] .stat-n { color: #111111 !important; }
-[data-theme="light"] .stat-lbl,
-[data-theme="light"] .stat-l { color: #444444 !important; }
+/* 6. Badges de status — mantêm suas cores originais */
+body.light-mode .bg-green,
+body.light-mode .bg-green * { color: var(--green) !important; }
+body.light-mode .bg-red,
+body.light-mode .bg-red * { color: var(--red) !important; }
+body.light-mode .bg-amber,
+body.light-mode .bg-amber * { color: var(--amber) !important; }
+body.light-mode .bg-blue,
+body.light-mode .bg-blue * { color: var(--blue) !important; }
+body.light-mode .bg-accent,
+body.light-mode .bg-accent * { color: var(--accent) !important; }
 
-/* Tabelas */
-[data-theme="light"] table th,
-[data-theme="light"] .tbl th { color: #555555 !important; }
-[data-theme="light"] table td,
-[data-theme="light"] .tbl td { color: #111111 !important; }
+/* 7. Alertas semânticos — mantêm suas cores */
+body.light-mode .alert-w,
+body.light-mode .alert-w * { color: var(--amber) !important; }
+body.light-mode .alert-e,
+body.light-mode .alert-e * { color: var(--red) !important; }
+body.light-mode .alert-s,
+body.light-mode .alert-s * { color: var(--green) !important; }
 
-/* Inputs, selects, textareas */
-[data-theme="light"] .fi,
-[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-[data-theme="light"] select,
-[data-theme="light"] textarea { color: #111111 !important; }
-[data-theme="light"] .fi::placeholder,
-[data-theme="light"] input::placeholder,
-[data-theme="light"] textarea::placeholder { color: #888888 !important; }
-[data-theme="light"] select option { color: #111111 !important; }
+/* 8. Botão primário (fundo roxo) — texto branco */
+body.light-mode .btn-p,
+body.light-mode .btn-p * { color: #ffffff !important; }
 
-/* Labels */
-[data-theme="light"] label { color: #333333 !important; }
+/* 9. Toasts — sempre branco */
+body.light-mode .toast,
+body.light-mode .toast * { color: #ffffff !important; }
 
-/* Botões secundários/ghost */
-[data-theme="light"] .btn-s { color: #111111 !important; }
-[data-theme="light"] .btn-g { color: #333333 !important; }
-[data-theme="light"] .fb { color: #333333 !important; }
-
-/* List items */
-[data-theme="light"] .li-title { color: #111111 !important; }
-[data-theme="light"] .li-sub { color: #444444 !important; }
-
-/* Rank */
-[data-theme="light"] .rank-num { color: #555555 !important; }
+/* 10. Placeholders */
+body.light-mode input::placeholder,
+body.light-mode textarea::placeholder,
+body.light-mode .fi::placeholder { color: #888888 !important; }
 
 /* ────────────────────────────────────────────────────────── */
 

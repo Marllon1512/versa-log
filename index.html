@@ -12,6 +12,7 @@
       (function(){
         var t = localStorage.getItem('tema_versa_log') || 'dark';
         document.documentElement.setAttribute('data-theme', t);
+        if (t === 'light') document.body.classList.add('light-mode');
       })();
     </script>
     <div id="root"></div>
