@@ -120,10 +120,103 @@ body.has-bg-img .content-topbar {
 body.has-bg-img .content-area { background: transparent !important; }
 body.has-bg-img .card,
 body.has-bg-img .card-sm {
-  background: rgba(17,17,22,0.78) !important;
+  background: rgba(10,10,16,0.86) !important;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255,255,255,0.10) !important;
+}
+
+/* ── has-bg-img: contraste de texto ─────────────────────── */
+body.has-bg-img { color: #ffffff; }
+
+/* Textos principais → branco */
+body.has-bg-img,
+body.has-bg-img .card,
+body.has-bg-img .card-sm,
+body.has-bg-img .ph h1,
+body.has-bg-img .ph h2,
+body.has-bg-img h1,
+body.has-bg-img h2,
+body.has-bg-img h3 {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* Textos secundários → cinza claro legível */
+body.has-bg-img .ph-sub,
+body.has-bg-img .stat-lbl,
+body.has-bg-img .stat-l,
+body.has-bg-img .li-sub,
+body.has-bg-img .sb-group-label {
+  color: rgba(220,220,235,0.85) !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+
+/* Labels de formulário */
+body.has-bg-img .fl {
+  color: rgba(200,200,220,0.9) !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+/* Inputs e selects: fundo mais opaco para legibilidade */
+body.has-bg-img .fi {
+  background: rgba(20,20,30,0.85) !important;
+  border-color: rgba(255,255,255,0.14) !important;
+  color: #ffffff !important;
+}
+body.has-bg-img .fi::placeholder { color: rgba(160,160,180,0.7) !important; }
+
+/* Botões secundários e ghost */
+body.has-bg-img .btn-s {
+  background: rgba(30,30,42,0.85) !important;
+  color: #ffffff !important;
+  border-color: rgba(255,255,255,0.14) !important;
+}
+body.has-bg-img .btn-g {
+  color: rgba(220,220,235,0.9) !important;
+}
+body.has-bg-img .btn-g:hover:not(:disabled) {
+  background: rgba(255,255,255,0.10) !important;
+  color: #ffffff !important;
+}
+
+/* Stats cards */
+body.has-bg-img .stat {
+  background: rgba(10,10,16,0.82) !important;
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-color: rgba(255,255,255,0.08) !important;
 }
+body.has-bg-img .stat-val,
+body.has-bg-img .stat-n {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* Tabelas */
+body.has-bg-img .tbl th {
+  color: rgba(200,200,220,0.8) !important;
+}
+body.has-bg-img .tbl td {
+  color: #ffffff !important;
+  border-bottom-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Rank e misc */
+body.has-bg-img .rank-item {
+  background: rgba(10,10,16,0.82) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+body.has-bg-img .rank-num { color: rgba(200,200,220,0.8) !important; }
+body.has-bg-img .empty { color: rgba(200,200,220,0.6) !important; }
+body.has-bg-img .divider { background: rgba(255,255,255,0.08) !important; }
+
+/* Tags e badges neutros */
+body.has-bg-img .tag { background: rgba(255,255,255,0.10) !important; color: rgba(220,220,235,0.9) !important; }
+body.has-bg-img .bg { background: rgba(255,255,255,0.08) !important; color: rgba(220,220,235,0.9) !important; }
+
+/* Sidebar items */
+body.has-bg-img .sb-item { color: rgba(200,200,220,0.75) !important; }
+body.has-bg-img .sb-item:hover { color: #ffffff !important; background: rgba(255,255,255,0.07) !important; }
+body.has-bg-img .sb-item.active { color: var(--accent) !important; }
 
 /* ── Stats ──────────────────────────────────────────────── */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 22px; }
