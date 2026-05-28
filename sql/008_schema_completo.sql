@@ -90,7 +90,7 @@ ON CONFLICT (perfil) DO NOTHING;
 -- ─────────────────────────────────────────────────────────
 -- 4. CONFIGURAÇÕES DO SISTEMA
 -- ─────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS configuracoes_sistema (
+CREATE TABLE IF NOT EXISTS configuracoes (
   id                      UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   bg_imagem_1             TEXT,
   bg_imagem_2             TEXT,
@@ -101,13 +101,13 @@ CREATE TABLE IF NOT EXISTS configuracoes_sistema (
   logo_versa_url          TEXT,
   created_at              TIMESTAMPTZ DEFAULT NOW()
 );
-ALTER TABLE configuracoes_sistema ADD COLUMN IF NOT EXISTS bg_imagem_1           TEXT;
-ALTER TABLE configuracoes_sistema ADD COLUMN IF NOT EXISTS bg_imagem_2           TEXT;
-ALTER TABLE configuracoes_sistema ADD COLUMN IF NOT EXISTS bg_imagem_3           TEXT;
-ALTER TABLE configuracoes_sistema ADD COLUMN IF NOT EXISTS bg_imagem_ativa       TEXT;
-ALTER TABLE configuracoes_sistema ADD COLUMN IF NOT EXISTS bg_blur_intensidade   INTEGER DEFAULT 8;
-ALTER TABLE configuracoes_sistema ADD COLUMN IF NOT EXISTS bg_overlay_opacidade  INTEGER DEFAULT 40;
-ALTER TABLE configuracoes_sistema ADD COLUMN IF NOT EXISTS logo_versa_url        TEXT;
+ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS bg_imagem_1           TEXT;
+ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS bg_imagem_2           TEXT;
+ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS bg_imagem_3           TEXT;
+ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS bg_imagem_ativa       TEXT;
+ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS bg_blur_intensidade   INTEGER DEFAULT 8;
+ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS bg_overlay_opacidade  INTEGER DEFAULT 40;
+ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS logo_versa_url        TEXT;
 
 -- ─────────────────────────────────────────────────────────
 -- 5. CLIENTES

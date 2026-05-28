@@ -324,17 +324,17 @@ export const catalogoService = {
 // ── Configurações do Sistema ──────────────────────────────
 export const configSistemaService = {
   async get() {
-    const { data } = await supabase.from('configuracoes_sistema').select('*').limit(1).single()
+    const { data } = await supabase.from('configuracoes').select('*').limit(1).single()
     return data || {}
   },
   async save(updates) {
-    const { data: existing } = await supabase.from('configuracoes_sistema').select('id').limit(1).single()
+    const { data: existing } = await supabase.from('configuracoes').select('id').limit(1).single()
     if (existing?.id) {
-      const { data, error } = await supabase.from('configuracoes_sistema').update(updates).eq('id', existing.id).select().single()
+      const { data, error } = await supabase.from('configuracoes').update(updates).eq('id', existing.id).select().single()
       if (error) throw error
       return data
     }
-    const { data, error } = await supabase.from('configuracoes_sistema').insert(updates).select().single()
+    const { data, error } = await supabase.from('configuracoes').insert(updates).select().single()
     if (error) throw error
     return data
   },
