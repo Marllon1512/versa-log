@@ -75,6 +75,18 @@ body {
   display: flex; align-items: center; padding: 0 20px; flex-shrink: 0; gap: 12px;
 }
 .sb-mobile-btn { display: none; }
+
+.sb-desktop-toggle {
+  width: 34px; height: 34px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg2);
+  color: var(--t2); cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.sb-desktop-toggle:hover {
+  background: var(--adim); color: var(--accent);
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--adim);
+}
 .content-main { flex: 1; overflow-y: auto; }
 .page { padding: 24px; max-width: 1100px; }
 
@@ -275,6 +287,7 @@ textarea.fi { resize: vertical; min-height: 80px; }
   .sidebar.mobile-open { transform: translateX(0); box-shadow: 8px 0 32px rgba(0,0,0,0.5); }
   .sb-overlay { display: block; }
   .sb-mobile-btn { display: flex !important; }
+  .sb-desktop-toggle { display: none !important; }
   body { font-size: 14px; }
   .page { padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
   .content-topbar { padding-top: env(safe-area-inset-top); }

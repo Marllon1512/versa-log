@@ -251,7 +251,7 @@ const SIDEBAR_GROUPS = [
   ]},
 ]
 
-function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
+function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen }) {
   const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole, modulosPermitidos } = useAuth()
   const { chatUnread } = useContext(AppCtx)
   let allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
@@ -264,7 +264,6 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobile
   }, [])
 
   const navigate = (id) => { setPage(id); setMobileOpen(false) }
-  const toggle = () => { const c = !collapsed; setCollapsed(c); localStorage.setItem('sb_collapsed', String(c)) }
 
   return (
     <>
@@ -273,7 +272,7 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobile
 
         {/* Header */}
         <div style={{ padding:'14px 12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap: collapsed ? 0 : 10, overflow:'hidden' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent: collapsed ? 'center' : 'flex-start', gap:10, overflow:'hidden' }}>
             <div style={{ width:36, height:36, borderRadius:'50%', background:'#000', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', flexShrink:0 }}><Logo size={20} /></div>
             {!collapsed && (
               <div style={{ overflow:'hidden', flex:1 }}>
@@ -281,10 +280,6 @@ function Sidebar({ page, setPage, collapsed, setCollapsed, mobileOpen, setMobile
                 <div style={{ fontSize:10, color:'var(--t3)', whiteSpace:'nowrap' }}>Sistema de Logística</div>
               </div>
             )}
-            <button onClick={toggle} title={collapsed ? 'Expandir' : 'Recolher'}
-              style={{ marginLeft:'auto', width:26, height:26, borderRadius:6, border:'none', background:'var(--bg3)', color:'var(--t2)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, flexShrink:0 }}>
-              {collapsed ? '→' : '←'}
-            </button>
           </div>
         </div>
 
@@ -500,7 +495,7 @@ function NotifBell({ navigateTo }) {
   )
 }
 
-function ContentTopbar({ page, setMobileOpen, navigateTo }) {
+function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle }) {
   const { perfil, isSimulating, simulatedRole, isGestor } = useAuth()
   const { lojaFiltro, setLojaFiltro } = useLojaFiltro()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -517,6 +512,9 @@ function ContentTopbar({ page, setMobileOpen, navigateTo }) {
   return (
     <div className="content-topbar">
       <button className="btn btn-g btn-ico btn-sm sb-mobile-btn" onClick={() => setMobileOpen(o => !o)}>☰</button>
+      <button className="sb-desktop-toggle" onClick={onToggle} title={collapsed ? 'Expandir sidebar' : 'Recolher sidebar'}>
+        <Ic n="chev" s={17} style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 250ms ease' }} />
+      </button>
       <div style={{ flex:1 }}>
         <span style={{ fontWeight:600, fontSize:16, color:'var(--t1)' }}>{PAGE_LABELS[page] || page}</span>
       </div>
@@ -10309,6 +10307,14 @@ function AppContent() {
     setMobileOpen(false)
   }, [])
 
+  const toggleSidebar = useCallback(() => {
+    setCollapsed(c => {
+      const next = !c
+      localStorage.setItem('sb_collapsed', String(next))
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     if (perfil) navigateTo(isEntregador && !isGestor ? 'rota' : 'dashboard')
   }, [perfil?.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -10407,12 +10413,11 @@ function AppContent() {
           page={page}
           setPage={navigateTo}
           collapsed={collapsed}
-          setCollapsed={setCollapsed}
           mobileOpen={mobileOpen}
           setMobileOpen={setMobileOpen}
         />
         <div className="content-area">
-          <ContentTopbar page={page} setMobileOpen={setMobileOpen} navigateTo={navigateTo} />
+          <ContentTopbar page={page} setMobileOpen={setMobileOpen} navigateTo={navigateTo} collapsed={collapsed} onToggle={toggleSidebar} />
           <div className="content-main">
             <div key={animKey} className="page-enter">
               {PAGES[page] || PAGES.dashboard}
