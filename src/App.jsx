@@ -4595,6 +4595,7 @@ function Equipe() {
   const [showNewEquipe, setShowNewEquipe] = useState(false)
   const [showNewUser, setShowNewUser] = useState(false)
   const [editUser, setEditUser] = useState(null)
+  const [buscaUser, setBuscaUser] = useState('')
   const { data: equipes, reload: reloadEq } = useData(() => equipesService.list(), [])
   const { data: usuarios, reload: reloadU } = useData(() => usuariosService.list(), [])
 
@@ -4659,14 +4660,15 @@ function Equipe() {
         </div>
       )}
 
-      <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 16 }}>Usuários</div>
+      <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 16 }}>Usuários</div>
+      <input className="fi" style={{ marginBottom:10, width:'100%' }} placeholder="🔍 Buscar por nome ou perfil..." value={buscaUser} onChange={e => setBuscaUser(e.target.value)} />
       <div className="card">
         <table className="tbl">
           <thead><tr><th>Nome</th><th>Email</th><th>Cargo</th><th></th></tr></thead>
           <tbody>
-            {(usuarios || []).length === 0 ? (
+            {(usuarios || []).filter(u => !buscaUser || u.full_name?.toLowerCase().includes(buscaUser.toLowerCase()) || u.role?.toLowerCase().includes(buscaUser.toLowerCase()) || u.email?.toLowerCase().includes(buscaUser.toLowerCase())).length === 0 ? (
               <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--t3)', padding: 24 }}>Nenhum usuário</td></tr>
-            ) : (usuarios || []).map(u => (
+            ) : (usuarios || []).filter(u => !buscaUser || u.full_name?.toLowerCase().includes(buscaUser.toLowerCase()) || u.role?.toLowerCase().includes(buscaUser.toLowerCase()) || u.email?.toLowerCase().includes(buscaUser.toLowerCase())).map(u => (
               <tr key={u.id}>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6396,12 +6398,15 @@ function CadFornecedores() {
     } catch (e) { toast.error(e.message) }
   }
 
-  const filtrado = (lista || []).filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()))
+  const filtrado = (lista || []).filter(c =>
+    c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+    c.cnpj?.toLowerCase().includes(busca.toLowerCase())
+  )
 
   return (
     <div>
       <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-        <input className="fi" style={{ flex:1 }} placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <input className="fi" style={{ flex:1 }} placeholder="🔍 Buscar por nome ou CNPJ..." value={busca} onChange={e => setBusca(e.target.value)} />
         <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ Novo</button>
       </div>
       {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum fornecedor" /> : (
@@ -7016,7 +7021,7 @@ function CadRepresentantes() {
   }
 
   const filtrado = (lista || []).filter(r =>
-    r.nome?.toLowerCase().includes(busca.toLowerCase()) &&
+    (!busca || r.nome?.toLowerCase().includes(busca.toLowerCase()) || r.fornecedores?.nome?.toLowerCase().includes(busca.toLowerCase())) &&
     (!filtroForn || r.fornecedor_id === filtroForn) &&
     (filtroAtivo === '' || String(r.ativo) === filtroAtivo)
   )
@@ -7160,6 +7165,7 @@ function CRMVisitas() {
 function CRMKanban({ openNew, onOpenNewConsumed }) {
   const lojaEf = useEffectiveLoja()
   const { data: leads, loading, reload } = useData(() => crmService.list(lojaEf), [lojaEf])
+  const [busca, setBusca] = useState('')
   const [modal, setModal] = useState(null)
   const empty = { nome:'', telefone:'', email:'', loja:'', responsavel:'', estagio:'lead', valor_estimado:0, proxima_visita:'', obs:'' }
   const [form, setForm] = useState(empty)
@@ -7190,11 +7196,16 @@ function CRMKanban({ openNew, onOpenNewConsumed }) {
 
   if (loading) return <Spinner />
 
+  const leadsVisiveis = busca
+    ? (leads||[]).filter(l => l.nome?.toLowerCase().includes(busca.toLowerCase()) || l.loja?.toLowerCase().includes(busca.toLowerCase()))
+    : (leads||[])
+
   return (
     <div>
+      <input className="fi" style={{ marginBottom:12, width:'100%' }} placeholder="🔍 Buscar lead por nome ou loja..." value={busca} onChange={e => setBusca(e.target.value)} />
       <div className="kanban-board" style={{ overflowX:'auto', paddingBottom:8, display:'flex', flexDirection:'row', gap:10, WebkitOverflowScrolling:'touch' }}>
           {CRM_COLUNAS.map(col => {
-            const items = (leads||[]).filter(l => l.estagio === col.id)
+            const items = leadsVisiveis.filter(l => l.estagio === col.id)
             return (
               <div key={col.id} className="kanban-col" style={{ width:210, minWidth:280, flexShrink:0 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
@@ -8319,10 +8330,16 @@ function Estoque() {
 function EstoqueDashboard() {
   const lojaEf = useEffectiveLoja()
   const { data: itens, loading } = useData(() => estoqueService.list(lojaEf), [lojaEf])
+  const [busca, setBusca] = useState('')
   if (loading) return <Spinner />
   const total = (itens||[]).length
   const baixo = (itens||[]).filter(i => (i.estoque_atual||0) <= (i.estoque_minimo||0)).length
   const lojas = [...new Set((itens||[]).map(i => i.loja).filter(Boolean))]
+  const filtrado = (itens||[]).filter(i =>
+    !busca ||
+    i.nome_produto?.toLowerCase().includes(busca.toLowerCase()) ||
+    i.referencia?.toLowerCase().includes(busca.toLowerCase())
+  )
   return (
     <div>
       <div className="stats" style={{ marginBottom:16 }}>
@@ -8331,9 +8348,10 @@ function EstoqueDashboard() {
         <div className="stat"><div className="stat-n">{lojas.length}</div><div className="stat-l">Lojas</div></div>
       </div>
       {baixo > 0 && <Alert type="warning" style={{ marginBottom:12 }}>{baixo} item(ns) com estoque abaixo do mínimo</Alert>}
-      {(itens||[]).length === 0 ? <Empty text="Nenhum item no estoque" /> : (
+      <input className="fi" style={{ marginBottom:10, width:'100%' }} placeholder="🔍 Buscar produto ou código..." value={busca} onChange={e => setBusca(e.target.value)} />
+      {filtrado.length === 0 ? <Empty text="Nenhum item no estoque" /> : (
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {(itens||[]).map(i => (
+          {filtrado.map(i => (
             <div key={i.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{i.nome_produto}</div>
@@ -9062,6 +9080,7 @@ function FinanceiroResumo() {
 function FinanceiroLista({ tipo }) {
   const lojaEf = useEffectiveLoja()
   const { data: lista, loading, reload } = useData(() => tipo === 'receber' ? financeiroService.listReceber(lojaEf) : financeiroService.listPagar(lojaEf), [tipo, lojaEf])
+  const [busca, setBusca] = useState('')
   const [modal, setModal] = useState(null)
   const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...LOJAS_GRUPO]
   const empty = { descricao:'', valor:'', vencimento:'', categoria:'', cliente_fornecedor:'', status:'pendente', obs:'', loja:'', centro_custo:'' }
@@ -9098,14 +9117,21 @@ function FinanceiroLista({ tipo }) {
   const CATS_PAG = ['Fornecedor','Aluguel','Salário','Impostos','Serviços','Outros']
   const CATS = tipo === 'receber' ? CATS_REC : CATS_PAG
 
+  const filtradoFin = (lista||[]).filter(item =>
+    !busca ||
+    item.descricao?.toLowerCase().includes(busca.toLowerCase()) ||
+    item.cliente_fornecedor?.toLowerCase().includes(busca.toLowerCase())
+  )
+
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
-        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ {tipo === 'receber' ? 'Nova Conta a Receber' : 'Nova Conta a Pagar'}</button>
+      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+        <input className="fi" style={{ flex:1 }} placeholder="🔍 Buscar por descrição ou fornecedor..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ {tipo === 'receber' ? 'A Receber' : 'A Pagar'}</button>
       </div>
-      {loading ? <Spinner /> : (lista||[]).length === 0 ? <Empty text="Nenhum lançamento" /> : (
+      {loading ? <Spinner /> : filtradoFin.length === 0 ? <Empty text="Nenhum lançamento" /> : (
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {(lista||[]).map(item => (
+          {filtradoFin.map(item => (
             <div key={item.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', opacity: item.status === 'pago' ? 0.6 : 1 }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:6 }}>
