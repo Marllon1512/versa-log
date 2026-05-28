@@ -322,19 +322,22 @@ export const catalogoService = {
 }
 
 // ── Configurações do Sistema ──────────────────────────────
+// Usa ID fixo para garantir registro singleton
+const CFG_ID = '00000000-0000-0000-0000-000000000001'
 export const configSistemaService = {
   async get() {
-    const { data } = await supabase.from('configuracoes').select('*').limit(1).maybeSingle()
+    const { data, error } = await supabase.from('configuracoes').select('*').eq('id', CFG_ID).maybeSingle()
+    console.log('[configSistema] get:', { data, error })
     return data || {}
   },
   async save(updates) {
-    const { data: existing } = await supabase.from('configuracoes').select('id').limit(1).maybeSingle()
-    if (existing?.id) {
-      const { data, error } = await supabase.from('configuracoes').update(updates).eq('id', existing.id).select().maybeSingle()
-      if (error) throw error
-      return data
-    }
-    const { data, error } = await supabase.from('configuracoes').insert(updates).select().maybeSingle()
+    const payload = { id: CFG_ID, ...updates }
+    const { data, error } = await supabase
+      .from('configuracoes')
+      .upsert(payload, { onConflict: 'id' })
+      .select()
+      .maybeSingle()
+    console.log('[configSistema] save:', { payload, data, error })
     if (error) throw error
     return data
   },
