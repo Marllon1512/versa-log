@@ -30,7 +30,7 @@ import {
 const LojaCtx = createContext({ lojaFiltro: '', setLojaFiltro: () => {} })
 export const useLojaFiltro = () => useContext(LojaCtx)
 
-const AppCtx = createContext({ navigateTo: () => {}, chatTarget: null, clearChatTarget: () => {}, openChatWith: () => {}, chatUnread: 0, setChatUnread: () => {} })
+const AppCtx = createContext({ navigateTo: () => {}, chatTarget: null, clearChatTarget: () => {}, openChatWith: () => {}, chatUnread: 0, setChatUnread: () => {}, reloadBgConfig: () => {} })
 
 // Retorna filtro de loja efetivo: automático para usuários sem acesso global
 function useEffectiveLoja() {
@@ -6011,50 +6011,184 @@ function GerenciamentoPermissoes() {
 // ============================================================
 // CONFIGURACOES
 // ============================================================
+function AparenciaConfig() {
+  const { reloadBgConfig } = useContext(AppCtx)
+  const [cfg, setCfg] = useState({ bg_imagem_1: null, bg_imagem_2: null, bg_imagem_3: null, bg_imagem_ativa: null, bg_blur_intensidade: 8, bg_overlay_opacidade: 40 })
+  const [uploading, setUploading] = useState({})
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    configSistemaService.get().then(d => { if (d) setCfg(p => ({ ...p, ...d })) }).catch(() => {})
+  }, [])
+
+  const upload = async (slot, file) => {
+    setUploading(p => ({ ...p, [slot]: true }))
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `bg/slot${slot}_${Date.now()}.${ext}`
+      const old = cfg[`bg_imagem_${slot}`]
+      if (old) {
+        const seg = old.split('/object/public/sistema-assets/')[1]
+        if (seg) await supabase.storage.from('sistema-assets').remove([decodeURIComponent(seg)])
+      }
+      const { error } = await supabase.storage.from('sistema-assets').upload(path, file, { upsert: true })
+      if (error) throw error
+      const { data: pub } = supabase.storage.from('sistema-assets').getPublicUrl(path)
+      const updates = { [`bg_imagem_${slot}`]: pub.publicUrl }
+      await configSistemaService.save(updates)
+      setCfg(p => ({ ...p, ...updates }))
+      reloadBgConfig()
+      toast.success('Imagem salva!')
+    } catch { toast.error('Erro no upload') }
+    setUploading(p => ({ ...p, [slot]: false }))
+  }
+
+  const ativar = async (slot) => {
+    const key = slot ? `bg_imagem_${slot}` : null
+    await configSistemaService.save({ bg_imagem_ativa: key }).catch(() => {})
+    setCfg(p => ({ ...p, bg_imagem_ativa: key }))
+    reloadBgConfig()
+    toast.success(slot ? 'Imagem ativada como fundo!' : 'Fundo desativado')
+  }
+
+  const remover = async (slot) => {
+    try {
+      const url = cfg[`bg_imagem_${slot}`]
+      if (url) {
+        const seg = url.split('/object/public/sistema-assets/')[1]
+        if (seg) await supabase.storage.from('sistema-assets').remove([decodeURIComponent(seg)])
+      }
+    } catch {}
+    const updates = { [`bg_imagem_${slot}`]: null }
+    if (cfg.bg_imagem_ativa === `bg_imagem_${slot}`) updates.bg_imagem_ativa = null
+    await configSistemaService.save(updates).catch(() => {})
+    setCfg(p => ({ ...p, ...updates }))
+    reloadBgConfig()
+    toast.success('Imagem removida')
+  }
+
+  const salvarSliders = async () => {
+    setSaving(true)
+    try {
+      await configSistemaService.save({ bg_blur_intensidade: cfg.bg_blur_intensidade, bg_overlay_opacidade: cfg.bg_overlay_opacidade })
+      reloadBgConfig()
+      toast.success('Configurações salvas!')
+    } catch { toast.error('Erro ao salvar') }
+    setSaving(false)
+  }
+
+  const previewUrl = cfg.bg_imagem_ativa ? cfg[cfg.bg_imagem_ativa] : null
+
+  return (
+    <div>
+      <div style={{ fontWeight:600, marginBottom:14 }}>Imagens de Fundo</div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:24 }}>
+        {[1,2,3].map(slot => {
+          const url = cfg[`bg_imagem_${slot}`]
+          const isActive = cfg.bg_imagem_ativa === `bg_imagem_${slot}`
+          return (
+            <div key={slot} style={{ border:`2px solid ${isActive?'var(--accent)':'var(--border)'}`, borderRadius:12, overflow:'hidden', background:'var(--bg2)', transition:'border-color 200ms ease' }}>
+              <div style={{ height:120, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg3)' }}>
+                {url
+                  ? <img src={url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                  : <div style={{ textAlign:'center', color:'var(--t3)' }}><div style={{ fontSize:28 }}>🖼️</div><div style={{ fontSize:11, marginTop:4 }}>Sem imagem</div></div>
+                }
+                {isActive && <div style={{ position:'absolute', top:6, right:6, background:'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6 }}>ATIVO</div>}
+              </div>
+              <div style={{ padding:10 }}>
+                <div style={{ fontSize:12, fontWeight:600, color:'var(--t2)', marginBottom:8 }}>Imagem {slot}</div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <label style={{ flex:1, cursor: uploading[slot] ? 'not-allowed' : 'pointer' }}>
+                    <input type="file" accept="image/*" style={{ display:'none' }} disabled={!!uploading[slot]} onChange={e => e.target.files[0] && upload(slot, e.target.files[0])} />
+                    <div className="btn btn-g btn-sm" style={{ textAlign:'center', cursor:'inherit', userSelect:'none' }}>{uploading[slot] ? '...' : '⬆ Upload'}</div>
+                  </label>
+                  {url && !isActive && <button className="btn btn-p btn-sm" style={{ flex:1 }} onClick={() => ativar(slot)}>Ativar</button>}
+                  {url && isActive && <button className="btn btn-g btn-sm" style={{ flex:1 }} onClick={() => ativar(null)}>Desativar</button>}
+                  {url && <button className="btn btn-sm" style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444' }} onClick={() => remover(slot)}>🗑</button>}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ background:'var(--bg2)', borderRadius:12, padding:16, marginBottom:12 }}>
+        <div style={{ fontWeight:600, fontSize:13, marginBottom:10 }}>Intensidade do Blur</div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <input type="range" min={0} max={20} value={cfg.bg_blur_intensidade??8} onChange={e => setCfg(p => ({ ...p, bg_blur_intensidade:+e.target.value }))} style={{ flex:1, accentColor:'var(--accent)' }} />
+          <span style={{ minWidth:36, fontSize:13, color:'var(--t1)' }}>{cfg.bg_blur_intensidade??8}px</span>
+        </div>
+        {previewUrl && (
+          <div style={{ marginTop:10, display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{ fontSize:12, color:'var(--t3)' }}>Preview:</span>
+            <div style={{ width:80, height:40, borderRadius:6, overflow:'hidden' }}>
+              <img src={previewUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', filter:`blur(${(cfg.bg_blur_intensidade??8)*0.35}px)`, transform:'scale(1.1)' }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ background:'var(--bg2)', borderRadius:12, padding:16, marginBottom:20 }}>
+        <div style={{ fontWeight:600, fontSize:13, marginBottom:10 }}>Opacidade do Overlay Escuro</div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <input type="range" min={0} max={80} value={cfg.bg_overlay_opacidade??40} onChange={e => setCfg(p => ({ ...p, bg_overlay_opacidade:+e.target.value }))} style={{ flex:1, accentColor:'var(--accent)' }} />
+          <span style={{ minWidth:36, fontSize:13, color:'var(--t1)' }}>{cfg.bg_overlay_opacidade??40}%</span>
+        </div>
+      </div>
+
+      <button className="btn btn-p" onClick={salvarSliders} disabled={saving}>{saving ? 'Salvando...' : 'Salvar Configurações'}</button>
+    </div>
+  )
+}
+
 function Configuracoes() {
   const { perfil, isAdmin } = useAuth()
+  const [tab, setTab] = useState('geral')
 
   return (
     <div className="page">
       <div className="ph"><h1>Configurações</h1></div>
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 600, marginBottom: 14 }}>Minha conta</div>
-        <div className="grid2">
-          <div className="fg"><label className="fl">Nome</label><input className="fi" defaultValue={perfil?.full_name} disabled /></div>
-          <div className="fg"><label className="fl">Email</label><input className="fi" defaultValue={perfil?.email} disabled /></div>
-        </div>
-        <div className="fg">
-          <label className="fl">Cargo</label>
-          <input className="fi" defaultValue={perfil?.perfil || perfil?.role} disabled style={{ textTransform: 'capitalize' }} />
-        </div>
+
+      <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:'1px solid var(--border)' }}>
+        {[['geral','Geral'], ...(isAdmin ? [['aparencia','Aparência']] : [])].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{
+            padding:'8px 18px', border:'none', background:'transparent', cursor:'pointer', fontSize:13, fontWeight:600,
+            color: tab===id ? 'var(--accent)' : 'var(--t3)',
+            borderBottom: tab===id ? '2px solid var(--accent)' : '2px solid transparent',
+            marginBottom:-1, transition:'all 150ms ease', fontFamily:'var(--font)',
+          }}>{label}</button>
+        ))}
       </div>
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 600, marginBottom: 14 }}>Sistema</div>
-        <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 8 }}>
-          Banco de dados: <span style={{ color: 'var(--green)', fontWeight: 500 }}>● Conectado</span>
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 8 }}>
-          Versão: <span style={{ color: 'var(--t1)' }}>2.1.0</span>
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--t2)' }}>
-          Projeto: <span style={{ color: 'var(--t1)', fontFamily: 'var(--mono)', fontSize: 12 }}>kwccjkqltllypbmaisio</span>
-        </div>
-      </div>
-      {isAdmin && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Administração</div>
-          <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 12 }}>
-            Para criar novos usuários com senha, acesse o Supabase Dashboard.
+
+      {tab === 'geral' && <>
+        <div className="card" style={{ marginBottom:16 }}>
+          <div style={{ fontWeight:600, marginBottom:14 }}>Minha conta</div>
+          <div className="grid2">
+            <div className="fg"><label className="fl">Nome</label><input className="fi" defaultValue={perfil?.full_name} disabled /></div>
+            <div className="fg"><label className="fl">Email</label><input className="fi" defaultValue={perfil?.email} disabled /></div>
           </div>
-          <a href="https://supabase.com/dashboard/project/kwccjkqltllypbmaisio/auth/users" target="_blank" rel="noreferrer">
-            <Btn variant="secondary" size="sm">Abrir Supabase Auth ↗</Btn>
-          </a>
+          <div className="fg"><label className="fl">Cargo</label><input className="fi" defaultValue={perfil?.perfil||perfil?.role} disabled style={{ textTransform:'capitalize' }} /></div>
         </div>
-      )}
-      {isAdmin && (
-        <div className="card">
-          <GerenciamentoPermissoes />
+        <div className="card" style={{ marginBottom:16 }}>
+          <div style={{ fontWeight:600, marginBottom:14 }}>Sistema</div>
+          <div style={{ fontSize:13, color:'var(--t2)', marginBottom:8 }}>Banco de dados: <span style={{ color:'var(--green)', fontWeight:500 }}>● Conectado</span></div>
+          <div style={{ fontSize:13, color:'var(--t2)', marginBottom:8 }}>Versão: <span style={{ color:'var(--t1)' }}>2.1.0</span></div>
+          <div style={{ fontSize:13, color:'var(--t2)' }}>Projeto: <span style={{ color:'var(--t1)', fontFamily:'var(--mono)', fontSize:12 }}>kwccjkqltllypbmaisio</span></div>
         </div>
+        {isAdmin && (
+          <div className="card" style={{ marginBottom:16 }}>
+            <div style={{ fontWeight:600, marginBottom:12 }}>Administração</div>
+            <div style={{ fontSize:13, color:'var(--t2)', marginBottom:12 }}>Para criar novos usuários com senha, acesse o Supabase Dashboard.</div>
+            <a href="https://supabase.com/dashboard/project/kwccjkqltllypbmaisio/auth/users" target="_blank" rel="noreferrer">
+              <button className="btn btn-g btn-sm">Abrir Supabase Auth ↗</button>
+            </a>
+          </div>
+        )}
+        {isAdmin && <div className="card"><GerenciamentoPermissoes /></div>}
+      </>}
+
+      {tab === 'aparencia' && isAdmin && (
+        <div className="card"><AparenciaConfig /></div>
       )}
     </div>
   )
@@ -10142,6 +10276,26 @@ function AppContent() {
   const [lojaFiltro, setLojaFiltro] = useState('')
   const [chatTarget, setChatTargetState] = useState(null)
   const [chatUnread, setChatUnread] = useState(0)
+  const [bgConfig, setBgConfig] = useState({ activeUrl: null, blur: 8, overlay: 40 })
+
+  const reloadBgConfig = useCallback(async () => {
+    try {
+      const d = await configSistemaService.get()
+      if (d) {
+        const key = d.bg_imagem_ativa
+        const activeUrl = key ? (d[key] || null) : null
+        setBgConfig({ activeUrl, blur: d.bg_blur_intensidade ?? 8, overlay: d.bg_overlay_opacidade ?? 40 })
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => { reloadBgConfig() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (bgConfig.activeUrl) document.body.classList.add('has-bg-img')
+    else document.body.classList.remove('has-bg-img')
+    return () => document.body.classList.remove('has-bg-img')
+  }, [bgConfig.activeUrl])
 
   const clearChatTarget = useCallback(() => setChatTargetState(null), [])
   const openChatWith = useCallback((userId, mensagem) => {
@@ -10240,8 +10394,14 @@ function AppContent() {
   }
 
   return (
-    <AppCtx.Provider value={{ navigateTo, chatTarget, clearChatTarget, openChatWith, chatUnread, setChatUnread }}>
+    <AppCtx.Provider value={{ navigateTo, chatTarget, clearChatTarget, openChatWith, chatUnread, setChatUnread, reloadBgConfig }}>
     <LojaCtx.Provider value={{ lojaFiltro, setLojaFiltro }}>
+      {bgConfig.activeUrl && (
+        <div className="sys-bg-container">
+          <img className="sys-bg-img" src={bgConfig.activeUrl} alt="" style={{ filter: bgConfig.blur > 0 ? `blur(${bgConfig.blur}px)` : undefined, transform: bgConfig.blur > 0 ? 'scale(1.05)' : undefined }} />
+          <div className="sys-bg-overlay" style={{ opacity: bgConfig.overlay / 100 }} />
+        </div>
+      )}
       <div className="app">
         <Sidebar
           page={page}

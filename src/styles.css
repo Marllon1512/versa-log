@@ -89,6 +89,30 @@ body {
 .card { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
 .card-sm { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
 
+/* ── Background image system ─────────────────────────────── */
+.sys-bg-container { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.sys-bg-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sys-bg-overlay { position: absolute; inset: 0; background: #000; }
+.app { position: relative; z-index: 1; }
+
+body.has-bg-img .sidebar {
+  background: rgba(8,8,12,0.82) !important;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-right-color: rgba(255,255,255,0.06) !important;
+}
+body.has-bg-img .content-topbar {
+  background: rgba(8,8,12,0.80) !important;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom-color: rgba(255,255,255,0.06) !important;
+}
+body.has-bg-img .content-area { background: transparent !important; }
+body.has-bg-img .card,
+body.has-bg-img .card-sm {
+  background: rgba(17,17,22,0.78) !important;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
 /* ── Stats ──────────────────────────────────────────────── */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 22px; }
 .stat { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
