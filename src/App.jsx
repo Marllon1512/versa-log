@@ -72,7 +72,7 @@ const PROFILE_LABELS = {
   conferente:'Conferente', estoque:'Estoque', tecnico:'Téc. Assistência',
   atendente:'Atendente', contador:'Contador',
 }
-const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto',config:'Configurações',cadastros:'Cadastros',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Financeiro',financeiro_loja:'Financeiro (Loja)',dp:'Dep. Pessoal',os:'Ordens de Serviço',fila:'Fila Liberação',crm:'CRM',catalogo:'Catálogo Digital',nf:'Nota Fiscal',nps:'NPS',devolucao:'Devoluções',relatorios:'Relatórios',chat:'Chat' }
+const PAGE_LABELS = { dashboard:'Painel',pedidos:'Pedidos',separacao:'Separação',agenda:'Agenda',assistencia:'Assistência',roteiro:'Roteiro',conferencia:'Conferência',equipe:'Equipe',ranking:'Ranking',mapa:'Mapa',rota:'Minha Rota',ponto:'Ponto Eletrônico',config:'Configurações',cadastros:'Cadastros',vendas:'Vendas e PDV',compras:'Compras',estoque:'Estoque',financeiro:'Financeiro',financeiro_loja:'Financeiro',dp:'Departamento Pessoal',os:'Ordens de Serviço',fila:'Fila de Liberação',crm:'CRM',catalogo:'Catálogo Digital',nf:'Nota Fiscal',nps:'NPS',relatorios:'Relatórios',chat:'Chat' }
 const fmtR = (v) => (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
 
 function LojaSelect({ value, onChange, className, style, placeholder }) {
