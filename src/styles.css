@@ -167,7 +167,7 @@ body {
 [data-theme="light"] body.has-bg-img h2,
 [data-theme="light"] body.has-bg-img h3 {
   color: #111118 !important;
-  text-shadow: 0 1px 2px rgba(255,255,255,0.6) !important;
+  text-shadow: none !important;
 }
 [data-theme="light"] body.has-bg-img .fi {
   background: rgba(255,255,255,0.85) !important;
@@ -194,7 +194,7 @@ body {
 body.light-mode,
 body.light-mode *,
 body.light-mode *::before,
-body.light-mode *::after { color: #111111 !important; }
+body.light-mode *::after { color: #111111 !important; text-shadow: none !important; }
 
 /* ─── 2. SVG — stroke segue currentColor ─────────────────── */
 body.light-mode svg,
@@ -498,6 +498,24 @@ body.has-bg-img .bg { background: rgba(255,255,255,0.08) !important; color: rgba
 body.has-bg-img .sb-item { color: rgba(200,200,220,0.75) !important; }
 body.has-bg-img .sb-item:hover { color: #ffffff !important; background: rgba(255,255,255,0.07) !important; }
 body.has-bg-img .sb-item.active { color: var(--accent) !important; }
+
+/* ── Light mode: anular text-shadows do has-bg-img ──────── */
+body.light-mode.has-bg-img,
+body.light-mode.has-bg-img *,
+body.light-mode.has-bg-img *::before,
+body.light-mode.has-bg-img *::after { text-shadow: none !important; color: #111111 !important; }
+body.light-mode.has-bg-img .stat-val,
+body.light-mode.has-bg-img .stat-n,
+body.light-mode.has-bg-img .stat-lbl,
+body.light-mode.has-bg-img .stat-l { color: #111111 !important; text-shadow: none !important; }
+body.light-mode.has-bg-img .tbl th { color: #555555 !important; }
+body.light-mode.has-bg-img .tbl td { color: #111111 !important; }
+body.light-mode.has-bg-img .sb-item { color: #111111 !important; }
+body.light-mode.has-bg-img .bg-green * { color: var(--green) !important; }
+body.light-mode.has-bg-img .bg-red *  { color: var(--red)   !important; }
+body.light-mode.has-bg-img .bg-amber *{ color: var(--amber) !important; }
+body.light-mode.has-bg-img .btn-p,
+body.light-mode.has-bg-img .btn-p *  { color: #ffffff !important; }
 
 /* ── Stats ──────────────────────────────────────────────── */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 22px; }

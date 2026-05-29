@@ -6120,7 +6120,12 @@ function GerenciamentoPermissoes() {
 // ============================================================
 function AparenciaConfig() {
   const { reloadBgConfig } = useContext(AppCtx)
-  const [cfg, setCfg] = useState({ bg_imagem_1: null, bg_imagem_2: null, bg_imagem_3: null, bg_imagem_ativa: null, bg_blur_intensidade: 8, bg_overlay_opacidade: 40, logo_versa_url: null })
+  const [cfg, setCfg] = useState({
+    bg_imagem_clara_1: null, bg_imagem_clara_2: null,
+    bg_imagem_escura_1: null, bg_imagem_escura_2: null,
+    bg_ativa_clara: null, bg_ativa_escura: null,
+    bg_blur_intensidade: 8, bg_overlay_opacidade: 40, logo_versa_url: null,
+  })
   const [uploading, setUploading] = useState({})
   const [saving, setSaving] = useState(false)
   const [uploadingLogoVersa, setUploadingLogoVersa] = useState(false)
@@ -6152,12 +6157,12 @@ function AparenciaConfig() {
     toast.success('Logo removida')
   }
 
-  const upload = async (slot, file) => {
-    setUploading(p => ({ ...p, [slot]: true }))
+  const upload = async (key, file) => {
+    setUploading(p => ({ ...p, [key]: true }))
     try {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-      const path = `bg/slot${slot}_${Date.now()}.${ext}`
-      const old = cfg[`bg_imagem_${slot}`]
+      const path = `bg/${key}_${Date.now()}.${ext}`
+      const old = cfg[key]
       if (old) {
         const seg = old.split('/sistema-assets/')[1]
         if (seg) await supabase.storage.from('sistema-assets').remove([decodeURIComponent(seg.split('?')[0])]).catch(() => {})
@@ -6168,7 +6173,7 @@ function AparenciaConfig() {
       if (upErr) throw new Error(upErr.message || upErr.error || JSON.stringify(upErr))
       const { data: pub } = supabase.storage.from('sistema-assets').getPublicUrl(path)
       if (!pub?.publicUrl) throw new Error('URL pública não obtida. Verifique se o bucket sistema-assets é público.')
-      const updates = { [`bg_imagem_${slot}`]: pub.publicUrl }
+      const updates = { [key]: pub.publicUrl }
       await configSistemaService.save(updates)
       const newCfg = { ...cfg, ...updates }
       setCfg(newCfg)
@@ -6177,28 +6182,29 @@ function AparenciaConfig() {
     } catch (e) {
       toast.error('Erro no upload: ' + (e?.message || String(e)))
     }
-    setUploading(p => ({ ...p, [slot]: false }))
+    setUploading(p => ({ ...p, [key]: false }))
   }
 
-  const ativar = async (slot) => {
-    const key = slot ? `bg_imagem_${slot}` : null
-    const newCfg = { ...cfg, bg_imagem_ativa: key }
+  const ativar = async (temaSlot, key) => {
+    const field = temaSlot === 'clara' ? 'bg_ativa_clara' : 'bg_ativa_escura'
+    const newCfg = { ...cfg, [field]: key }
     setCfg(newCfg)
     reloadBgConfig(newCfg)
-    configSistemaService.save({ bg_imagem_ativa: key }).catch(() => {})
-    toast.success(slot ? 'Imagem ativada como fundo!' : 'Fundo desativado')
+    configSistemaService.save({ [field]: key }).catch(() => {})
+    toast.success(key ? 'Imagem ativada como fundo!' : 'Fundo desativado')
   }
 
-  const remover = async (slot) => {
+  const remover = async (key) => {
     try {
-      const url = cfg[`bg_imagem_${slot}`]
+      const url = cfg[key]
       if (url) {
         const seg = url.split('/sistema-assets/')[1]
-        if (seg) await supabase.storage.from('sistema-assets').remove([decodeURIComponent(seg.split('?')[0])])
+        if (seg) await supabase.storage.from('sistema-assets').remove([decodeURIComponent(seg.split('?')[0])]).catch(() => {})
       }
     } catch {}
-    const updates = { [`bg_imagem_${slot}`]: null }
-    if (cfg.bg_imagem_ativa === `bg_imagem_${slot}`) updates.bg_imagem_ativa = null
+    const updates = { [key]: null }
+    if (cfg.bg_ativa_clara === key) updates.bg_ativa_clara = null
+    if (cfg.bg_ativa_escura === key) updates.bg_ativa_escura = null
     await configSistemaService.save(updates).catch(() => {})
     setCfg(p => ({ ...p, ...updates }))
     reloadBgConfig()
@@ -6215,12 +6221,55 @@ function AparenciaConfig() {
     setSaving(false)
   }
 
-  const previewUrl = cfg.bg_imagem_ativa ? cfg[cfg.bg_imagem_ativa] : null
+  const BgSlots = ({ temaSlot, label }) => {
+    const ativaField = temaSlot === 'clara' ? 'bg_ativa_clara' : 'bg_ativa_escura'
+    return (
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontWeight:600, fontSize:13, marginBottom:12, color:'var(--t1)', display:'flex', alignItems:'center', gap:8 }}>
+          {temaSlot === 'clara' ? <Sun size={14} strokeWidth={2} /> : <Moon size={14} strokeWidth={2} />}
+          {label}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12 }}>
+          {[1,2].map(num => {
+            const key = `bg_imagem_${temaSlot}_${num}`
+            const url = cfg[key]
+            const isActive = cfg[ativaField] === key
+            return (
+              <div key={key} style={{ border:`2px solid ${isActive?'var(--accent)':'var(--border)'}`, borderRadius:12, overflow:'hidden', background:'var(--bg2)', transition:'border-color 200ms ease' }}>
+                <div style={{ height:110, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg3)' }}>
+                  {url
+                    ? <img src={url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    : <div style={{ textAlign:'center', color:'var(--t3)' }}><Image size={24} strokeWidth={1.5} /><div style={{ fontSize:11, marginTop:4 }}>Sem imagem</div></div>
+                  }
+                  {isActive && <div style={{ position:'absolute', top:6, right:6, background:'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6 }}>ATIVO</div>}
+                </div>
+                <div style={{ padding:10 }}>
+                  <div style={{ fontSize:12, fontWeight:600, color:'var(--t2)', marginBottom:8 }}>Imagem {num}</div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <label style={{ flex:1, cursor: uploading[key] ? 'not-allowed' : 'pointer' }}>
+                      <input type="file" accept="image/*" style={{ display:'none' }} disabled={!!uploading[key]} onChange={e => e.target.files[0] && upload(key, e.target.files[0])} />
+                      <div className="btn btn-g btn-sm" style={{ textAlign:'center', cursor:'inherit', userSelect:'none' }}>{uploading[key] ? '...' : 'Upload'}</div>
+                    </label>
+                    {url && !isActive && <button className="btn btn-p btn-sm" style={{ flex:1 }} onClick={() => ativar(temaSlot, key)}>Ativar</button>}
+                    {url && isActive && <button className="btn btn-g btn-sm" style={{ flex:1 }} onClick={() => ativar(temaSlot, null)}>Desativar</button>}
+                    {url && <button className="btn btn-sm" style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444', padding:'5px 8px' }} onClick={() => remover(key)}><Trash2 size={13} /></button>}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  const activeEscuraUrl = cfg.bg_ativa_escura ? cfg[cfg.bg_ativa_escura] : null
+  const activeClaraUrl  = cfg.bg_ativa_clara  ? cfg[cfg.bg_ativa_clara]  : null
 
   return (
     <div>
       <div style={{ fontWeight:600, marginBottom:10 }}>Logo da Versa Log</div>
-      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:20, padding:'12px', background:'var(--bg2)', borderRadius:10, border:'1px solid var(--border)' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:24, padding:'12px', background:'var(--bg2)', borderRadius:10, border:'1px solid var(--border)' }}>
         {cfg.logo_versa_url
           ? <img src={cfg.logo_versa_url} alt="Logo Versa" style={{ height:52, objectFit:'contain', borderRadius:8, background:'#fff', padding:4 }} />
           : <div style={{ width:52, height:52, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center' }}><Image size={22} color="var(--t3)" strokeWidth={1.5} /></div>
@@ -6230,56 +6279,28 @@ function AparenciaConfig() {
           <div style={{ display:'flex', gap:8 }}>
             <label style={{ cursor: uploadingLogoVersa ? 'not-allowed' : 'pointer' }}>
               <input type="file" accept="image/*" style={{ display:'none' }} disabled={uploadingLogoVersa} onChange={e => e.target.files[0] && uploadLogoVersa(e.target.files[0])} />
-              <div className="btn btn-p btn-sm">{uploadingLogoVersa ? 'Enviando...' : '⬆ Upload logo'}</div>
+              <div className="btn btn-p btn-sm">{uploadingLogoVersa ? 'Enviando...' : 'Upload logo'}</div>
             </label>
-            {cfg.logo_versa_url && <button className="btn btn-g btn-sm" onClick={removerLogoVersa}>✕ Remover</button>}
+            {cfg.logo_versa_url && <button className="btn btn-g btn-sm" onClick={removerLogoVersa}>Remover</button>}
           </div>
         </div>
       </div>
 
-      <div style={{ fontWeight:600, marginBottom:12 }}>Imagens de Fundo</div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:24 }}>
-        {[1,2,3].map(slot => {
-          const url = cfg[`bg_imagem_${slot}`]
-          const isActive = cfg.bg_imagem_ativa === `bg_imagem_${slot}`
-          return (
-            <div key={slot} style={{ border:`2px solid ${isActive?'var(--accent)':'var(--border)'}`, borderRadius:12, overflow:'hidden', background:'var(--bg2)', transition:'border-color 200ms ease' }}>
-              <div style={{ height:120, position:'relative', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg3)' }}>
-                {url
-                  ? <img src={url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                  : <div style={{ textAlign:'center', color:'var(--t3)' }}><Image size={26} strokeWidth={1.5} style={{ marginBottom:4 }} /><div style={{ fontSize:11, marginTop:4 }}>Sem imagem</div></div>
-                }
-                {isActive && <div style={{ position:'absolute', top:6, right:6, background:'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6 }}>ATIVO</div>}
-              </div>
-              <div style={{ padding:10 }}>
-                <div style={{ fontSize:12, fontWeight:600, color:'var(--t2)', marginBottom:8 }}>Imagem {slot}</div>
-                <div style={{ display:'flex', gap:6 }}>
-                  <label style={{ flex:1, cursor: uploading[slot] ? 'not-allowed' : 'pointer' }}>
-                    <input type="file" accept="image/*" style={{ display:'none' }} disabled={!!uploading[slot]} onChange={e => e.target.files[0] && upload(slot, e.target.files[0])} />
-                    <div className="btn btn-g btn-sm" style={{ textAlign:'center', cursor:'inherit', userSelect:'none' }}>{uploading[slot] ? '...' : '⬆ Upload'}</div>
-                  </label>
-                  {url && !isActive && <button className="btn btn-p btn-sm" style={{ flex:1 }} onClick={() => ativar(slot)}>Ativar</button>}
-                  {url && isActive && <button className="btn btn-g btn-sm" style={{ flex:1 }} onClick={() => ativar(null)}>Desativar</button>}
-                  {url && <button className="btn btn-sm" style={{ background:'rgba(239,68,68,0.15)', color:'#ef4444' }} onClick={() => remover(slot)}>🗑</button>}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      <div style={{ fontWeight:600, marginBottom:16 }}>Imagens de Fundo por Tema</div>
+      <BgSlots temaSlot="escura" label="Tema Escuro — Imagens de Fundo" />
+      <BgSlots temaSlot="clara"  label="Tema Claro — Imagens de Fundo" />
 
       <div style={{ background:'var(--bg2)', borderRadius:12, padding:16, marginBottom:12 }}>
         <div style={{ fontWeight:600, fontSize:13, marginBottom:10 }}>Intensidade do Blur</div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <input type="range" min={0} max={20} value={cfg.bg_blur_intensidade??8} onChange={e => setCfg(p => ({ ...p, bg_blur_intensidade:+e.target.value }))} style={{ flex:1, accentColor:'var(--accent)' }} />
-          <span style={{ minWidth:36, fontSize:13, color:'var(--t1)' }}>{cfg.bg_blur_intensidade??8}px</span>
+          <span style={{ minWidth:36, fontSize:13 }}>{cfg.bg_blur_intensidade??8}px</span>
         </div>
-        {previewUrl && (
+        {(activeEscuraUrl || activeClaraUrl) && (
           <div style={{ marginTop:10, display:'flex', alignItems:'center', gap:10 }}>
-            <span style={{ fontSize:12, color:'var(--t3)' }}>Preview:</span>
-            <div style={{ width:80, height:40, borderRadius:6, overflow:'hidden' }}>
-              <img src={previewUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', filter:`blur(${(cfg.bg_blur_intensidade??8)*0.35}px)`, transform:'scale(1.1)' }} />
-            </div>
+            <span style={{ fontSize:12, color:'var(--t3)' }}>Preview (escuro / claro):</span>
+            {activeEscuraUrl && <div style={{ width:80, height:40, borderRadius:6, overflow:'hidden' }}><img src={activeEscuraUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', filter:`blur(${(cfg.bg_blur_intensidade??8)*0.35}px)`, transform:'scale(1.1)' }} /></div>}
+            {activeClaraUrl  && <div style={{ width:80, height:40, borderRadius:6, overflow:'hidden' }}><img src={activeClaraUrl}  alt="" style={{ width:'100%', height:'100%', objectFit:'cover', filter:`blur(${(cfg.bg_blur_intensidade??8)*0.35}px)`, transform:'scale(1.1)' }} /></div>}
           </div>
         )}
       </div>
@@ -6288,7 +6309,7 @@ function AparenciaConfig() {
         <div style={{ fontWeight:600, fontSize:13, marginBottom:10 }}>Opacidade do Overlay Escuro</div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <input type="range" min={0} max={80} value={cfg.bg_overlay_opacidade??40} onChange={e => setCfg(p => ({ ...p, bg_overlay_opacidade:+e.target.value }))} style={{ flex:1, accentColor:'var(--accent)' }} />
-          <span style={{ minWidth:36, fontSize:13, color:'var(--t1)' }}>{cfg.bg_overlay_opacidade??40}%</span>
+          <span style={{ minWidth:36, fontSize:13 }}>{cfg.bg_overlay_opacidade??40}%</span>
         </div>
       </div>
 
@@ -11077,18 +11098,29 @@ function AppContent() {
 
   const toggleTema = useCallback(() => setTema(t => t === 'dark' ? 'light' : 'dark'), [])
 
+  const temaRef = useRef(tema)
+  useEffect(() => { temaRef.current = tema }, [tema])
+
   const reloadBgConfig = useCallback(async (directConfig) => {
     try {
       const d = directConfig ?? await configSistemaService.get()
       if (d) {
-        const key = d.bg_imagem_ativa
-        const activeUrl = key ? (d[key] || null) : null
+        const t = temaRef.current
+        let activeUrl = null
+        if (t === 'light') {
+          const key = d.bg_ativa_clara
+          activeUrl = key ? (d[key] || null) : null
+        } else {
+          const key = d.bg_ativa_escura
+          const legacyKey = d.bg_imagem_ativa
+          activeUrl = key ? (d[key] || null) : (legacyKey ? (d[legacyKey] || null) : null)
+        }
         setBgConfig({ activeUrl, blur: d.bg_blur_intensidade ?? 8, overlay: d.bg_overlay_opacidade ?? 40, logoVersaUrl: d.logo_versa_url || null })
       }
     } catch {}
-  }, [])
+  }, []) // temaRef is a ref — stable, no need in deps
 
-  useEffect(() => { reloadBgConfig() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { reloadBgConfig() }, [tema]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (bgConfig.activeUrl) document.body.classList.add('has-bg-img')
