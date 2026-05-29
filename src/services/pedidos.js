@@ -65,6 +65,18 @@ export const pedidosService = {
     return data || []
   },
 
+  async listPaged({ search = '', from = 0, to = 99, status, lojas, loja_filtro } = {}) {
+    let q = supabase.from('pedidos').select('*', { count: 'exact' })
+    if (search) q = q.or(`numero_pedido.ilike.%${search}%,cliente.ilike.%${search}%`)
+    if (status && status !== 'Todos') q = q.eq('status', status)
+    if (lojas && lojas.length > 0) q = q.in('local_separacao', lojas)
+    if (loja_filtro) q = q.eq('local_separacao', loja_filtro)
+    q = q.order('created_at', { ascending: false }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
+  },
+
   async getById(id) {
     const { data, error } = await supabase
       .from('pedidos')

@@ -110,6 +110,15 @@ export const assistenciasService = {
     if (error) throw error
     return data || []
   },
+  async listPaged({ search = '', from = 0, to = 99, status } = {}) {
+    let q = supabase.from('assistencias').select('*, assistencia_itens(id, fornecedor)', { count: 'exact' })
+    if (search) q = q.or(`cliente.ilike.%${search}%,pedido_ref.ilike.%${search}%`)
+    if (status && status !== 'Todos') q = q.eq('status', status)
+    q = q.order('created_at', { ascending: false }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
+  },
   async getById(id) {
     const { data, error } = await supabase
       .from('assistencias')
@@ -242,6 +251,14 @@ export const clientesService = {
     if (error) throw error
     return data || []
   },
+  async listPaged({ search = '', from = 0, to = 99 } = {}) {
+    let q = supabase.from('clientes').select('*', { count: 'exact' })
+    if (search) q = q.or(`nome.ilike.%${search}%,cpf_cnpj.ilike.%${search}%,telefone.ilike.%${search}%`)
+    q = q.order('nome', { ascending: true }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
+  },
   async getById(id) {
     const { data, error } = await supabase.from('clientes').select('*').eq('id', id).single()
     if (error) throw error
@@ -271,6 +288,14 @@ export const fornecedoresService = {
     if (error) throw error
     return data || []
   },
+  async listPaged({ search = '', from = 0, to = 99 } = {}) {
+    let q = supabase.from('fornecedores').select('*', { count: 'exact' })
+    if (search) q = q.or(`nome.ilike.%${search}%,cnpj.ilike.%${search}%`)
+    q = q.order('nome', { ascending: true }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
+  },
   async create(f) {
     const { data, error } = await supabase.from('fornecedores').insert(f).select().single()
     if (error) throw error
@@ -294,6 +319,14 @@ export const catalogoService = {
     const { data, error } = await supabase.from('catalogo_produtos').select('*').order('nome')
     if (error) throw error
     return data || []
+  },
+  async listPaged({ search = '', from = 0, to = 99 } = {}) {
+    let q = supabase.from('catalogo_produtos').select('*', { count: 'exact' })
+    if (search) q = q.or(`nome.ilike.%${search}%,codigo_barras.ilike.%${search}%`)
+    q = q.order('nome', { ascending: true }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
   },
   async create(p) {
     const { codigo_produto: _cp, codigo_barras: _cb, ...rest } = p
@@ -327,7 +360,7 @@ const CFG_ID = '00000000-0000-0000-0000-000000000001'
 export const configSistemaService = {
   async get() {
     const { data, error } = await supabase.from('configuracoes').select('*').eq('chave', 'sistema').maybeSingle()
-    console.log('[configSistema] get:', { data, error })
+    if (error) throw error
     return data || {}
   },
   async save(updates) {
@@ -337,7 +370,6 @@ export const configSistemaService = {
       .upsert(payload, { onConflict: 'id' })
       .select()
       .maybeSingle()
-    console.log('[configSistema] save:', { payload, data, error })
     if (error) throw error
     return data
   },
@@ -351,6 +383,15 @@ export const vendasService = {
     const { data, error } = await q
     if (error) throw error
     return data || []
+  },
+  async listPaged({ search = '', from = 0, to = 99, loja } = {}) {
+    let q = supabase.from('vendas').select('*, venda_itens(*)', { count: 'exact' })
+    if (search) q = q.or(`cliente_nome.ilike.%${search}%`)
+    if (loja) q = q.eq('loja', loja)
+    q = q.order('created_at', { ascending: false }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
   },
   async getById(id) {
     const { data, error } = await supabase.from('vendas').select('*, venda_itens(*)').eq('id', id).single()
@@ -414,6 +455,15 @@ export const estoqueService = {
     if (error) throw error
     return data || []
   },
+  async listPaged({ search = '', from = 0, to = 99, loja } = {}) {
+    let q = supabase.from('estoque').select('*', { count: 'exact' })
+    if (search) q = q.or(`nome_produto.ilike.%${search}%,codigo_barras.ilike.%${search}%`)
+    if (loja) q = q.eq('loja', loja)
+    q = q.order('created_at', { ascending: false }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
+  },
   async listNFEntradas() {
     const { data, error } = await supabase.from('nf_entrada').select('*, nf_entrada_itens(*)').order('created_at', { ascending: false })
     if (error) throw error
@@ -461,6 +511,24 @@ export const financeiroService = {
     const { data, error } = await q
     if (error) throw error
     return data || []
+  },
+  async listPagedReceber({ search = '', from = 0, to = 99, loja } = {}) {
+    let q = supabase.from('financeiro_receber').select('*', { count: 'exact' })
+    if (search) q = q.or(`descricao.ilike.%${search}%,cliente_fornecedor.ilike.%${search}%`)
+    if (loja) q = q.eq('loja', loja)
+    q = q.order('created_at', { ascending: false }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
+  },
+  async listPagedPagar({ search = '', from = 0, to = 99, loja } = {}) {
+    let q = supabase.from('financeiro_pagar').select('*', { count: 'exact' })
+    if (search) q = q.or(`descricao.ilike.%${search}%,cliente_fornecedor.ilike.%${search}%`)
+    if (loja) q = q.eq('loja', loja)
+    q = q.order('created_at', { ascending: false }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
   },
   async createReceber(rec) {
     const { data, error } = await supabase.from('financeiro_receber').insert(rec).select().single()
@@ -521,6 +589,15 @@ export const ordensServicoService = {
     const { data, error } = await supabase.from('ordens_servico').select('*').order('created_at', { ascending: false })
     if (error) throw error
     return data || []
+  },
+  async listPaged({ search = '', from = 0, to = 99, status } = {}) {
+    let q = supabase.from('ordens_servico').select('*', { count: 'exact' })
+    if (search) q = q.or(`titulo.ilike.%${search}%,cliente.ilike.%${search}%`)
+    if (status) q = q.eq('status', status)
+    q = q.order('created_at', { ascending: false }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
   },
   async getById(id) {
     const { data, error } = await supabase.from('ordens_servico').select('*').eq('id', id).single()
@@ -589,6 +666,15 @@ export const crmService = {
     const { data, error } = await q
     if (error) throw error
     return data || []
+  },
+  async listPaged({ search = '', from = 0, to = 99, loja } = {}) {
+    let q = supabase.from('crm_leads').select('*', { count: 'exact' })
+    if (search) q = q.or(`nome.ilike.%${search}%,responsavel.ilike.%${search}%`)
+    if (loja) q = q.eq('loja', loja)
+    q = q.order('created_at', { ascending: false }).range(from, to)
+    const { data, count, error } = await q
+    if (error) throw error
+    return { data: data || [], count: count || 0 }
   },
   async create(lead) {
     const { data, error } = await supabase.from('crm_leads').insert(lead).select().single()

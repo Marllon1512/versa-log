@@ -101,6 +101,52 @@ export function usePagination(items, pageSize = 20) {
   return { paged, page, setPage, totalPages, total, reset }
 }
 
+// Server-side pagination with debounced search
+export function useServerPagination(queryFn, pageSize = 100) {
+  const [search, setSearchRaw] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const debounceRef = useRef(null)
+  const firstRender = useRef(true)
+
+  const setSearch = useCallback((v) => {
+    setSearchRaw(v)
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(v)
+      setPage(1)
+    }, 400)
+  }, [])
+
+  // Reset page when queryFn identity changes (filters changed)
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return }
+    setPage(1)
+  }, [queryFn]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const from = (page - 1) * pageSize
+      const { data: rows, count } = await queryFn({ search: debouncedSearch, from, to: from + pageSize - 1 })
+      setData(rows || [])
+      setTotal(count || 0)
+    } catch { setData([]) } finally { setLoading(false) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, debouncedSearch, queryFn, pageSize])
+
+  useEffect(() => { load() }, [load])
+
+  return {
+    data, loading, total, page, setPage,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    search, setSearch, reload: load,
+  }
+}
+
 // Prazo de assistência (30 dias)
 export function usePrazo(dataAbertura) {
   if (!dataAbertura) return null

@@ -16,7 +16,7 @@ import {
 import { AuthProvider, useAuth } from './context/AuthContext'
 import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
-import { useData, useAction, useDateInfo, usePrazo, usePagination, usePullToRefresh } from './hooks/index'
+import { useData, useAction, useDateInfo, usePrazo, usePagination, usePullToRefresh, useServerPagination } from './hooks/index'
 import { Btn, Badge, Modal, ConfirmModal, Ic, Logo, Alert, Spinner, Empty, Input } from './components/ui/index'
 import * as XLSX from 'xlsx'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -41,6 +41,30 @@ import {
   escalasTrabalhoService, pontoOcorrenciasService, cercasVirtuaisService,
   conciliacaoService,
 } from './services/index'
+
+// Pagination controls — server-side
+function Pagination({ page, totalPages, total, setPage }) {
+  if (totalPages <= 1 && total < 5) return null
+  const pages = []
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= page - 2 && i <= page + 2)) pages.push(i)
+    else if (pages[pages.length - 1] !== '...') pages.push('...')
+  }
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:6, justifyContent:'center', marginTop:16, flexWrap:'wrap' }}>
+      <button className="btn btn-s btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>←</button>
+      <span className="pagination-desktop" style={{ display:'flex', gap:4 }}>
+        {pages.map((p, i) => p === '...'
+          ? <span key={i} style={{ padding:'0 4px', color:'var(--t3)' }}>…</span>
+          : <button key={p} className={`btn btn-sm ${p === page ? 'btn-p' : 'btn-s'}`} style={{ minWidth:32 }} onClick={() => setPage(p)}>{p}</button>
+        )}
+      </span>
+      <span className="pagination-mobile" style={{ fontSize:13, color:'var(--t2)' }}>Pág. {page}/{totalPages}</span>
+      <button className="btn btn-s btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>→</button>
+      <span style={{ fontSize:12, color:'var(--t3)' }}>({total} registros)</span>
+    </div>
+  )
+}
 
 // ── Filtro global de loja ─────────────────────────────────
 const LojaCtx = createContext({ lojaFiltro: '', setLojaFiltro: () => {} })
@@ -1407,7 +1431,6 @@ function ModalDevolucao({ pedido, onClose, onConfirm }) {
 // ============================================================
 function Pedidos() {
   const { perfil, isGestor, effectiveRole, podeVerFinanceiro } = useAuth()
-  const [search, setSearch] = useState('')
   const [statusFil, setStatusFil] = useState('Todos')
   const [lojasFil, setLojasFil] = useState([])
   const [fluxoFil, setFluxoFil] = useState(null)
@@ -1418,7 +1441,11 @@ function Pedidos() {
   const [showBulkDel, setShowBulkDel] = useState(false)
   const [bulkDelLoading, setBulkDelLoading] = useState(false)
 
-  const { data: pedidos, loading, reload } = useData(() => pedidosService.list(), [])
+  const queryFn = useCallback(
+    ({ search, from, to }) => pedidosService.listPaged({ search, from, to, status: statusFil, lojas: lojasFil }),
+    [statusFil, lojasFil]
+  )
+  const { data: pedidos, loading, total, page, setPage, totalPages, search, setSearch, reload } = useServerPagination(queryFn)
 
   const statuses = ['Todos', 'Pendente', 'Separando', 'Pronto para Rota', 'Em Rota', 'Entregue', 'Aguardando Montagem', 'Problema', 'Remarcado', 'Cancelado']
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -1434,18 +1461,6 @@ function Pedidos() {
     fluxoFiltros.push({ label: 'Aprovados para agendar', value: 'aprovado_agendar' })
     fluxoFiltros.push({ label: 'Separados para entregar hoje', value: 'separados_hoje' })
   }
-
-  const filtered = (pedidos || []).filter(p => {
-    const mSearch = !search || p.cliente?.toLowerCase().includes(search.toLowerCase()) || p.numero_pedido?.includes(search)
-    const mStatus = statusFil === 'Todos' || p.status === statusFil
-    const mLoja = lojasFil.length === 0 || lojasFil.includes(p.local_separacao)
-    let mFluxo = true
-    if (fluxoFil === 'aguardando_gerente') mFluxo = p.status_fluxo === 'aguardando_gerente'
-    else if (fluxoFil === 'aguardando_financeiro') mFluxo = p.status_fluxo === 'aguardando_financeiro'
-    else if (fluxoFil === 'aprovado_agendar') mFluxo = p.status_fluxo === 'aprovado_entrega' && !p.data_entrega_agendada
-    else if (fluxoFil === 'separados_hoje') mFluxo = p.status_fluxo === 'separado' && p.data_entrega_agendada === todayStr
-    return mSearch && mStatus && mLoja && mFluxo
-  })
 
   // Mapeia campos da UI para colunas reais da tabela pedidos
   const mapPedidoDB = (dados) => {
@@ -1535,7 +1550,7 @@ function Pedidos() {
       <div className="ph">
         <div>
           <h1>Pedidos</h1>
-          <div className="ph-sub">{filtered.length} pedido(s){checkedIds.size > 0 ? ` · ${checkedIds.size} selecionado(s)` : ''}</div>
+          <div className="ph-sub">{total} pedido(s){checkedIds.size > 0 ? ` · ${checkedIds.size} selecionado(s)` : ''}</div>
         </div>
         {isGestor && (
           <div className="row">
@@ -1557,7 +1572,7 @@ function Pedidos() {
       )}
 
       <div className="filters">
-        <input className="search" placeholder="Buscar cliente ou pedido..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="search" placeholder="Buscar cliente ou pedido..." value={search} onChange={e => setSearch(e.target.value)} autoComplete="off" />
         <div style={{ minWidth: 160 }}><LojaMultiSelect value={lojasFil} onChange={setLojasFil} /></div>
       </div>
       <div className="filters">
@@ -1575,13 +1590,14 @@ function Pedidos() {
         </div>
       )}
 
-      {loading ? <Spinner /> : filtered.length === 0 ? <Empty icon="📦" /> :
-        filtered.map(p => (
+      {loading ? <Spinner /> : pedidos.length === 0 ? <Empty icon="📦" /> :
+        pedidos.map(p => (
           <PedidoCard key={p.id} pedido={p} onClick={() => setSelected(p.id)}
             checked={isGestor ? checkedIds.has(p.id) : undefined}
             onCheck={isGestor ? (e) => toggleCheck(p.id, e) : undefined}
           />
         ))}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
 
       {showNew && (
         <NovoPedidoModal onClose={() => setShowNew(false)} onSave={handleCreate} />
@@ -1593,7 +1609,7 @@ function Pedidos() {
   )
 }
 
-function PedidoCard({ pedido: p, onClick, checked, onCheck }) {
+const PedidoCard = React.memo(function PedidoCard({ pedido: p, onClick, checked, onCheck }) {
   const d = useDateInfo(p.data_entrega)
   return (
     <div className="li" onClick={onClick} style={{ background: checked ? 'var(--rdim)' : undefined }}>
@@ -1616,7 +1632,7 @@ function PedidoCard({ pedido: p, onClick, checked, onCheck }) {
       <Ic n="chev" s={13} style={{ color: 'var(--t3)', flexShrink: 0 }} />
     </div>
   )
-}
+})
 
 // ── PDF simples ───────────────────────────────────────────
 function gerarPDFSimples(pedido, produtos) {
@@ -2099,7 +2115,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
                             </a>
                           ) : (
                             <a key={ai} href={url} target="_blank" rel="noreferrer">
-                              <img src={url} alt="anexo" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
+                              <img src={url} alt="anexo" loading="lazy" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
                             </a>
                           )
                         })}
@@ -2918,28 +2934,35 @@ function Agenda() {
 function Assistencia() {
   const { perfil } = useAuth()
   const [sf, setSf] = useState('Todos')
-  const [busca, setBusca] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
   const [showRelatorio, setShowRelatorio] = useState(false)
-  const { data: assistencias, loading, reload } = useData(() => assistenciasService.list(), [])
-  const novasSolicitacoes = (assistencias || []).filter(a => a.status === 'solicitacao' || a.origem === 'formulario')
+  const [stats, setStats] = useState({ criticas: 0, urgentes: 0, ativas: 0, novas: 0 })
 
-  const hoje = new Date()
-  const diasAberto = (d) => !d ? 0 : Math.floor((hoje - new Date(d)) / 86400000)
+  useEffect(() => {
+    assistenciasService.listPaged({ search: '', from: 0, to: 999, status: 'Todos' })
+      .then(({ data: all }) => {
+        const hoje = new Date()
+        const diasAberto = (d) => !d ? 0 : Math.floor((hoje - new Date(d)) / 86400000)
+        const ativas = all.filter(a => !['Concluído', 'Cancelado'].includes(a.status))
+        setStats({
+          criticas: ativas.filter(a => diasAberto(a.data_abertura) >= 30).length,
+          urgentes: ativas.filter(a => { const d = diasAberto(a.data_abertura); return d >= 20 && d < 30 }).length,
+          ativas: ativas.length,
+          novas: all.filter(a => a.status === 'solicitacao' || a.origem === 'formulario').length,
+        })
+      }).catch(() => {})
+  }, [])
 
-  const lista = assistencias || []
-  const ativas = lista.filter(a => !['Concluído', 'Cancelado'].includes(a.status))
-  const criticas = ativas.filter(a => diasAberto(a.data_abertura) >= 30)
-  const urgentes = ativas.filter(a => { const d = diasAberto(a.data_abertura); return d >= 20 && d < 30 })
+  const queryFn = useCallback(
+    ({ search, from, to }) => assistenciasService.listPaged({ search, from, to, status: sf }),
+    [sf]
+  )
+  const { data: filtered, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
 
   const statuses = ['Todos', 'Aberto', 'Em andamento', 'Aguardando fábrica', 'Aguardando peça', 'Agendado', 'Concluído', 'Cancelado']
-  const filtered = lista.filter(a => {
-    const okStatus = sf === 'Todos' || a.status === sf
-    const okBusca = !busca || [a.cliente, a.pedido_ref, a.loja, a.tipo_problema].some(v => v?.toLowerCase().includes(busca.toLowerCase()))
-    return okStatus && okBusca
-  })
+  const lista = filtered || []
 
   const handleCreate = async (dados) => {
     try {
@@ -2960,6 +2983,11 @@ function Assistencia() {
   const handleImport = async (rows, onProgress) => {
     const BATCH = 20
     let done = 0, criadas = 0, atualizadas = 0, erros = 0
+    const hoje = new Date()
+
+    // Fetch all for deduplication check
+    const { data: todasAssistencias } = await assistenciasService.listPaged({ search: '', from: 0, to: 9999, status: 'Todos' })
+    const listaCompleta = todasAssistencias || []
 
     // Agrupa por pedido_ref+cliente → 1 assistência por grupo (evita duplicatas internas ao import)
     const gruposMap = new Map()
@@ -2971,12 +2999,12 @@ function Assistencia() {
     const grupos = Array.from(gruposMap.values())
     const total = grupos.length
 
-    const paraAtualizar = grupos.filter(g => g.principal.pedido_ref && lista.find(a => a.pedido_ref === g.principal.pedido_ref && a.cliente === g.principal.cliente))
-    const paraCriar = grupos.filter(g => !g.principal.pedido_ref || !lista.find(a => a.pedido_ref === g.principal.pedido_ref && a.cliente === g.principal.cliente))
+    const paraAtualizar = grupos.filter(g => g.principal.pedido_ref && listaCompleta.find(a => a.pedido_ref === g.principal.pedido_ref && a.cliente === g.principal.cliente))
+    const paraCriar = grupos.filter(g => !g.principal.pedido_ref || !listaCompleta.find(a => a.pedido_ref === g.principal.pedido_ref && a.cliente === g.principal.cliente))
 
     // Atualiza existentes + adiciona itens novos
     for (const { principal, itens } of paraAtualizar) {
-      const existing = lista.find(a => a.pedido_ref === principal.pedido_ref && a.cliente === principal.cliente)
+      const existing = listaCompleta.find(a => a.pedido_ref === principal.pedido_ref && a.cliente === principal.cliente)
       try {
         await assistenciasService.update(existing.id, {
           loja: principal.loja || existing.loja,
@@ -3062,7 +3090,7 @@ function Assistencia() {
       <div className="ph">
         <div>
           <h1>Central de Assistências</h1>
-          <div className="ph-sub">{ativas.length} em andamento</div>
+          <div className="ph-sub">{stats.ativas} em andamento</div>
         </div>
         <div className="row" style={{ gap: 6 }}>
           <Btn variant="ghost" size="sm" onClick={() => setShowRelatorio(true)}><Ic n="bar" s={13} /> Relatório</Btn>
@@ -3076,13 +3104,13 @@ function Assistencia() {
         </div>
       </div>
 
-      {novasSolicitacoes.length > 0 && (
+      {stats.novas > 0 && (
         <div className="card" style={{ marginBottom: 16, borderColor: 'var(--accent)', background: 'var(--adim)', cursor: 'pointer' }}
           onClick={() => { setSf('Todos'); setBusca('') }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.5s infinite' }} />
             <div style={{ fontWeight: 600 }}>Novas Solicitações</div>
-            <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: 12, fontSize: 11, fontWeight: 700, padding: '1px 8px' }}>{novasSolicitacoes.length}</span>
+            <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: 12, fontSize: 11, fontWeight: 700, padding: '1px 8px' }}>{stats.novas}</span>
           </div>
           <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 4 }}>Aguardando aprovação do supervisor</div>
         </div>
@@ -3090,9 +3118,9 @@ function Assistencia() {
 
       <div className="stats" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 20 }}>
         {[
-          { label: 'Críticas +30d', val: criticas.length, color: 'var(--red)', bg: 'var(--rdim)' },
-          { label: 'Urgentes +20d', val: urgentes.length, color: 'var(--amber)', bg: 'var(--adim2)' },
-          { label: 'Abertas', val: ativas.length, color: 'var(--accent)', bg: 'var(--adim)' },
+          { label: 'Críticas +30d', val: stats.criticas, color: 'var(--red)', bg: 'var(--rdim)' },
+          { label: 'Urgentes +20d', val: stats.urgentes, color: 'var(--amber)', bg: 'var(--adim2)' },
+          { label: 'Abertas', val: stats.ativas, color: 'var(--accent)', bg: 'var(--adim)' },
         ].map(s => (
           <div className="stat" key={s.label}>
             <div className="stat-val" style={{ color: s.color }}>{loading ? '—' : s.val}</div>
@@ -3108,8 +3136,9 @@ function Assistencia() {
         {statuses.map(s => <button key={s} className={`fb${sf === s ? ' on' : ''}`} onClick={() => setSf(s)}>{s}</button>)}
       </div>
 
-      {loading ? <Spinner /> : filtered.length === 0 ? <Empty icon="🔧" text="Nenhuma assistência encontrada" /> :
-        filtered.map(a => <AssistenciaCard key={a.id} assistencia={a} onClick={() => setSelectedId(a.id)} />)}
+      {loading ? <Spinner /> : lista.length === 0 ? <Empty icon="🔧" text="Nenhuma assistência encontrada" /> :
+        lista.map(a => <AssistenciaCard key={a.id} assistencia={a} onClick={() => setSelectedId(a.id)} />)}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
 
       {showNew && <NovaAssistenciaModal onClose={() => setShowNew(false)} onSave={handleCreate} />}
       {showImport && <ImportarExcelAssistenciaModal onClose={() => setShowImport(false)} onImport={handleImport} existentes={lista} />}
@@ -3117,7 +3146,7 @@ function Assistencia() {
   )
 }
 
-function AssistenciaCard({ assistencia: a, onClick }) {
+const AssistenciaCard = React.memo(function AssistenciaCard({ assistencia: a, onClick }) {
   const dias = Math.floor((new Date() - new Date(a.data_abertura)) / 86400000)
   const ativo = !['Concluído', 'Cancelado'].includes(a.status)
   const cor = ativo ? (dias >= 30 ? '#ef4444' : dias >= 20 ? '#f59e0b' : dias >= 10 ? '#3b82f6' : 'var(--t3)') : 'var(--t3)'
@@ -3145,7 +3174,7 @@ function AssistenciaCard({ assistencia: a, onClick }) {
       <Ic n="chev" s={13} style={{ color: 'var(--t3)', flexShrink: 0 }} />
     </div>
   )
-}
+})
 
 function AssistenciaDetalhe({ id, onBack }) {
   const { perfil } = useAuth()
@@ -4086,7 +4115,7 @@ function ConferenciaDetalhe({ id, onBack, onEncaminharAssistencia }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
             {slots.map(([k, lbl]) => fotos[k] ? (
               <div key={k} style={{ textAlign: 'center' }}>
-                <img src={fotos[k]} alt={lbl} style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8 }} />
+                <img src={fotos[k]} alt={lbl} loading="lazy" style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8 }} />
                 <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 3 }}>{lbl}</div>
               </div>
             ) : null)}
@@ -4940,7 +4969,7 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ width:56, height:56, borderRadius:'50%', background: form.foto_url ? 'transparent' : 'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, border:'2px solid var(--border)' }}>
             {form.foto_url
-              ? <img src={form.foto_url} alt="" style={{ width:56, height:56, objectFit:'cover' }} />
+              ? <img src={form.foto_url} alt="" loading="lazy" style={{ width:56, height:56, objectFit:'cover' }} />
               : <Camera size={22} color="var(--t3)" />}
           </div>
           <label style={{ cursor:'pointer' }}>
@@ -6441,8 +6470,8 @@ function HistoricoClienteModal({ cliente, onClose }) {
 }
 
 function CadClientes() {
-  const { data: lista, loading, reload } = useData(() => clientesService.list(), [])
-  const [busca, setBusca] = useState('')
+  const queryFn = useCallback(({ search, from, to }) => clientesService.listPaged({ search, from, to }), [])
+  const { data: paged, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const [modal, setModal] = useState(null) // null | { mode:'new'|'edit', item }
   const empty = { nome:'', cpf_cnpj:'', telefone:'', email:'', endereco:'', cidade:'', estado:'', cep:'', observacoes:'' }
   const [form, setForm] = useState(empty)
@@ -6468,16 +6497,13 @@ function CadClientes() {
     try { await act.run(() => clientesService.remove(id)); reload() } catch (e) { toast.error(e.message) }
   }
 
-  const filtrado = (lista || []).filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()) || c.cpf_cnpj?.includes(busca) || c.telefone?.includes(busca))
-  const { paged, page, setPage, totalPages, total } = usePagination(filtrado)
-
   return (
     <div>
       <div style={{ display:'flex', gap:8, marginBottom:12, alignItems:'center' }}>
-        <input className="fi" style={{ flex:1 }} placeholder="Buscar cliente..." value={busca} onChange={e => { setBusca(e.target.value); setPage(1) }} />
+        <input className="fi" style={{ flex:1 }} placeholder="Buscar cliente..." value={busca} onChange={e => setBusca(e.target.value)} />
         <button className="btn btn-p btn-sm" onClick={abrirNovo}>+ Novo</button>
       </div>
-      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum cliente cadastrado" /> : (
+      {loading ? <Spinner /> : paged.length === 0 ? <Empty text="Nenhum cliente cadastrado" /> : (
         <>
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           {paged.map(c => (
@@ -6492,13 +6518,7 @@ function CadClientes() {
             </div>
           ))}
         </div>
-        {totalPages > 1 && (
-          <div style={{ display:'flex', gap:6, justifyContent:'center', marginTop:12 }}>
-            <button className="btn btn-s btn-sm" disabled={page===1} onClick={() => setPage(p=>p-1)}>←</button>
-            <span style={{ fontSize:13, color:'var(--t2)', lineHeight:'32px' }}>{page} / {totalPages} ({total})</span>
-            <button className="btn btn-s btn-sm" disabled={page===totalPages} onClick={() => setPage(p=>p+1)}>→</button>
-          </div>
-        )}
+        <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
         </>
       )}
       {modal && modal.mode !== 'historico' && (
@@ -6527,9 +6547,9 @@ function CadClientes() {
 }
 
 function CadFornecedores() {
-  const { data: lista, loading, reload } = useData(() => fornecedoresService.list(), [])
+  const queryFn = useCallback(({ search, from, to }) => fornecedoresService.listPaged({ search, from, to }), [])
+  const { data: filtrado, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const { data: todosReps } = useData(() => representantesService.list(), [])
-  const [busca, setBusca] = useState('')
   const [modal, setModal] = useState(null)
   const [vincModal, setVincModal] = useState(null)
   const empty = { nome:'', cnpj:'', contato:'', telefone:'', email:'', categoria:'', observacoes:'' }
@@ -6558,11 +6578,6 @@ function CadFornecedores() {
     } catch (e) { toast.error(e.message) }
   }
 
-  const filtrado = (lista || []).filter(c =>
-    c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
-    c.cnpj?.toLowerCase().includes(busca.toLowerCase())
-  )
-
   return (
     <div>
       <div style={{ display:'flex', gap:8, marginBottom:12 }}>
@@ -6583,6 +6598,7 @@ function CadFornecedores() {
           ))}
         </div>
       )}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
       {modal && (
         <Modal title={modal.item ? 'Editar Fornecedor' : 'Novo Fornecedor'} onClose={() => setModal(null)}>
           <div className="grid2">
@@ -6638,8 +6654,8 @@ function CadFornecedores() {
 }
 
 function CadCatalogo() {
-  const { data: lista, loading, reload } = useData(() => catalogoService.list(), [])
-  const [busca, setBusca] = useState('')
+  const queryFn = useCallback(({ search, from, to }) => catalogoService.listPaged({ search, from, to }), [])
+  const { data: lista, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const [filtroTipo, setFiltroTipo] = useState('')
   const [modal, setModal] = useState(null)
   const [detalhe, setDetalhe] = useState(null)
@@ -6717,10 +6733,8 @@ function CadCatalogo() {
     try { await catalogoService.remove(id); reload() } catch (e) { toast.error(e.message) }
   }
 
-  const filtrado = (lista || []).filter(c =>
-    c.nome?.toLowerCase().includes(busca.toLowerCase()) &&
-    (!filtroTipo || c.tipo === filtroTipo)
-  )
+  // Client-side type filter (UI only)
+  const filtrado = filtroTipo ? (lista || []).filter(c => c.tipo === filtroTipo) : (lista || [])
 
   const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
   const calcMarkup = (custo, venda) => {
@@ -6749,7 +6763,7 @@ function CadCatalogo() {
             return (
             <div key={p.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer' }} onClick={() => setDetalhe(p)}>
               {temFoto
-                ? <img src={p.fotos[0]} alt={p.nome} style={{ width:48, height:48, borderRadius:8, objectFit:'cover', flexShrink:0 }} />
+                ? <img src={p.fotos[0]} alt={p.nome} loading="lazy" style={{ width:48, height:48, borderRadius:8, objectFit:'cover', flexShrink:0 }} />
                 : <div style={{ width:48, height:48, borderRadius:8, background:'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Camera size={20} color="var(--t3)" strokeWidth={1.5} /></div>
               }
               <div style={{ flex:1 }}>
@@ -6776,6 +6790,7 @@ function CadCatalogo() {
           )})}
         </div>
       )}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
 
       {etiqueta && <EtiquetaModal produto={etiqueta} onClose={() => setEtiqueta(null)} />}
 
@@ -6785,7 +6800,7 @@ function CadCatalogo() {
           {detalhe.fotos && detalhe.fotos.length > 0 ? (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px,1fr))', gap:8, marginBottom:16 }}>
               {detalhe.fotos.map((url, i) => (
-                <img key={i} src={url} alt={`Foto ${i+1}`} style={{ width:'100%', height:120, objectFit:'cover', borderRadius:8 }} />
+                <img key={i} src={url} alt={`Foto ${i+1}`} loading="lazy" style={{ width:'100%', height:120, objectFit:'cover', borderRadius:8 }} />
               ))}
             </div>
           ) : <div style={{ textAlign:'center', padding:'20px 0', color:'var(--t3)' }}>Sem fotos cadastradas</div>}
@@ -6829,7 +6844,7 @@ function CadCatalogo() {
             <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:8 }}>
               {fotosExistentes.map((url, i) => (
                 <div key={i} style={{ position:'relative' }}>
-                  <img src={url} alt="" style={{ width:72, height:72, objectFit:'cover', borderRadius:8 }} />
+                  <img src={url} alt="" loading="lazy" style={{ width:72, height:72, objectFit:'cover', borderRadius:8 }} />
                   <button onClick={() => removerFotoExistente(i)} style={{ position:'absolute', top:-6, right:-6, background:'var(--red)', border:'none', borderRadius:'50%', width:20, height:20, color:'#fff', cursor:'pointer', fontSize:11, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
                 </div>
               ))}
@@ -7360,8 +7375,11 @@ function CRMVisitas() {
 
 function CRMKanban({ openNew, onOpenNewConsumed }) {
   const lojaEf = useEffectiveLoja()
-  const { data: leads, loading, reload } = useData(() => crmService.list(lojaEf), [lojaEf])
-  const [busca, setBusca] = useState('')
+  const queryFn = useCallback(
+    ({ search, from, to }) => crmService.listPaged({ search, from, to, loja: lojaEf }),
+    [lojaEf]
+  )
+  const { data: leads, loading, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn, 200)
   const [modal, setModal] = useState(null)
   const empty = { nome:'', telefone:'', email:'', loja:'', responsavel:'', estagio:'lead', valor_estimado:0, proxima_visita:'', obs:'' }
   const [form, setForm] = useState(empty)
@@ -7392,9 +7410,7 @@ function CRMKanban({ openNew, onOpenNewConsumed }) {
 
   if (loading) return <Spinner />
 
-  const leadsVisiveis = busca
-    ? (leads||[]).filter(l => l.nome?.toLowerCase().includes(busca.toLowerCase()) || l.loja?.toLowerCase().includes(busca.toLowerCase()))
-    : (leads||[])
+  const leadsVisiveis = leads || []
 
   return (
     <div>
@@ -7526,14 +7542,15 @@ function NotaFiscal() {
 // CATÁLOGO DIGITAL (público)
 // ============================================================
 function CatalogoPub() {
-  const { data: itens, loading } = useData(() => catalogoService.list(), [])
-  const [busca, setBusca] = useState('')
+  const queryFn = useCallback(
+    ({ search, from, to }) => catalogoService.listPaged({ search, from, to }),
+    []
+  )
+  const { data: itens, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca } = useServerPagination(queryFn)
   const [catFiltro, setCatFiltro] = useState('')
   const categorias = [...new Set((itens||[]).map(i => i.categoria).filter(Boolean))]
-  const filtrado = (itens||[]).filter(i => i.ativo !== false &&
-    (!catFiltro || i.categoria === catFiltro) &&
-    (!busca || i.nome?.toLowerCase().includes(busca.toLowerCase()))
-  )
+  // Category filter is UI-only
+  const filtrado = catFiltro ? (itens||[]).filter(i => i.ativo !== false && i.categoria === catFiltro) : (itens||[]).filter(i => i.ativo !== false)
   return (
     <div className="page">
       <div className="ph"><h1>Catálogo Digital</h1></div>
@@ -7549,7 +7566,7 @@ function CatalogoPub() {
           {filtrado.map(p => (
             <div key={p.id} className="card" style={{ padding:12, display:'flex', flexDirection:'column', gap:6 }}>
               {p.foto_url
-                ? <img src={p.foto_url} alt={p.nome} style={{ width:'100%', height:120, objectFit:'cover', borderRadius:8, background:'var(--bg2)' }} />
+                ? <img src={p.foto_url} alt={p.nome} loading="lazy" style={{ width:'100%', height:120, objectFit:'cover', borderRadius:8, background:'var(--bg2)' }} />
                 : <div style={{ width:'100%', height:120, borderRadius:8, background:'var(--bg2)', display:'flex', alignItems:'center', justifyContent:'center' }}><ShoppingBag size={30} color="var(--t3)" strokeWidth={1.3} /></div>
               }
               <div style={{ fontWeight:600, fontSize:13 }}>{p.nome}</div>
@@ -7565,6 +7582,7 @@ function CatalogoPub() {
           ))}
         </div>
       )}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
     </div>
   )
 }
@@ -7574,18 +7592,19 @@ function CatalogoPub() {
 // ============================================================
 function VendasLista({ onNovaVenda }) {
   const lojaEf = useEffectiveLoja()
-  const { data: lista, loading, reload } = useData(() => vendasService.list(lojaEf), [lojaEf])
+  const queryFn = useCallback(
+    ({ search, from, to }) => vendasService.listPaged({ search, from, to, loja: lojaEf }),
+    [lojaEf]
+  )
+  const { data: lista, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const [detalhe, setDetalhe] = useState(null)
-  const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
 
   const STATUS_COR = { pendente:'var(--amber)', aprovado:'var(--green)', cancelado:'var(--red)', entregue:'var(--blue)', aguardando_aprovacao:'#f97316' }
   const fmtData = (s) => s ? new Date(s).toLocaleDateString('pt-BR') : '—'
 
-  const filtrado = (lista || []).filter(v =>
-    (!filtroStatus || v.status === filtroStatus) &&
-    (!busca || v.cliente_nome?.toLowerCase().includes(busca.toLowerCase()) || String(v.numero||'').includes(busca))
-  )
+  // Client-side status filter
+  const filtrado = filtroStatus ? (lista || []).filter(v => v.status === filtroStatus) : (lista || [])
 
   if (detalhe) return <VendaDetalhe venda={detalhe} onClose={() => { setDetalhe(null); reload() }} />
 
@@ -7616,6 +7635,7 @@ function VendasLista({ onNovaVenda }) {
           ))}
         </div>
       )}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
     </div>
   )
 }
@@ -8784,29 +8804,25 @@ function Estoque() {
 
 function EstoqueDashboard() {
   const lojaEf = useEffectiveLoja()
-  const { data: itens, loading } = useData(() => estoqueService.list(lojaEf), [lojaEf])
-  const [busca, setBusca] = useState('')
-  if (loading) return <Spinner />
-  const total = (itens||[]).length
-  const baixo = (itens||[]).filter(i => (i.estoque_atual||0) <= (i.estoque_minimo||0)).length
-  const lojas = [...new Set((itens||[]).map(i => i.loja).filter(Boolean))]
-  const filtrado = (itens||[]).filter(i =>
-    !busca ||
-    i.nome_produto?.toLowerCase().includes(busca.toLowerCase()) ||
-    i.referencia?.toLowerCase().includes(busca.toLowerCase())
+  const queryFn = useCallback(
+    ({ search, from, to }) => estoqueService.listPaged({ search, from, to, loja: lojaEf }),
+    [lojaEf]
   )
+  const { data: itens, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca } = useServerPagination(queryFn)
+
+  if (loading) return <Spinner />
+  const baixo = (itens||[]).filter(i => (i.estoque_atual||0) <= (i.estoque_minimo||0)).length
   return (
     <div>
       <div className="stats" style={{ marginBottom:16 }}>
         <div className="stat"><div className="stat-n">{total}</div><div className="stat-l">Itens</div></div>
         <div className="stat"><div className="stat-n" style={{ color:'var(--red)' }}>{baixo}</div><div className="stat-l">Estoque baixo</div></div>
-        <div className="stat"><div className="stat-n">{lojas.length}</div><div className="stat-l">Lojas</div></div>
       </div>
       {baixo > 0 && <Alert type="warning" style={{ marginBottom:12 }}>{baixo} item(ns) com estoque abaixo do mínimo</Alert>}
       <input className="fi" style={{ marginBottom:10, width:'100%' }} placeholder="🔍 Buscar produto ou código..." value={busca} onChange={e => setBusca(e.target.value)} />
-      {filtrado.length === 0 ? <Empty text="Nenhum item no estoque" /> : (
+      {itens.length === 0 ? <Empty text="Nenhum item no estoque" /> : (
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {filtrado.map(i => (
+          {itens.map(i => (
             <div key={i.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{i.nome_produto}</div>
@@ -8820,6 +8836,7 @@ function EstoqueDashboard() {
           ))}
         </div>
       )}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
     </div>
   )
 }
@@ -9541,8 +9558,13 @@ function FinanceiroResumo() {
 
 function FinanceiroLista({ tipo }) {
   const lojaEf = useEffectiveLoja()
-  const { data: lista, loading, reload } = useData(() => tipo === 'receber' ? financeiroService.listReceber(lojaEf) : financeiroService.listPagar(lojaEf), [tipo, lojaEf])
-  const [busca, setBusca] = useState('')
+  const queryFn = useCallback(
+    ({ search, from, to }) => tipo === 'receber'
+      ? financeiroService.listPagedReceber({ search, from, to, loja: lojaEf })
+      : financeiroService.listPagedPagar({ search, from, to, loja: lojaEf }),
+    [tipo, lojaEf]
+  )
+  const { data: lista, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const [modal, setModal] = useState(null)
   const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...LOJAS_GRUPO]
   const empty = { descricao:'', valor:'', vencimento:'', categoria:'', cliente_fornecedor:'', status:'pendente', obs:'', loja:'', centro_custo:'' }
@@ -9579,21 +9601,15 @@ function FinanceiroLista({ tipo }) {
   const CATS_PAG = ['Fornecedor','Aluguel','Salário','Impostos','Serviços','Outros']
   const CATS = tipo === 'receber' ? CATS_REC : CATS_PAG
 
-  const filtradoFin = (lista||[]).filter(item =>
-    !busca ||
-    item.descricao?.toLowerCase().includes(busca.toLowerCase()) ||
-    item.cliente_fornecedor?.toLowerCase().includes(busca.toLowerCase())
-  )
-
   return (
     <div>
       <div style={{ display:'flex', gap:8, marginBottom:12 }}>
         <input className="fi" style={{ flex:1 }} placeholder="🔍 Buscar por descrição ou fornecedor..." value={busca} onChange={e => setBusca(e.target.value)} />
         <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ {tipo === 'receber' ? 'A Receber' : 'A Pagar'}</button>
       </div>
-      {loading ? <Spinner /> : filtradoFin.length === 0 ? <Empty text="Nenhum lançamento" /> : (
+      {loading ? <Spinner /> : lista.length === 0 ? <Empty text="Nenhum lançamento" /> : (
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {filtradoFin.map(item => (
+          {lista.map(item => (
             <div key={item.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', opacity: item.status === 'pago' ? 0.6 : 1 }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:6 }}>
@@ -9612,6 +9628,7 @@ function FinanceiroLista({ tipo }) {
           ))}
         </div>
       )}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
       {modal && (
         <Modal title={tipo === 'receber' ? 'Conta a Receber' : 'Conta a Pagar'} onClose={() => setModal(null)}>
           <div className="grid2">
@@ -9727,7 +9744,7 @@ function DPFuncionarios({ lojaFiltro }) {
             <div key={f.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
               <div style={{ width:36, height:36, borderRadius:'50%', background: f.foto_url ? 'transparent' : 'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0, overflow:'hidden' }}>
                 {f.foto_url
-                  ? <img src={f.foto_url} alt="" style={{ width:36, height:36, objectFit:'cover' }} />
+                  ? <img src={f.foto_url} alt="" loading="lazy" style={{ width:36, height:36, objectFit:'cover' }} />
                   : f.nome?.[0]?.toUpperCase()}
               </div>
               <div style={{ flex:1 }}>
@@ -9747,7 +9764,7 @@ function DPFuncionarios({ lojaFiltro }) {
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
               <div style={{ width:56, height:56, borderRadius:'50%', background: form.foto_url ? 'transparent' : 'var(--bg3)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, border:'2px solid var(--border)' }}>
                 {form.foto_url
-                  ? <img src={form.foto_url} alt="" style={{ width:56, height:56, objectFit:'cover' }} />
+                  ? <img src={form.foto_url} alt="" loading="lazy" style={{ width:56, height:56, objectFit:'cover' }} />
                   : <Camera size={22} color="var(--t3)" />}
               </div>
               <label style={{ cursor:'pointer' }}>
@@ -10231,10 +10248,13 @@ function DPRelatorioPresenca() {
 // ORDENS DE SERVIÇO
 // ============================================================
 function OrdensServico() {
-  const { data: lista, loading, reload } = useData(() => ordensServicoService.list(), [])
-  const [modal, setModal] = useState(null)
-  const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
+  const queryFn = useCallback(
+    ({ search, from, to }) => ordensServicoService.listPaged({ search, from, to, status: filtroStatus }),
+    [filtroStatus]
+  )
+  const { data: filtrado, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
+  const [modal, setModal] = useState(null)
   const act = useAction()
 
   const STATUS_COR = { aberta:'var(--amber)', em_andamento:'var(--blue)', concluida:'var(--green)', cancelada:'var(--red)' }
@@ -10257,11 +10277,6 @@ function OrdensServico() {
   const atualizarStatus = async (id, status) => {
     try { await ordensServicoService.update(id, { status }); reload(); toast.success('Status atualizado') } catch (e) { toast.error(e.message) }
   }
-
-  const filtrado = (lista||[]).filter(os =>
-    (!filtroStatus || os.status === filtroStatus) &&
-    (!busca || os.titulo?.toLowerCase().includes(busca.toLowerCase()) || os.cliente?.toLowerCase().includes(busca.toLowerCase()))
-  )
 
   const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
 
@@ -10302,6 +10317,7 @@ function OrdensServico() {
           ))}
         </div>
       )}
+      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
       {modal && (
         <Modal title={modal.item ? 'Editar O.S.' : 'Nova Ordem de Serviço'} onClose={() => setModal(null)}>
           <div className="grid2">
