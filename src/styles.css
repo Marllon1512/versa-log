@@ -417,9 +417,12 @@ body.has-bg-img .ph h1,
 body.has-bg-img .ph h2,
 body.has-bg-img h1,
 body.has-bg-img h2,
-body.has-bg-img h3 {
+body.has-bg-img h3,
+body.has-bg-img .page-title,
+body.has-bg-img .page-subtitle,
+body.has-bg-img .page-counter {
   color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
 }
 
 /* Textos secundários → cinza claro legível */
@@ -516,6 +519,25 @@ body.light-mode.has-bg-img .bg-red *  { color: var(--red)   !important; }
 body.light-mode.has-bg-img .bg-amber *{ color: var(--amber) !important; }
 body.light-mode.has-bg-img .btn-p,
 body.light-mode.has-bg-img .btn-p *  { color: #ffffff !important; }
+
+/* Títulos soltos (sem card) sobre imagem de fundo no modo claro:
+   shadow clara para destacar da imagem */
+body.light-mode.has-bg-img .ph h1,
+body.light-mode.has-bg-img .ph h2,
+body.light-mode.has-bg-img .ph-sub,
+body.light-mode.has-bg-img .page-title,
+body.light-mode.has-bg-img .page-subtitle,
+body.light-mode.has-bg-img .page-counter {
+  color: #000000 !important;
+  text-shadow: 0 1px 4px rgba(255,255,255,0.9) !important;
+}
+
+/* Ícone do toggle de tema: não herda cor do light-mode */
+body.light-mode .theme-toggle-knob svg,
+body.light-mode .theme-toggle-knob svg * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
 
 /* ── Stats ──────────────────────────────────────────────── */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 22px; }

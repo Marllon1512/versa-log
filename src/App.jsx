@@ -560,7 +560,7 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
         title={tema === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
         style={{ width:52, height:28, borderRadius:14, border:'1px solid var(--border)', background: tema === 'dark' ? '#111113' : '#e8e8f0', cursor:'pointer', display:'flex', alignItems:'center', padding:'0 3px', flexShrink:0, position:'relative', transition:'background 0.3s ease, border-color 0.3s ease' }}
       >
-        <div style={{ width:22, height:22, borderRadius:'50%', background: tema === 'dark' ? '#ffffff' : '#1a1a1a', display:'flex', alignItems:'center', justifyContent:'center', transform: tema === 'dark' ? 'translateX(0)' : 'translateX(24px)', transition:'transform 0.3s ease, background 0.3s ease', flexShrink:0 }}>
+        <div className="theme-toggle-knob" style={{ width:22, height:22, borderRadius:'50%', background: tema === 'dark' ? '#ffffff' : '#1a1a1a', display:'flex', alignItems:'center', justifyContent:'center', transform: tema === 'dark' ? 'translateX(0)' : 'translateX(24px)', transition:'transform 0.3s ease, background 0.3s ease', flexShrink:0 }}>
           {tema === 'dark'
             ? <Moon size={12} color="#111113" strokeWidth={2.2} />
             : <Sun size={12} color="#ffffff" strokeWidth={2.2} />}
