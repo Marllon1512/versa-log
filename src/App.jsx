@@ -1635,14 +1635,23 @@ const PedidoCard = React.memo(function PedidoCard({ pedido: p, onClick, checked,
 })
 
 // ── PDF simples ───────────────────────────────────────────
+function sanitizeHTML(val) {
+  return String(val ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function gerarPDFSimples(pedido, produtos) {
   const w = window.open('', '_blank')
   if (!w) { alert('Permita popups para gerar o PDF.'); return }
   const rows = produtos.map(p =>
-    `<tr><td>${p.nome_produto}</td><td>${p.quantidade}</td><td>${p.status_produto || 'Pendente'}</td></tr>`
+    `<tr><td>${sanitizeHTML(p.nome_produto)}</td><td>${sanitizeHTML(p.quantidade)}</td><td>${sanitizeHTML(p.status_produto || 'Pendente')}</td></tr>`
   ).join('')
   w.document.write(`
-    <html><head><title>Pedido #${pedido.numero_pedido}</title>
+    <html><head><title>Pedido #${sanitizeHTML(pedido.numero_pedido)}</title>
     <style>
       body{font-family:sans-serif;padding:24px;color:#111}
       h1{font-size:20px;margin-bottom:4px}
@@ -1652,13 +1661,13 @@ function gerarPDFSimples(pedido, produtos) {
       th{background:#f5f5f5;font-weight:600}
     </style>
     </head><body>
-    <h1>Pedido #${pedido.numero_pedido}</h1>
-    <div class="sub">Status: ${pedido.status}</div>
-    <p><b>Cliente:</b> ${pedido.cliente}</p>
-    <p><b>Endereço:</b> ${pedido.endereco}${pedido.cidade ? ', ' + pedido.cidade : ''}</p>
+    <h1>Pedido #${sanitizeHTML(pedido.numero_pedido)}</h1>
+    <div class="sub">Status: ${sanitizeHTML(pedido.status)}</div>
+    <p><b>Cliente:</b> ${sanitizeHTML(pedido.cliente)}</p>
+    <p><b>Endereço:</b> ${sanitizeHTML(pedido.endereco)}${pedido.cidade ? ', ' + sanitizeHTML(pedido.cidade) : ''}</p>
     <p><b>Entrega:</b> ${pedido.data_entrega ? new Date(pedido.data_entrega + 'T12:00').toLocaleDateString('pt-BR') : '—'}</p>
-    ${pedido.entregador_nome ? `<p><b>Entregador:</b> ${pedido.entregador_nome}</p>` : ''}
-    ${pedido.observacoes ? `<p><b>Obs:</b> ${pedido.observacoes}</p>` : ''}
+    ${pedido.entregador_nome ? `<p><b>Entregador:</b> ${sanitizeHTML(pedido.entregador_nome)}</p>` : ''}
+    ${pedido.observacoes ? `<p><b>Obs:</b> ${sanitizeHTML(pedido.observacoes)}</p>` : ''}
     ${produtos.length > 0 ? `<table><thead><tr><th>Produto</th><th>Qtd</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
     <script>window.onload=()=>{window.print()}</script>
     </body></html>
