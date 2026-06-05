@@ -600,7 +600,7 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
             : perfil?.full_name?.[0]?.toUpperCase() || 'U'}
         </button>
         {menuOpen && (
-          <div style={{ position:'absolute', right:0, top:'calc(100% + 8px)', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'6px', minWidth:180, zIndex:300, boxShadow:'0 8px 32px rgba(0,0,0,.5)' }}>
+          <div style={{ position:'absolute', right:0, top:'calc(100% + 8px)', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'6px', minWidth:180, zIndex:9999, boxShadow:'0 8px 32px rgba(0,0,0,.5)' }}>
             <div style={{ padding:'8px 12px 10px', borderBottom:'1px solid var(--border)', marginBottom:4 }}>
               <div style={{ fontWeight:600, fontSize:13 }}>{perfil?.full_name}</div>
               <div style={{ fontSize:11, color:'var(--t3)', marginTop:1 }}>{perfil?.email}</div>
