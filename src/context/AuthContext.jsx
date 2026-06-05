@@ -107,13 +107,6 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.warn('[Auth] Erro ao consultar usuarios:', e?.message)
     }
-    if (loginInput === 'admin@versalog.com' && password === 'Versa@2026') {
-      const adminPerfil = { id: 'admin-local', email: 'admin@versalog.com', full_name: 'Marllon Augusto', role: 'admin', perfil: 'admin' }
-      setPerfil(adminPerfil)
-      sessionStorage.setItem('versa_perfil', JSON.stringify(adminPerfil))
-      setPerfilAcesso(PERFIL_FALLBACK.admin)
-      return adminPerfil
-    }
     throw new Error('Email ou senha incorretos')
   }
 
