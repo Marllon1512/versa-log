@@ -938,49 +938,83 @@ function Dashboard({ setPage }) {
   const needVendas = isAdminDiretor || isGerente || isVendedor || podeVerVendas
   const needFinan  = isAdminDiretor || isAssistenteAdmin || podeVerFinanceiro
 
-  const { data: pedidos,     loading: lPed, reload: rPed } = useData(() => pedidosService.list(), [])
-  const { data: assistencias,loading: lAss }               = useData(() => assistenciasService.list(), [])
-  const { data: vendas }                                   = useData(() => needVendas ? vendasService.list() : Promise.resolve([]), [needVendas])
-  const { data: receber }                                  = useData(() => needFinan ? financeiroService.listReceber() : Promise.resolve([]), [needFinan])
-  const { data: pagar }                                    = useData(() => needFinan ? financeiroService.listPagar() : Promise.resolve([]), [needFinan])
-  const { data: compras }                                  = useData(() => isAssistenteAdmin ? comprasService.list() : Promise.resolve([]), [isAssistenteAdmin])
-  const { data: metas }                                    = useData(() => isAdminDiretor || isGerente || isVendedor ? metasService.list(mesAtual, anoAtual) : Promise.resolve([]), [isAdminDiretor, isGerente, isVendedor])
+  const mesStart = `${mesPfx}-01T00:00:00`
+  const mesEnd   = new Date(anoAtual, mesAtual, 1).toISOString().slice(0, 10) + 'T00:00:00'
+  const prox7Iso = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0] })()
+
+  const needPHoje    = isAdminDiretor || isGerente || isLogistica || isOperacional || isEntregador
+  const needAtrasado = isAdminDiretor || isGerente || isLogistica
+  const needAgFin    = isAdminDiretor || isAssistenteAdmin
+
+  // Pedidos — role-targeted queries (no full-table scan)
+  const { data: pHojeD,              loading: lPed, reload: rPHoje   } = useData(() => needPHoje    ? pedidosService.listHoje(lojaEf)                              : Promise.resolve([]), [needPHoje, lojaEf])
+  const { data: pAtrasadosD,                         reload: rPAtr    } = useData(() => needAtrasado ? pedidosService.listAtrasados(lojaEf)                         : Promise.resolve([]), [needAtrasado, lojaEf])
+  const { data: aguardandoGerenteD,                  reload: rAgGer   } = useData(() => isGerente    ? pedidosService.listPorFluxo('aguardando_gerente', lojaEf)    : Promise.resolve([]), [isGerente, lojaEf])
+  const { data: aguardandoFinanceiroD,               reload: rAgFin   } = useData(() => needAgFin    ? pedidosService.listPorFluxo('aguardando_financeiro', lojaEf) : Promise.resolve([]), [needAgFin, lojaEf])
+  const { data: separadosParaAgendarD,               reload: rSepAg   } = useData(() => isLogistica  ? pedidosService.listParaAgendar(lojaEf)                       : Promise.resolve([]), [isLogistica, lojaEf])
+  const { data: separacoesPendHojeD,                 reload: rSepH    } = useData(() => isLogistica  ? pedidosService.listSeparadosHoje(hoje, lojaEf)               : Promise.resolve([]), [isLogistica, hoje, lojaEf])
+  const { data: meusPedidosD,                        reload: rMeusPed } = useData(() => isVendedor   ? pedidosService.listMeusPedidos(perfil?.id)                   : Promise.resolve([]), [isVendedor, perfil?.id])
+
+  const rPed = useCallback(() => { rPHoje(); rPAtr(); rAgGer(); rAgFin(); rSepAg(); rSepH(); rMeusPed() },
+    [rPHoje, rPAtr, rAgGer, rAgFin, rSepAg, rSepH, rMeusPed])
+
+  const { data: assAbertasD, loading: lAss } = useData(
+    () => (isAdminDiretor || isGerente || isLogistica || isTecnicoAtend) ? assistenciasService.listAbertas(lojaEf) : Promise.resolve([]),
+    [isAdminDiretor, isGerente, isLogistica, isTecnicoAtend, lojaEf]
+  )
+  const { data: vendas } = useData(
+    () => needVendas ? vendasService.listMesDash(mesStart, mesEnd, lojaEf) : Promise.resolve([]),
+    [needVendas, mesStart, mesEnd, lojaEf]
+  )
+  const { data: receber } = useData(
+    () => needFinan ? financeiroService.listReceberAberto(lojaEf) : Promise.resolve([]),
+    [needFinan, lojaEf]
+  )
+  const { data: pagar } = useData(
+    () => needFinan ? financeiroService.listPagarProximo(prox7Iso, lojaEf) : Promise.resolve([]),
+    [needFinan, prox7Iso, lojaEf]
+  )
+  const { data: compras } = useData(
+    () => isAssistenteAdmin ? comprasService.listPendentesDash(lojaEf) : Promise.resolve([]),
+    [isAssistenteAdmin, lojaEf]
+  )
+  const { data: metas } = useData(
+    () => isAdminDiretor || isGerente || isVendedor ? metasService.list(mesAtual, anoAtual) : Promise.resolve([]),
+    [isAdminDiretor, isGerente, isVendedor]
+  )
 
   const [selected, setSelected] = useState(null)
   if (selected) return <PedidoDetalhe pedidoId={selected} onBack={() => { setSelected(null); rPed() }} />
 
-  const byLoja = (arr) => lojaEf ? (arr||[]).filter(x => x.loja === lojaEf || x.local_separacao === lojaEf) : (arr||[])
+  // Coalesce useData results to arrays (initial state is null)
+  const pHoje              = pHojeD              || []
+  const pAtrasados         = pAtrasadosD         || []
+  const aguardandoGerente  = aguardandoGerenteD  || []
+  const aguardandoFinanceiro = aguardandoFinanceiroD || []
+  const separadosParaAgendar = separadosParaAgendarD || []
+  const separacoesPendHoje   = separacoesPendHojeD   || []
+  const meusPedidos          = meusPedidosD          || []
+  const assAbertas           = assAbertasD           || []
 
-  const peds        = byLoja(pedidos)
-  const pHoje       = peds.filter(p => p.data_entrega === hoje)
-  const pAtrasados  = peds.filter(p => p.data_entrega < hoje && !['Entregue','Cancelado'].includes(p.status))
-  const assAll      = byLoja(assistencias)
-  const assAbertas  = assAll.filter(a => !['concluida','Concluído','cancelada'].includes(a.status))
-
-  const vendasHoje  = byLoja(vendas).filter(v => v.created_at?.startsWith(hoje))
-  const vendasMes   = byLoja(vendas).filter(v => v.created_at?.startsWith(mesPfx))
+  // Derived from month-scoped vendas (already loja-filtered from server)
+  const vendasHoje  = (vendas||[]).filter(v => v.created_at?.startsWith(hoje))
   const totalVHoje  = vendasHoje.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
-  const totalVMes   = vendasMes.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
+  const totalVMes   = (vendas||[]).reduce((s,v)=>s+(parseFloat(v.total)||0),0)
 
   const minhasVHoje = (vendas||[]).filter(v => v.vendedor_id === perfil?.id && v.created_at?.startsWith(hoje))
-  const minhasVMes  = (vendas||[]).filter(v => v.vendedor_id === perfil?.id && v.created_at?.startsWith(mesPfx))
+  const minhasVMes  = (vendas||[]).filter(v => v.vendedor_id === perfil?.id)
   const totalMHoje  = minhasVHoje.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
   const totalMMes   = minhasVMes.reduce((s,v)=>s+(parseFloat(v.total)||0),0)
 
-  const vencHoje    = (receber||[]).filter(r => r.vencimento === hoje && r.status !== 'pago')
-  const recAberto   = (receber||[]).filter(r => r.status !== 'pago')
-  const prox7       = new Date(); prox7.setDate(prox7.getDate() + 7)
-  const pagar7d     = (pagar||[]).filter(p => p.status !== 'pago' && p.vencimento && new Date(p.vencimento) <= prox7)
-  const cmpPend     = (compras||[]).filter(c => ['pendente','aguardando','aguardando_aprovacao'].includes(c.status))
+  // Financeiro already pre-filtered by server
+  const vencHoje = (receber||[]).filter(r => r.vencimento === hoje)
+  const recAberto = receber || []
+  const pagar7d   = pagar   || []
+  const cmpPend   = compras || []
 
   const assMinhas   = assAbertas.filter(a => a.tecnico_id === perfil?.id)
 
   const diasParado = (p) => Math.floor((Date.now() - new Date(p.updated_at || p.created_at).getTime()) / 86400000)
-  const aguardandoGerente      = peds.filter(p => p.status_fluxo === 'aguardando_gerente')
-  const aguardandoFinanceiro   = peds.filter(p => p.status_fluxo === 'aguardando_financeiro')
-  const separadosParaAgendar   = peds.filter(p => p.status_fluxo === 'aprovado_entrega' && !p.data_entrega_agendada)
-  const separacoesPendHoje     = peds.filter(p => p.status_fluxo === 'separado' && p.data_entrega_agendada === hoje)
-  const meusPedidos            = (pedidos || []).filter(p => p.vendedor_id === perfil?.id)
 
   const metaLoja    = (metas||[]).find(m => m.referencia_nome === lojaEf && m.tipo === 'loja')
   const metaLojaPct = metaLoja ? Math.min(100, totalVMes / (metaLoja.valor_meta || 1) * 100) : 0

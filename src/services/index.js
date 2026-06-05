@@ -153,6 +153,18 @@ export const assistenciasService = {
     if (error) throw error
     return data
   },
+
+  async listAbertas(lojaFiltro) {
+    let q = supabase.from('assistencias')
+      .select('*, assistencia_itens(id, fornecedor)')
+      .neq('status', 'concluida')
+      .neq('status', 'Concluído')
+      .neq('status', 'cancelada')
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
 }
 
 // ── Conferências ──────────────────────────────────────────
@@ -413,6 +425,16 @@ export const vendasService = {
     if (error) throw error
     return data || []
   },
+
+  async listMesDash(startIso, endIso, lojaFiltro) {
+    let q = supabase.from('vendas').select('*, venda_itens(*)')
+      .gte('created_at', startIso)
+      .lt('created_at', endIso)
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
 }
 
 // ── Compras ───────────────────────────────────────────────
@@ -441,6 +463,15 @@ export const comprasService = {
   },
   async createItens(itens) {
     const { data, error } = await supabase.from('pedido_compra_itens').insert(itens).select()
+    if (error) throw error
+    return data || []
+  },
+
+  async listPendentesDash(lojaFiltro) {
+    let q = supabase.from('pedidos_compra').select('*, pedido_compra_itens(*)')
+      .in('status', ['pendente', 'aguardando', 'aguardando_aprovacao'])
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q.order('created_at', { ascending: false })
     if (error) throw error
     return data || []
   },
@@ -549,6 +580,24 @@ export const financeiroService = {
     const { data, error } = await supabase.from('financeiro_pagar').update(updates).eq('id', id).select().single()
     if (error) throw error
     return data
+  },
+
+  async listReceberAberto(lojaFiltro) {
+    let q = supabase.from('financeiro_receber').select('*').neq('status', 'pago')
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q.order('vencimento')
+    if (error) throw error
+    return data || []
+  },
+
+  async listPagarProximo(prox7Iso, lojaFiltro) {
+    let q = supabase.from('financeiro_pagar').select('*')
+      .neq('status', 'pago')
+      .lte('vencimento', prox7Iso)
+    if (lojaFiltro) q = q.eq('loja', lojaFiltro)
+    const { data, error } = await q.order('vencimento')
+    if (error) throw error
+    return data || []
   },
 }
 

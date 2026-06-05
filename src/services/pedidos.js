@@ -303,4 +303,63 @@ export const pedidosService = {
     if (error) throw error
     return data || []
   },
+
+  // ── Dashboard targeted queries ────────────────────────────
+  async listHoje(lojaFiltro) {
+    const hoje = new Date().toISOString().split('T')[0]
+    let q = supabase.from('pedidos').select('*').eq('data_entrega', hoje)
+    if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async listAtrasados(lojaFiltro) {
+    const hoje = new Date().toISOString().split('T')[0]
+    let q = supabase.from('pedidos').select('*')
+      .lt('data_entrega', hoje)
+      .neq('status', 'Entregue')
+      .neq('status', 'Cancelado')
+    if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async listPorFluxo(statusFluxo, lojaFiltro) {
+    let q = supabase.from('pedidos').select('*').eq('status_fluxo', statusFluxo)
+    if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async listParaAgendar(lojaFiltro) {
+    let q = supabase.from('pedidos').select('*')
+      .eq('status_fluxo', 'aprovado_entrega')
+      .is('data_entrega_agendada', null)
+    if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async listSeparadosHoje(hoje, lojaFiltro) {
+    let q = supabase.from('pedidos').select('*')
+      .eq('status_fluxo', 'separado')
+      .eq('data_entrega_agendada', hoje)
+    if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async listMeusPedidos(vendedorId) {
+    if (!vendedorId) return []
+    const { data, error } = await supabase.from('pedidos').select('*')
+      .eq('vendedor_id', vendedorId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
 }
