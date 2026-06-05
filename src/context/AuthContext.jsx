@@ -94,8 +94,18 @@ export function AuthProvider({ children }) {
     }
     try {
       const hash = await sha256(password)
-      const { data: rows } = await supabase.from('usuarios').select('*').or(`email.eq.${loginInput},usuario.eq.${loginInput}`)
-      const u = (rows || []).find(x => x.senha_hash === hash)
+
+      // Busca por email; se não bater, busca por nome de usuário.
+      // Ambas as queries usam .eq() parametrizado pelo SDK — sem interpolação de string.
+      let u = null
+      const { data: byEmail } = await supabase.from('usuarios').select('*').eq('email', loginInput).maybeSingle()
+      if (byEmail?.senha_hash === hash) {
+        u = byEmail
+      } else {
+        const { data: byUsuario } = await supabase.from('usuarios').select('*').eq('usuario', loginInput).maybeSingle()
+        if (byUsuario?.senha_hash === hash) u = byUsuario
+      }
+
       if (u) {
         setPerfil(u)
         sessionStorage.setItem('versa_perfil', JSON.stringify(u))
