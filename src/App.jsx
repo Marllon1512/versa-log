@@ -1442,8 +1442,8 @@ function Pedidos() {
   const [bulkDelLoading, setBulkDelLoading] = useState(false)
 
   const queryFn = useCallback(
-    ({ search, from, to }) => pedidosService.listPaged({ search, from, to, status: statusFil, lojas: lojasFil }),
-    [statusFil, lojasFil]
+    ({ search, from, to }) => pedidosService.listPaged({ search, from, to, status: statusFil, lojas: lojasFil, fluxoFil }),
+    [statusFil, lojasFil, fluxoFil]
   )
   const { data: pedidos, loading, total, page, setPage, totalPages, search, setSearch, reload } = useServerPagination(queryFn)
 

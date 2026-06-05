@@ -65,12 +65,20 @@ export const pedidosService = {
     return data || []
   },
 
-  async listPaged({ search = '', from = 0, to = 99, status, lojas, loja_filtro } = {}) {
+  async listPaged({ search = '', from = 0, to = 99, status, lojas, loja_filtro, fluxoFil } = {}) {
     let q = supabase.from('pedidos').select('*', { count: 'exact' })
     if (search) q = q.or(`numero_pedido.ilike.%${search}%,cliente.ilike.%${search}%`)
     if (status && status !== 'Todos') q = q.eq('status', status)
     if (lojas && lojas.length > 0) q = q.in('local_separacao', lojas)
     if (loja_filtro) q = q.eq('local_separacao', loja_filtro)
+    if (fluxoFil === 'aprovado_agendar') {
+      q = q.eq('status_fluxo', 'aprovado_entrega').is('data_entrega_agendada', null)
+    } else if (fluxoFil === 'separados_hoje') {
+      const hoje = new Date().toISOString().split('T')[0]
+      q = q.eq('status_fluxo', 'separado').eq('data_entrega_agendada', hoje)
+    } else if (fluxoFil) {
+      q = q.eq('status_fluxo', fluxoFil)
+    }
     q = q.order('created_at', { ascending: false }).range(from, to)
     const { data, count, error } = await q
     if (error) throw error
