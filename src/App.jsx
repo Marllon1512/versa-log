@@ -625,23 +625,34 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
 // ============================================================
 function Separacao() {
   const { perfil, isGestor } = useAuth()
+  const lojaEf = useEffectiveLoja()
   const [selectedId, setSelectedId] = useState(null)
-  const { data: pedidos, loading, reload } = useData(() => pedidosService.list(), [])
 
-  const hoje = new Date().toISOString().split('T')[0]
+  const hoje  = new Date().toISOString().split('T')[0]
   const amanha = new Date(Date.now() + 86400000).toISOString().split('T')[0]
-  const seteD = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+  const seteD  = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
 
-  // Filtra pedidos que precisam de separação (não entregues nem cancelados)
-  const pendentes = (pedidos || []).filter(p =>
-    !['Entregue', 'Cancelado', 'Pronto para Rota', 'Em Rota'].includes(p.status)
+  const STATUS_FINAIS = ['Entregue', 'Cancelado', 'Pronto para Rota', 'Em Rota']
+
+  const queryFn = useCallback(
+    ({ search, from, to }) => pedidosService.listPaged({
+      search, from, to,
+      loja_filtro: lojaEf,
+      data_entrega_from: hoje,
+      data_entrega_to: seteD,
+      status_excluir: STATUS_FINAIS,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lojaEf, hoje, seteD]
   )
 
-  const deHoje = pendentes.filter(p => p.data_entrega === hoje)
-  const deAmanha = pendentes.filter(p => p.data_entrega === amanha)
-  const de7Dias = pendentes.filter(p => p.data_entrega > amanha && p.data_entrega <= seteD)
+  const { data: pedidos, loading, total, page, setPage, totalPages, search, setSearch, reload } = useServerPagination(queryFn, 100)
 
   if (selectedId) return <SeparacaoDetalhe pedidoId={selectedId} onBack={() => { setSelectedId(null); reload() }} />
+
+  const deHoje   = (pedidos || []).filter(p => p.data_entrega === hoje)
+  const deAmanha = (pedidos || []).filter(p => p.data_entrega === amanha)
+  const de7Dias  = (pedidos || []).filter(p => p.data_entrega > amanha && p.data_entrega <= seteD)
 
   return (
     <div className="page">
@@ -654,11 +665,11 @@ function Separacao() {
       </div>
 
       {/* Stats */}
-      <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 24 }}>
+      <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 16 }}>
         {[
-          { label: 'Hoje', val: deHoje.length, color: deHoje.length > 0 ? 'var(--red)' : 'var(--green)', bg: deHoje.length > 0 ? 'var(--rdim)' : 'var(--gdim)' },
-          { label: 'Amanhã', val: deAmanha.length, color: 'var(--amber)', bg: 'var(--adim2)' },
-          { label: '7 dias', val: de7Dias.length, color: 'var(--accent)', bg: 'var(--adim)' },
+          { label: 'Hoje',   val: deHoje.length,   color: deHoje.length > 0 ? 'var(--red)' : 'var(--green)', bg: deHoje.length > 0 ? 'var(--rdim)' : 'var(--gdim)' },
+          { label: 'Amanhã', val: deAmanha.length,  color: 'var(--amber)', bg: 'var(--adim2)' },
+          { label: '7 dias', val: de7Dias.length,   color: 'var(--accent)', bg: 'var(--adim)' },
         ].map(s => (
           <div className="stat" key={s.label}>
             <div className="stat-val" style={{ color: s.color }}>{loading ? '—' : s.val}</div>
@@ -667,12 +678,20 @@ function Separacao() {
         ))}
       </div>
 
+      <Input
+        placeholder="Buscar cliente ou nº pedido..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ marginBottom: 12 }}
+      />
+
       {loading ? <Spinner /> : (
         <>
-          {deHoje.length > 0 && <SeparacaoGrupo titulo="Hoje" pedidos={deHoje} onSelect={setSelectedId} urgente />}
-          {deAmanha.length > 0 && <SeparacaoGrupo titulo="Amanhã" pedidos={deAmanha} onSelect={setSelectedId} />}
-          {de7Dias.length > 0 && <SeparacaoGrupo titulo="Próximos 7 dias" pedidos={de7Dias} onSelect={setSelectedId} />}
-          {pendentes.length === 0 && <Empty icon="📦" text="Nenhum pedido pendente de separação" />}
+          {deHoje.length > 0   && <SeparacaoGrupo titulo="Hoje"             pedidos={deHoje}   onSelect={setSelectedId} urgente />}
+          {deAmanha.length > 0 && <SeparacaoGrupo titulo="Amanhã"           pedidos={deAmanha} onSelect={setSelectedId} />}
+          {de7Dias.length > 0  && <SeparacaoGrupo titulo="Próximos 7 dias"  pedidos={de7Dias}  onSelect={setSelectedId} />}
+          {(pedidos || []).length === 0 && <Empty icon="📦" text="Nenhum pedido pendente de separação" />}
+          <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
         </>
       )}
     </div>

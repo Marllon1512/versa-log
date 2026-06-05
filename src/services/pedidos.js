@@ -65,7 +65,7 @@ export const pedidosService = {
     return data || []
   },
 
-  async listPaged({ search = '', from = 0, to = 99, status, lojas, loja_filtro, fluxoFil } = {}) {
+  async listPaged({ search = '', from = 0, to = 99, status, lojas, loja_filtro, fluxoFil, data_entrega_from, data_entrega_to, status_excluir } = {}) {
     let q = supabase.from('pedidos').select('*', { count: 'exact' })
     if (search) q = q.or(`numero_pedido.ilike.%${search}%,cliente.ilike.%${search}%`)
     if (status && status !== 'Todos') q = q.eq('status', status)
@@ -79,7 +79,17 @@ export const pedidosService = {
     } else if (fluxoFil) {
       q = q.eq('status_fluxo', fluxoFil)
     }
-    q = q.order('created_at', { ascending: false }).range(from, to)
+    if (data_entrega_from) q = q.gte('data_entrega', data_entrega_from)
+    if (data_entrega_to)   q = q.lte('data_entrega', data_entrega_to)
+    if (status_excluir?.length) {
+      for (const s of status_excluir) q = q.neq('status', s)
+    }
+    if (data_entrega_from || data_entrega_to) {
+      q = q.order('data_entrega', { ascending: true }).order('created_at', { ascending: false })
+    } else {
+      q = q.order('created_at', { ascending: false })
+    }
+    q = q.range(from, to)
     const { data, count, error } = await q
     if (error) throw error
     return { data: data || [], count: count || 0 }
