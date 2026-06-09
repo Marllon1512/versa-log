@@ -1747,6 +1747,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   const { perfil, isGestor, effectiveRole, podeVerFinanceiro } = useAuth()
   const { openChatWith } = useContext(AppCtx)
   const [showEdit, setShowEdit] = useState(false)
+  const [showAprovarFin, setShowAprovarFin] = useState(false)
   const [showTroca, setShowTroca] = useState(false)
   const [showRemarcar, setShowRemarcar] = useState(false)
   const [showCancelar, setShowCancelar] = useState(false)
@@ -1869,12 +1870,14 @@ function PedidoDetalhe({ pedidoId, onBack }) {
     } catch (e) { toast.error(e.message) }
   }
 
-  const handleAprovarFinanceiro = async () => {
+  const handleAprovarFinanceiro = async (telefones = []) => {
     const link = `${window.location.origin}/#/confirmar-compra/${pedidoId}`
     try {
-      await runAction(() => pedidosService.aprovarFinanceiro(pedidoId, perfil, { loja: pedido.local_separacao, numeroPedido: pedido.numero_pedido, telefonesFabrica: [], linkConfirmacao: link }))
+      await runAction(() => pedidosService.aprovarFinanceiro(pedidoId, perfil, { loja: pedido.local_separacao, numeroPedido: pedido.numero_pedido, telefonesFabrica: telefones, linkConfirmacao: link }))
+      setShowAprovarFin(false)
       reload(); reloadTimeline()
-      toast.success('Aprovado financeiramente!')
+      if (telefones.length > 0) toast.success('Aprovado! Link de confirmação enviado para a fábrica.')
+      else toast.info('Aprovado financeiramente. Link da fábrica não enviado — nenhum telefone informado.')
     } catch (e) { toast.error(e.message) }
   }
 
@@ -2007,7 +2010,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
 
       {isFinanceiro && pedido.status_fluxo === 'aguardando_financeiro' && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <Btn style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }} loading={actionLoading} onClick={handleAprovarFinanceiro}><CheckSquare size={14} strokeWidth={1.8} /> Aprovar Financeiro</Btn>
+          <Btn style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }} loading={actionLoading} onClick={() => setShowAprovarFin(true)}><CheckSquare size={14} strokeWidth={1.8} /> Aprovar Financeiro</Btn>
           <Btn variant="secondary" style={{ flex: 1, justifyContent: 'center', color: 'var(--red)' }} onClick={() => { setTipoRejeicao('financeiro'); setShowRejeitar(true) }}>Rejeitar</Btn>
         </div>
       )}
@@ -2257,7 +2260,56 @@ function PedidoDetalhe({ pedidoId, onBack }) {
       {showWaGestor && pedido.telefone && (
         <WaTemplatesModal pedido={pedido} tipo="gestor" onClose={() => setShowWaGestor(false)} />
       )}
+
+      {showAprovarFin && (
+        <AprovarFinanceiroModal
+          onClose={() => setShowAprovarFin(false)}
+          onConfirm={handleAprovarFinanceiro}
+          loading={actionLoading}
+        />
+      )}
     </div>
+  )
+}
+
+// ── Modal de aprovação financeira com telefones da fábrica ──
+function AprovarFinanceiroModal({ onClose, onConfirm, loading }) {
+  const [telefones, setTelefones] = useState('')
+
+  const handleConfirm = () => {
+    const lista = telefones.split(/[,\n]/).map(t => t.trim()).filter(Boolean)
+    onConfirm(lista)
+  }
+
+  return (
+    <Modal title="Aprovar — Financeiro" onClose={onClose}>
+      <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 14 }}>
+        Informe os telefones da fábrica para envio do link de confirmação via WhatsApp.
+        Separe múltiplos números por vírgula ou em linhas separadas.
+        Se não informar nenhum número, a aprovação seguirá sem envio.
+      </div>
+      <div className="fg">
+        <label className="fl">Telefones da fábrica (opcional)</label>
+        <textarea
+          className="fi"
+          rows={3}
+          placeholder={"Ex: 31 99999-0001\n31 99999-0002"}
+          value={telefones}
+          onChange={e => setTelefones(e.target.value)}
+          style={{ resize: 'vertical' }}
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+        <Btn
+          style={{ flex: 1, justifyContent: 'center', background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }}
+          loading={loading}
+          onClick={handleConfirm}
+        >
+          <CheckSquare size={14} strokeWidth={1.8} /> Aprovar
+        </Btn>
+        <Btn variant="secondary" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</Btn>
+      </div>
+    </Modal>
   )
 }
 
