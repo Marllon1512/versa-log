@@ -23,6 +23,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from './lib/supabase'
 import { toast, Toaster } from './lib/toast'
+import { validarTipoImagem } from './lib/validarTipoImagem'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 import { pedidosService } from './services/pedidos'
@@ -769,6 +770,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
   }
 
   const uploadFoto = async (prodId, file) => {
+    try { await validarTipoImagem(file) } catch (e) { toast.error(e.message); return }
     updateProd(prodId, '_fotoPreview', URL.createObjectURL(file))
     setUploadingIds(prev => new Set(prev).add(prodId))
     try {
@@ -4317,6 +4319,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
     for (const [slot, foto] of Object.entries(fotos)) {
       if (!foto?.file) continue
       try {
+        await validarTipoImagem(foto.file)
         const ext = foto.file.name.split('.').pop() || 'jpg'
         const path = `${tmpId}/${slot}.${ext}`
         const { error } = await supabase.storage.from('conferencias').upload(path, foto.file)
@@ -5045,6 +5048,7 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
   const uploadFoto = async (file) => {
+    try { await validarTipoImagem(file) } catch (e) { toast.error(e.message); return }
     setUploadingFoto(true)
     try {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
@@ -6289,6 +6293,7 @@ function AparenciaConfig() {
   }, [])
 
   const uploadLogoVersa = async (file) => {
+    try { await validarTipoImagem(file) } catch (e) { toast.error(e.message); return }
     setUploadingLogoVersa(true)
     try {
       const ext = (file.name.split('.').pop() || 'png').toLowerCase()
@@ -6312,6 +6317,7 @@ function AparenciaConfig() {
   }
 
   const upload = async (key, file) => {
+    try { await validarTipoImagem(file) } catch (e) { toast.error(e.message); return }
     setUploading(p => ({ ...p, [key]: true }))
     try {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
@@ -6805,13 +6811,18 @@ function CadCatalogo() {
     setModal({ item: item || null })
   }
 
-  const onFotoChange = (e) => {
+  const onFotoChange = async (e) => {
     const files = Array.from(e.target.files || [])
-    const totalFotos = fotosExistentes.length + fotosNovas.length + files.length
-    if (totalFotos > 5) return toast.error('Máximo 5 fotos por produto')
-    const novas = files.map(f => ({ file: f, preview: URL.createObjectURL(f) }))
-    setFotosNovas(p => [...p, ...novas])
     e.target.value = ''
+    const validas = []
+    for (const f of files) {
+      try { await validarTipoImagem(f); validas.push(f) } catch (err) { toast.error(err.message); }
+    }
+    if (!validas.length) return
+    const totalFotos = fotosExistentes.length + fotosNovas.length + validas.length
+    if (totalFotos > 5) return toast.error('Máximo 5 fotos por produto')
+    const novas = validas.map(f => ({ file: f, preview: URL.createObjectURL(f) }))
+    setFotosNovas(p => [...p, ...novas])
   }
 
   const removerFotoNova = (idx) => setFotosNovas(p => p.filter((_, i) => i !== idx))
@@ -7073,6 +7084,7 @@ function CadLojas() {
   }
 
   const uploadLogo = async (file) => {
+    try { await validarTipoImagem(file) } catch (e) { toast.error(e.message); return }
     setUploadingLogo(true)
     try {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
@@ -9832,6 +9844,7 @@ function DPFuncionarios({ lojaFiltro }) {
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
   const uploadFoto = async (file) => {
+    try { await validarTipoImagem(file) } catch (e) { toast.error(e.message); return }
     const itemId = modal?.item?.id || 'novo_' + Date.now()
     setUploadingFoto(true)
     try {
@@ -10601,6 +10614,7 @@ function SolicitarAssistenciaPublica() {
         const urls = []
         for (let i = 0; i < fotos.length; i++) {
           const f = fotos[i].file
+          try { await validarTipoImagem(f) } catch (e) { toast.error(e.message); continue }
           const ext = f.name.split('.').pop() || 'jpg'
           const path = `${nova.id}/foto_${i}.${ext}`
           const { error: upErr } = await supabase.storage.from('assistencias').upload(path, f)

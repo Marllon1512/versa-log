@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { validarTipoImagem } from '../lib/validarTipoImagem'
 
 // ── Produtos ──────────────────────────────────────────────
 export const produtosService = {
@@ -357,6 +358,7 @@ export const catalogoService = {
     return true
   },
   async uploadFoto(file, produtoId) {
+    await validarTipoImagem(file)
     const ext = file.name.split('.').pop()
     const path = `${produtoId}/${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('produtos').upload(path, file, { upsert: false })
