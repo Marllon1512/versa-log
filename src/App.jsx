@@ -1769,7 +1769,7 @@ function PedidoDetalhe({ pedidoId, onBack }) {
   const { data: timeline, reload: reloadTimeline } = useData(() => pedidosTimelineService.list(pedidoId), [pedidoId])
   const { data: entregadores } = useData(() => usuariosService.listEntregadores(), [])
   const { data: histCliente } = useData(
-    () => pedido?.cliente ? pedidosService.list({ cliente: pedido.cliente }) : Promise.resolve([]),
+    () => pedido?.cliente ? pedidosService.list({ cliente: pedido.cliente, limit: 11 }) : Promise.resolve([]),
     [pedido?.cliente]
   )
 
