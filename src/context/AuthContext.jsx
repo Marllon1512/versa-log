@@ -41,21 +41,40 @@ async function fetchPerfilAcesso(perfilNome) {
   }
 }
 
+async function fetchEmpresa(empresaId) {
+  if (!empresaId) return null
+  try {
+    const { data } = await supabase
+      .from('empresas')
+      .select('nome, nome_sistema, logo_url, cor_primaria, tema_padrao')
+      .eq('id', empresaId)
+      .maybeSingle()
+    return data || null
+  } catch {
+    return null
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [perfil, setPerfil] = useState(null)
+  const [empresa, setEmpresa] = useState(null)
   const [perfilAcesso, setPerfilAcesso] = useState(null)
   const [loading, setLoading] = useState(true)
   const [simulatedRole, setSimulatedRole] = useState(null)
 
   const loadPerfil = async (authUser) => {
-    if (!authUser) { setPerfil(null); setPerfilAcesso(null); return }
+    if (!authUser) { setPerfil(null); setPerfilAcesso(null); setEmpresa(null); return }
     const { data } = await supabase.from('usuarios').select('*').eq('email', authUser.email).single()
     const usuario = data || { id: authUser.id, email: authUser.email, full_name: authUser.email, role: 'entregador' }
     setPerfil(usuario)
     const pNome = usuario.perfil || usuario.role || 'vendedor'
     const pa = await fetchPerfilAcesso(pNome)
     setPerfilAcesso(pa)
+    if (usuario.empresa_id) {
+      const emp = await fetchEmpresa(usuario.empresa_id)
+      setEmpresa(emp)
+    }
   }
 
   useEffect(() => {
@@ -66,9 +85,18 @@ export function AuthProvider({ children }) {
         setPerfil(parsed)
         const pNome = parsed.perfil || parsed.role || 'vendedor'
         setPerfilAcesso(PERFIL_FALLBACK[pNome] || null)
+        try {
+          const savedEmpresa = sessionStorage.getItem('versa_empresa')
+          if (savedEmpresa) setEmpresa(JSON.parse(savedEmpresa))
+        } catch {}
         setLoading(false)
         // Refresh from DB in background
         fetchPerfilAcesso(pNome).then(pa => { if (pa) setPerfilAcesso(pa) }).catch(() => {})
+        if (parsed.empresa_id) {
+          fetchEmpresa(parsed.empresa_id)
+            .then(emp => { if (emp) { setEmpresa(emp); sessionStorage.setItem('versa_empresa', JSON.stringify(emp)) } })
+            .catch(() => {})
+        }
         return
       }
     } catch {}
@@ -112,6 +140,11 @@ export function AuthProvider({ children }) {
         const pNome = u.perfil || u.role || 'vendedor'
         const pa = await fetchPerfilAcesso(pNome)
         setPerfilAcesso(pa)
+        if (u.empresa_id) {
+          const emp = await fetchEmpresa(u.empresa_id)
+          setEmpresa(emp)
+          if (emp) sessionStorage.setItem('versa_empresa', JSON.stringify(emp))
+        }
         return u
       }
     } catch (e) {
@@ -122,9 +155,10 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try { await supabase.auth.signOut() } catch {}
-    setUser(null); setPerfil(null); setPerfilAcesso(null)
+    setUser(null); setPerfil(null); setPerfilAcesso(null); setEmpresa(null)
     setSimulatedRole(null)
     sessionStorage.removeItem('versa_perfil')
+    sessionStorage.removeItem('versa_empresa')
   }
 
   // Nome do perfil efetivo (considera simulação)
@@ -152,6 +186,8 @@ export function AuthProvider({ children }) {
   const isAdmin      = ['admin'].includes(perfil?.perfil || perfil?.role)
   const isSimulating = simulatedRole !== null
 
+  const empresaId = perfil?.empresa_id ?? null
+
   return (
     <AuthContext.Provider value={{
       user, perfil, loading, login, logout,
@@ -160,6 +196,7 @@ export function AuthProvider({ children }) {
       modulosPermitidos, lojaId,
       podeVerTodasLojas, podeVerFinanceiro, podeVerVendas, podeVerMetas,
       perfilAcesso: effectivePA,
+      empresa, empresaId,
     }}>
       {children}
     </AuthContext.Provider>
@@ -170,4 +207,9 @@ export const useAuth = () => {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')
   return ctx
+}
+
+export const useEmpresa = () => {
+  const { empresa, empresaId } = useAuth()
+  return { empresa, empresaId }
 }
