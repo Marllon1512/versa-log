@@ -455,10 +455,23 @@ function NotifBell({ navigateTo }) {
 
   useEffect(() => {
     if (!perfil?.id) return
-    const fetch = async () => { const c = await notificacoesService.contarNaoLidas(perfil.id); setCount(c) }
-    fetch()
-    const id = setInterval(fetch, 30000)
-    return () => clearInterval(id)
+    notificacoesService.contarNaoLidas(perfil.id).then(setCount)
+    const channel = supabase
+      .channel(`notif-bell-${perfil.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notificacoes',
+        filter: `usuario_id=eq.${perfil.id}`,
+      }, (payload) => {
+        if (!payload.new?.lida) setCount(c => c + 1)
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'notificacoes',
+        filter: `usuario_id=eq.${perfil.id}`,
+      }, () => {
+        notificacoesService.contarNaoLidas(perfil.id).then(setCount)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [perfil?.id])
 
   useEffect(() => {
