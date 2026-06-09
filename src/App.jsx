@@ -1532,10 +1532,10 @@ function Pedidos() {
   const handleCreate = async (dados) => {
     try {
       const { produtos, ...raw } = dados
-      const novo = await pedidosService.create(mapPedidoDB(raw))
-      if (produtos?.length) {
-        await produtosService.createMany(produtos.map(p => mapProdutoDB(p, novo.id)))
-      }
+      await pedidosService.create(
+        mapPedidoDB(raw),
+        (produtos || []).map(p => mapProdutoDB(p, null))
+      )
       await reload()
       setShowNew(false)
       toast.success('Pedido criado com sucesso!')
@@ -1546,24 +1546,22 @@ function Pedidos() {
   }
 
   const handleImport = async (lista) => {
-    let ok = 0, erros = 0
-    for (const item of lista) {
-      try {
+    try {
+      const lote = lista.map(item => {
         const { produtos, selected: _s, erro: _e, _confidence: _c, _filename: _f, ...raw } = item
-        const novo = await pedidosService.create(mapPedidoDB(raw))
-        if (produtos?.length) {
-          await produtosService.createMany(produtos.map(p => mapProdutoDB(p, novo.id)))
+        return {
+          pedido: mapPedidoDB(raw),
+          produtos: (produtos || []).map(p => mapProdutoDB(p, null)),
         }
-        ok++
-      } catch (e) {
-        console.error('[Pedidos] handleImport item:', e)
-        erros++
-      }
+      })
+      await pedidosService.importLote(lote)
+      await reload()
+      setShowImport(false)
+      toast.success(`${lista.length} pedido(s) importado(s) com sucesso!`)
+    } catch (e) {
+      console.error('[Pedidos] handleImport:', e)
+      toast.error('Erro ao importar: ' + (e.message || 'desconhecido'))
     }
-    await reload()
-    setShowImport(false)
-    if (erros === 0) toast.success(`${ok} pedido(s) importado(s) com sucesso!`)
-    else toast.error(`${ok} importado(s), ${erros} com erro. Veja o console (F12).`)
   }
 
   const toggleCheck = (id, e) => {

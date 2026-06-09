@@ -101,15 +101,19 @@ export const pedidosService = {
     return data
   },
 
-  async create(pedido) {
+  async create(pedido, produtos = []) {
     const { numero_pedido: _np, ...rest } = pedido
-    const { data, error } = await supabase
-      .from('pedidos')
-      .insert(rest)
-      .select()
-      .single()
+    const { data, error } = await supabase.rpc('criar_pedido_com_produtos', {
+      p_pedido: rest,
+      p_produtos: produtos,
+    })
     if (error) throw error
     return data
+  },
+
+  async importLote(lote) {
+    const { error } = await supabase.rpc('importar_pedidos_lote', { p_lote: lote })
+    if (error) throw error
   },
 
   async update(id, updates) {
