@@ -27,14 +27,9 @@ async function _notificarUsuario(usuarioId, tipo, titulo, mensagem, pedidoId, or
 
 async function _notificarPerfil(loja, perfis, tipo, titulo, mensagem, pedidoId, origem) {
   if (!loja || !perfis?.length) return
-  const all = []
-  for (const p of perfis) {
-    const { data } = await supabase.from('usuarios').select('id').eq('loja', loja).or(`perfil.eq.${p},role.eq.${p}`)
-    if (data) all.push(...data)
-  }
-  const unique = [...new Map(all.map(u => [u.id, u])).values()]
-  if (!unique.length) return
-  await supabase.from('notificacoes').insert(unique.map(u => ({
+  const { data } = await supabase.from('usuarios').select('id').eq('loja', loja).in('perfil', perfis)
+  if (!data?.length) return
+  await supabase.from('notificacoes').insert(data.map(u => ({
     usuario_id: u.id,
     tipo,
     titulo,
