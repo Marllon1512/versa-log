@@ -292,9 +292,7 @@ export const pedidosService = {
     if (upErr) throw upErr
     const { data: pub } = supabase.storage.from('pedidos-anexos').getPublicUrl(path)
     const url = pub.publicUrl
-    const { data: pedido } = await supabase.from('pedidos').select('anexos').eq('id', pedidoId).single()
-    const novosAnexos = [...(pedido?.anexos || []), url]
-    const { error } = await supabase.from('pedidos').update({ anexos: novosAnexos }).eq('id', pedidoId)
+    const { error } = await supabase.rpc('adicionar_anexo_pedido', { pedido_id: pedidoId, novo_url: url })
     if (error) throw error
     await _timeline(pedidoId, usuario, 'anexo', `Anexo adicionado: ${arquivo.name}`, { anexos: [url] })
     return url
