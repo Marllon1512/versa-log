@@ -11251,6 +11251,30 @@ function ConfirmarCompraPublica({ token }) {
 }
 
 // ============================================================
+// DEBUG BANNER — remover após diagnóstico do super_admin
+// ============================================================
+function DebugBanner() {
+  const { perfil, isSuperAdmin } = useAuth()
+  if (!perfil) return null
+  const sa = perfil.super_admin
+  const saType = sa === null ? 'null' : sa === undefined ? 'undefined' : typeof sa
+  const saVal  = sa === null ? 'null' : sa === undefined ? 'undefined' : String(sa)
+  const shortId = perfil.id ? String(perfil.id).slice(0, 8) : '—'
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
+      background: '#facc15', color: '#000', fontSize: 12, fontFamily: 'monospace',
+      padding: '4px 12px', display: 'flex', gap: 20, flexWrap: 'wrap',
+    }}>
+      <span>🔍 DEBUG</span>
+      <span>id: <strong>{shortId}</strong></span>
+      <span>super_admin: <strong>{saVal}</strong> ({saType})</span>
+      <span>isSuperAdmin: <strong>{String(isSuperAdmin)}</strong></span>
+    </div>
+  )
+}
+
+// ============================================================
 // APP ROOT
 // ============================================================
 function AppContent() {
@@ -11412,6 +11436,7 @@ function AppContent() {
   return (
     <AppCtx.Provider value={{ navigateTo, chatTarget, clearChatTarget, openChatWith, chatUnread, setChatUnread, reloadBgConfig, tema, toggleTema }}>
     <LojaCtx.Provider value={{ lojaFiltro, setLojaFiltro }}>
+      <DebugBanner />
       {bgConfig.activeUrl && (
         <div className="sys-bg-container">
           <img className="sys-bg-img" src={bgConfig.activeUrl} alt="" style={{ filter: bgConfig.blur > 0 ? `blur(${bgConfig.blur}px)` : undefined, transform: bgConfig.blur > 0 ? 'scale(1.05)' : undefined }} />
