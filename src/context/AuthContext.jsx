@@ -100,6 +100,14 @@ export function AuthProvider({ children }) {
             .catch(() => {})
           setEmpresaContextoSupabase(parsed.empresa_id).catch(() => {})
         }
+        // Re-busca o perfil completo no banco para pegar campos que mudaram desde o último login
+        // (ex.: super_admin, permissoes_extras, loja_id)
+        if (parsed.id) {
+          supabase.from('usuarios').select('*').eq('id', parsed.id).maybeSingle()
+            .then(({ data }) => {
+              if (data) { setPerfil(data); sessionStorage.setItem('versa_perfil', JSON.stringify(data)) }
+            }).catch(() => {})
+        }
         return
       }
     } catch {}
