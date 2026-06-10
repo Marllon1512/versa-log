@@ -191,12 +191,13 @@ export function AuthProvider({ children }) {
   const isAdmin      = ['admin'].includes(perfil?.perfil || perfil?.role)
   const isSimulating = simulatedRole !== null
 
-  const empresaId = perfil?.empresa_id ?? null
+  const empresaId    = perfil?.empresa_id  ?? null
+  const isSuperAdmin = perfil?.super_admin === true
 
   return (
     <AuthContext.Provider value={{
       user, perfil, loading, login, logout,
-      isGestor, isEntregador, isAdmin,
+      isGestor, isEntregador, isAdmin, isSuperAdmin,
       simulatedRole, setSimulatedRole, isSimulating, effectiveRole,
       modulosPermitidos, lojaId,
       podeVerTodasLojas, podeVerFinanceiro, podeVerVendas, podeVerMetas,

@@ -11,9 +11,10 @@ import {
   BookOpen, FileText, ListOrdered, Camera,
   Menu, Bell, Sun, Moon, Trash2, Paperclip, Send,
   Mail, Tag, MapPin, Eye, Edit2, Printer, Share2,
-  AlertTriangle, Image, BarChart2, Rocket
+  AlertTriangle, Image, BarChart2, Rocket, Crown
 } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { SuperAdmin } from './components/SuperAdmin'
 import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
 import { useData, useAction, useDateInfo, usePrazo, usePagination, usePullToRefresh, useServerPagination } from './hooks/index'
@@ -286,17 +287,19 @@ const SIDEBAR_GROUPS = [
     { id: 'ponto',  label: 'Ponto Eletrônico',     Icon: Clock },
   ]},
   { group: 'SISTEMA', items: [
-    { id: 'cadastros', label: 'Cadastros',     Icon: Store },
-    { id: 'config',    label: 'Configurações', Icon: Settings },
-    { id: 'chat',      label: 'Chat',          Icon: MessageCircle },
+    { id: 'cadastros',   label: 'Cadastros',     Icon: Store },
+    { id: 'config',      label: 'Configurações', Icon: Settings },
+    { id: 'chat',        label: 'Chat',          Icon: MessageCircle },
+    { id: 'superadmin',  label: 'Super Admin',   Icon: Crown },
   ]},
 ]
 
 function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVersaUrl }) {
-  const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole, modulosPermitidos } = useAuth()
+  const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole, modulosPermitidos, isSuperAdmin } = useAuth()
   const { chatUnread } = useContext(AppCtx)
   let allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
   if (effectiveRole !== 'contador' && !allowedPages.includes('chat')) allowedPages = [...allowedPages, 'chat']
+  if (isSuperAdmin) allowedPages = [...allowedPages, 'superadmin']
   const [msgIdx, setMsgIdx] = useState(0)
 
   useEffect(() => {
@@ -11403,6 +11406,7 @@ function AppContent() {
     nps: <Financeiro />,
     relatorios: <Financeiro />,
     chat: <Chat />,
+    superadmin: <SuperAdmin />,
   }
 
   return (
