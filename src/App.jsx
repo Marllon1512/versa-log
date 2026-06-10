@@ -3059,7 +3059,7 @@ function Agenda() {
 // ASSISTENCIA - CENTRAL
 // ============================================================
 function Assistencia() {
-  const { perfil } = useAuth()
+  const { perfil, empresaId } = useAuth()
   const [sf, setSf] = useState('Todos')
   const [showNew, setShowNew] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -3166,6 +3166,7 @@ function Assistencia() {
         data_abertura: principal.data_abertura || hoje.toISOString().split('T')[0],
         status: 'Aberto',
         origem: 'excel',
+        ...(empresaId ? { empresa_id: empresaId } : {}),
       }))
 
       try {
@@ -4432,7 +4433,7 @@ function NovaConferenciaModal({ onClose, onSave }) {
 // ROTEIRO DIGITAL
 // ============================================================
 function Roteiro() {
-  const { isGestor } = useAuth()
+  const { isGestor, empresaId } = useAuth()
   const [roteiros, setRoteiros] = useState([])
   const [loading, setLoading] = useState(true)
   const [showNovo, setShowNovo] = useState(false)
@@ -4441,8 +4442,9 @@ function Roteiro() {
 
   const carregar = () => {
     setLoading(true)
-    supabase.from('roteiros').select('*, roteiro_itens(*)').order('data', { ascending: false })
-      .then(({ data }) => { setRoteiros(data || []); setLoading(false) })
+    let q = supabase.from('roteiros').select('*, roteiro_itens(*)').order('data', { ascending: false })
+    if (empresaId) q = q.eq('empresa_id', empresaId)
+    q.then(({ data }) => { setRoteiros(data || []); setLoading(false) })
   }
 
   useEffect(() => { carregar() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -4450,7 +4452,7 @@ function Roteiro() {
   const criar = async (dados) => {
     try {
       const { itens, ...roteiro } = dados
-      const { data: novo, error } = await supabase.from('roteiros').insert({ ...roteiro, tipo: tipoTab, status: 'planejado', created_at: new Date().toISOString() }).select().single()
+      const { data: novo, error } = await supabase.from('roteiros').insert({ ...roteiro, tipo: tipoTab, status: 'planejado', created_at: new Date().toISOString(), ...(empresaId ? { empresa_id: empresaId } : {}) }).select().single()
       if (error) throw error
       if (novo && itens?.length) {
         const { error: eiErr } = await supabase.from('roteiro_itens').insert(itens.map((item, i) => ({ ...item, roteiro_id: novo.id, ordem: i + 1, concluido: false })))
@@ -4506,7 +4508,7 @@ function Roteiro() {
 }
 
 function RoteiroDetalhe({ id, onBack }) {
-  const { isGestor } = useAuth()
+  const { isGestor, empresaId } = useAuth()
   const [roteiro, setRoteiro] = useState(null)
   const [itens, setItens] = useState([])
   const [loading, setLoading] = useState(true)
@@ -4514,7 +4516,9 @@ function RoteiroDetalhe({ id, onBack }) {
   const [scannerRot, setScannerRot] = useState(false)
 
   const carregar = () => {
-    supabase.from('roteiros').select('*').eq('id', id).single().then(({ data: r }) => {
+    let q = supabase.from('roteiros').select('*').eq('id', id)
+    if (empresaId) q = q.eq('empresa_id', empresaId)
+    q.single().then(({ data: r }) => {
       setRoteiro(r)
       supabase.from('roteiro_itens').select('*').eq('roteiro_id', id).order('ordem')
         .then(({ data: items }) => { setItens(items || []); setLoading(false) })
@@ -4528,7 +4532,9 @@ function RoteiroDetalhe({ id, onBack }) {
     setSaving(true)
     try {
       const novoStatus = campo === 'hora_saida' ? 'em_andamento' : 'concluído'
-      const { error } = await supabase.from('roteiros').update({ [campo]: hora, status: novoStatus }).eq('id', id)
+      let qRot = supabase.from('roteiros').update({ [campo]: hora, status: novoStatus }).eq('id', id)
+      if (empresaId) qRot = qRot.eq('empresa_id', empresaId)
+      const { error } = await qRot
       if (error) throw error
       setRoteiro(prev => ({ ...prev, [campo]: hora, status: novoStatus }))
       toast.success(campo === 'hora_saida' ? `Saída registrada: ${hora}` : `Término registrado: ${hora}`)
@@ -5867,7 +5873,7 @@ function calcSaldoHoras(ps) {
 }
 
 function Ponto() {
-  const { perfil, isGestor } = useAuth()
+  const { perfil, isGestor, empresaId } = useAuth()
   const [time, setTime] = useState(new Date())
   const [loading, setLoading] = useState(false)
   const [comprovante, setComprovante] = useState(null)
@@ -5924,6 +5930,7 @@ function Ponto() {
               tipo: 'marcacao_fora_cerca',
               descricao: `Marcação fora da cerca. Distância: ${distancia}m (raio permitido: ${cercaLoja.raio_metros}m)`,
               status: 'pendente',
+              ...(empresaId ? { empresa_id: empresaId } : {}),
             })
           }
         }
@@ -5935,6 +5942,7 @@ function Ponto() {
           tipo: 'marcacao_fora_cerca',
           descricao: 'Localização não disponível no momento do registro',
           status: 'pendente',
+          ...(empresaId ? { empresa_id: empresaId } : {}),
         })
       }
 
@@ -6535,6 +6543,7 @@ function Configuracoes() {
 // CADASTROS
 // ============================================================
 function HistoricoClienteModal({ cliente, onClose }) {
+  const { empresaId } = useAuth()
   const [contatos, setContatos] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [novoForm, setNovoForm] = useState({ tipo:'WhatsApp', assunto:'', resultado:'', proximo_contato:'' })
@@ -6542,16 +6551,17 @@ function HistoricoClienteModal({ cliente, onClose }) {
   const TIPOS = ['WhatsApp','Telefone','Email','Visita','Outro']
 
   useEffect(() => {
-    supabase.from('contatos_historico').select('*').eq('cliente_id', cliente.id).order('created_at', { ascending: false })
-      .then(({ data }) => { setContatos(data||[]); setCarregando(false) })
+    let q = supabase.from('contatos_historico').select('*').eq('cliente_id', cliente.id).order('created_at', { ascending: false })
+    if (empresaId) q = q.eq('empresa_id', empresaId)
+    q.then(({ data }) => { setContatos(data||[]); setCarregando(false) })
       .catch(() => setCarregando(false))
-  }, [cliente.id])
+  }, [cliente.id, empresaId])
 
   const salvar = async () => {
     if (!novoForm.assunto) return
     setSalvando(true)
     try {
-      const { data } = await supabase.from('contatos_historico').insert({ ...novoForm, cliente_id: cliente.id, cliente_nome: cliente.nome }).select().single()
+      const { data } = await supabase.from('contatos_historico').insert({ ...novoForm, cliente_id: cliente.id, cliente_nome: cliente.nome, ...(empresaId ? { empresa_id: empresaId } : {}) }).select().single()
       if (data) setContatos(p => [data, ...p])
       setNovoForm({ tipo:'WhatsApp', assunto:'', resultado:'', proximo_contato:'' })
     } catch {}
@@ -7920,7 +7930,7 @@ function Vendas() {
 }
 
 function NovaVenda({ onClose }) {
-  const { perfil, podeVerTodasLojas } = useAuth()
+  const { perfil, podeVerTodasLojas, empresaId } = useAuth()
   const lojaEf = useEffectiveLoja()
   const { data: cfgData } = useData(() => configSistemaService.get(), [])
   const { data: clientes } = useData(() => clientesService.list(), [])
@@ -7991,20 +8001,26 @@ function NovaVenda({ onClose }) {
               lancamentos.push({ descricao: `Venda #${nova.id?.slice(0,8)} - parcela ${i}/${pagamento.parcelas}`, valor: valorParcela, vencimento: venc.toISOString().split('T')[0], status: 'pendente', tipo: 'receita', loja: form.loja, venda_id: nova.id })
             }
             for (const l of lancamentos) {
-              await supabase.from('financeiro_lancamentos').insert(l)
+              await supabase.from('financeiro_lancamentos').insert({ ...l, ...(empresaId ? { empresa_id: empresaId } : {}) })
             }
           } else {
-            await supabase.from('financeiro_lancamentos').insert({ descricao: `Venda #${nova.id?.slice(0,8)} - ${form.cliente_nome}`, valor: total, vencimento: hoje, status: isAVista ? 'pago' : 'pendente', data_pagamento: isAVista ? hoje : null, tipo: 'receita', loja: form.loja, venda_id: nova.id })
+            await supabase.from('financeiro_lancamentos').insert({ descricao: `Venda #${nova.id?.slice(0,8)} - ${form.cliente_nome}`, valor: total, vencimento: hoje, status: isAVista ? 'pago' : 'pendente', data_pagamento: isAVista ? hoje : null, tipo: 'receita', loja: form.loja, venda_id: nova.id, ...(empresaId ? { empresa_id: empresaId } : {}) })
           }
         } catch (_) { /* financeiro_lancamentos pode não ter todas colunas ainda */ }
 
         // Baixa de estoque
         try {
           for (const it of itens) {
-            await supabase.from('movimentos_estoque').insert({ tipo: 'saida', produto_nome: it.nome, catalogo_id: it.catalogo_id, quantidade: it.quantidade, loja: form.loja, origem: 'venda', referencia_id: nova.id, registrado_por: perfil?.full_name })
+            await supabase.from('movimentos_estoque').insert({ tipo: 'saida', produto_nome: it.nome, catalogo_id: it.catalogo_id, quantidade: it.quantidade, loja: form.loja, origem: 'venda', referencia_id: nova.id, registrado_por: perfil?.full_name, ...(empresaId ? { empresa_id: empresaId } : {}) })
             if (it.catalogo_id) {
-              await supabase.from('catalogo_produtos').select('estoque_atual').eq('id', it.catalogo_id).single().then(({ data }) => {
-                if (data) supabase.from('catalogo_produtos').update({ estoque_atual: Math.max(0, (data.estoque_atual || 0) - it.quantidade) }).eq('id', it.catalogo_id)
+              let qCat = supabase.from('catalogo_produtos').select('estoque_atual').eq('id', it.catalogo_id)
+              if (empresaId) qCat = qCat.eq('empresa_id', empresaId)
+              qCat.single().then(({ data }) => {
+                if (data) {
+                  let qUpd = supabase.from('catalogo_produtos').update({ estoque_atual: Math.max(0, (data.estoque_atual || 0) - it.quantidade) }).eq('id', it.catalogo_id)
+                  if (empresaId) qUpd = qUpd.eq('empresa_id', empresaId)
+                  qUpd
+                }
               })
             }
           }
@@ -8979,6 +8995,7 @@ function EstoqueDashboard() {
 }
 
 function EstoqueNF() {
+  const { empresaId } = useAuth()
   const { data: lista, loading, reload } = useData(() => estoqueService.listNFEntradas(), [])
   const [modal, setModal] = useState(false)
   const { data: forns } = useData(() => fornecedoresService.list(), [])
@@ -8997,7 +9014,7 @@ function EstoqueNF() {
       // Integração: movimentos_estoque e atualização de estoque
       try {
         for (const it of itensSaved || []) {
-          await supabase.from('movimentos_estoque').insert({ tipo: 'entrada', produto_nome: it.descricao, quantidade: it.quantidade, origem: 'nf_entrada', referencia_id: nf.id, fornecedor_nome: form.fornecedor_nome })
+          await supabase.from('movimentos_estoque').insert({ tipo: 'entrada', produto_nome: it.descricao, quantidade: it.quantidade, origem: 'nf_entrada', referencia_id: nf.id, fornecedor_nome: form.fornecedor_nome, ...(empresaId ? { empresa_id: empresaId } : {}) })
         }
       } catch (_) { /* colunas podem não existir ainda */ }
       toast.success('NF registrada'); setModal(false); reload()
@@ -11017,7 +11034,7 @@ function Chat() {
 }
 
 function useVerificarLembretesPonto() {
-  const { perfil } = useAuth()
+  const { perfil, empresaId } = useAuth()
 
   const verificar = useCallback(async () => {
     if (!perfil?.id) return
@@ -11026,7 +11043,7 @@ function useVerificarLembretesPonto() {
       const hoje      = agora.toISOString().split('T')[0]
       const diaSemana = agora.getDay()
 
-      const { data: escalas } = await supabase
+      let qEscalas = supabase
         .from('escalas_trabalho')
         .select('*')
         .eq('usuario_id', perfil.id)
@@ -11034,15 +11051,15 @@ function useVerificarLembretesPonto() {
         .or(`dia_semana.eq.${diaSemana},dia_semana.is.null`)
         .order('dia_semana', { nullsFirst: false })
         .limit(1)
+      if (empresaId) qEscalas = qEscalas.eq('empresa_id', empresaId)
+      const { data: escalas } = await qEscalas
 
       const escala = escalas?.[0]
       if (!escala) return
 
-      const { data: pontos } = await supabase
-        .from('pontos')
-        .select('tipo_marcacao, tipo')
-        .eq('usuario_id', perfil.id)
-        .eq('data', hoje)
+      let qPontos = supabase.from('pontos').select('tipo_marcacao, tipo').eq('usuario_id', perfil.id).eq('data', hoje)
+      if (empresaId) qPontos = qPontos.eq('empresa_id', empresaId)
+      const { data: pontos } = await qPontos
 
       const registrados = new Set((pontos || []).map(p => p.tipo_marcacao || p.tipo))
 
@@ -11059,14 +11076,11 @@ function useVerificarLembretesPonto() {
 
       const checar = async (tipo, oldTipo, horaEscala, titulo, mensagem) => {
         if (!horaEscala || !passou10(horaEscala) || jaFeito(tipo, oldTipo)) return
-        const { data: ja } = await supabase
-          .from('notificacoes')
-          .select('id')
-          .eq('usuario_id', perfil.id)
-          .eq('tipo', 'lembrete_ponto')
-          .eq('titulo', titulo)
-          .gte('created_at', `${hoje}T00:00:00`)
-          .limit(1)
+        let qNot = supabase.from('notificacoes').select('id')
+          .eq('usuario_id', perfil.id).eq('tipo', 'lembrete_ponto').eq('titulo', titulo)
+          .gte('created_at', `${hoje}T00:00:00`).limit(1)
+        if (empresaId) qNot = qNot.eq('empresa_id', empresaId)
+        const { data: ja } = await qNot
         if (ja?.length) return
         await supabase.from('notificacoes').insert({
           usuario_id: perfil.id,
@@ -11074,6 +11088,7 @@ function useVerificarLembretesPonto() {
           titulo,
           mensagem,
           lida: false,
+          ...(empresaId ? { empresa_id: empresaId } : {}),
         })
       }
 
@@ -11094,17 +11109,21 @@ function useVerificarLembretesPonto() {
       const ontem = new Date(agora)
       ontem.setDate(ontem.getDate() - 1)
       const ontemStr = ontem.toISOString().split('T')[0]
-      const { data: escalasOntem } = await supabase
-        .from('escalas_trabalho').select('*').eq('usuario_id', perfil.id).eq('ativo', true)
+      let qEscOntem = supabase.from('escalas_trabalho').select('*').eq('usuario_id', perfil.id).eq('ativo', true)
         .or(`dia_semana.eq.${ontem.getDay()},dia_semana.is.null`).limit(1)
+      if (empresaId) qEscOntem = qEscOntem.eq('empresa_id', empresaId)
+      const { data: escalasOntem } = await qEscOntem
       if (escalasOntem?.[0]) {
-        const { data: pontosOntem } = await supabase.from('pontos').select('tipo_marcacao,tipo')
-          .eq('usuario_id', perfil.id).eq('data', ontemStr)
+        let qPOntem = supabase.from('pontos').select('tipo_marcacao,tipo').eq('usuario_id', perfil.id).eq('data', ontemStr)
+        if (empresaId) qPOntem = qPOntem.eq('empresa_id', empresaId)
+        const { data: pontosOntem } = await qPOntem
         if ((pontosOntem||[]).length > 0) {
           const regOntem = new Set((pontosOntem||[]).map(p => p.tipo_marcacao || p.tipo))
           if (!regOntem.has('saida') && !regOntem.has('Saída')) {
-            const { data: jaOc } = await supabase.from('ponto_ocorrencias').select('id')
+            let qOc = supabase.from('ponto_ocorrencias').select('id')
               .eq('usuario_id', perfil.id).eq('data', ontemStr).eq('tipo', 'esquecimento_ponto').limit(1)
+            if (empresaId) qOc = qOc.eq('empresa_id', empresaId)
+            const { data: jaOc } = await qOc
             if (!jaOc?.length) {
               await pontoOcorrenciasService.create({
                 usuario_id: perfil.id, data: ontemStr, tipo: 'esquecimento_ponto',
