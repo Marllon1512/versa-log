@@ -1,5 +1,3 @@
-import { garantirContextoEmpresa } from './supabase'
-
 export function getEmpresaId({ ignorarSeSuperAdmin = false } = {}) {
   try {
     const raw = sessionStorage.getItem('versa_perfil')
@@ -10,9 +8,4 @@ export function getEmpresaId({ ignorarSeSuperAdmin = false } = {}) {
   } catch {
     return null
   }
-}
-
-export async function setEmpresaContextoSupabase(empresaId) {
-  if (!empresaId) return
-  await garantirContextoEmpresa(empresaId)
 }
