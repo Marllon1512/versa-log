@@ -84,6 +84,7 @@ export function AuthProvider({ children }) {
       const saved = sessionStorage.getItem('versa_perfil')
       if (saved) {
         const parsed = JSON.parse(saved)
+        console.log('DEBUG SUPERADMIN RESTORE', JSON.stringify(parsed, null, 2))
         setPerfil(parsed)
         const pNome = parsed.perfil || parsed.role || 'vendedor'
         setPerfilAcesso(PERFIL_FALLBACK[pNome] || null)
@@ -146,6 +147,7 @@ export function AuthProvider({ children }) {
       }
 
       if (u) {
+        console.log('DEBUG SUPERADMIN LOGIN', JSON.stringify(u, null, 2))
         setPerfil(u)
         sessionStorage.setItem('versa_perfil', JSON.stringify(u))
         const pNome = u.perfil || u.role || 'vendedor'
@@ -201,6 +203,8 @@ export function AuthProvider({ children }) {
 
   const empresaId    = perfil?.empresa_id  ?? null
   const isSuperAdmin = perfil?.super_admin === true
+
+  console.log('DEBUG SUPERADMIN PROVIDER', { super_admin: perfil?.super_admin, isSuperAdmin, perfil_id: perfil?.id })
 
   return (
     <AuthContext.Provider value={{
