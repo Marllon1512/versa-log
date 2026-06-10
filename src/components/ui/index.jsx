@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 // ── Button ────────────────────────────────────────────────
 export function Btn({ children, variant = 'primary', size = 'md', disabled, loading, onClick, style, type = 'button' }) {
@@ -56,7 +57,7 @@ export function ConfirmModal({ title, message, onConfirm, onCancel, confirmLabel
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [])
-  return (
+  return createPortal(
     <div className="overlay" onClick={e => e.target === e.currentTarget && onCancel?.()}>
       <div className="modal" style={{ maxWidth: 420 }}>
         <div className="mh">
@@ -74,7 +75,8 @@ export function ConfirmModal({ title, message, onConfirm, onCancel, confirmLabel
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -85,7 +87,7 @@ export function Modal({ title, subtitle, onClose, children, footer, size = 'md' 
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [])
-  return (
+  return createPortal(
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose?.()}>
       <div className={`modal ${size === 'lg' ? 'modal-lg' : ''}`}>
         <div className="mh">
@@ -98,7 +100,8 @@ export function Modal({ title, subtitle, onClose, children, footer, size = 'md' 
         <div className="mb">{children}</div>
         {footer && <div className="mf">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

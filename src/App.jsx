@@ -299,7 +299,7 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
   const { chatUnread } = useContext(AppCtx)
   let allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
   if (effectiveRole !== 'contador' && !allowedPages.includes('chat')) allowedPages = [...allowedPages, 'chat']
-  if (isSuperAdmin) allowedPages = [...allowedPages, 'superadmin']
+  if (isSuperAdmin && !isSimulating) allowedPages = [...allowedPages, 'superadmin']
   const [msgIdx, setMsgIdx] = useState(0)
 
   useEffect(() => {
