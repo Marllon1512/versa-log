@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, resetContextoEmpresa } from '../lib/supabase'
+import { setEmpresaContextoSupabase } from '../lib/empresaContext'
 
 const AuthContext = createContext(null)
 
@@ -74,6 +75,7 @@ export function AuthProvider({ children }) {
     if (usuario.empresa_id) {
       const emp = await fetchEmpresa(usuario.empresa_id)
       setEmpresa(emp)
+      await setEmpresaContextoSupabase(usuario.empresa_id)
     }
   }
 
@@ -96,6 +98,7 @@ export function AuthProvider({ children }) {
           fetchEmpresa(parsed.empresa_id)
             .then(emp => { if (emp) { setEmpresa(emp); sessionStorage.setItem('versa_empresa', JSON.stringify(emp)) } })
             .catch(() => {})
+          setEmpresaContextoSupabase(parsed.empresa_id).catch(() => {})
         }
         return
       }
@@ -144,6 +147,7 @@ export function AuthProvider({ children }) {
           const emp = await fetchEmpresa(u.empresa_id)
           setEmpresa(emp)
           if (emp) sessionStorage.setItem('versa_empresa', JSON.stringify(emp))
+          await setEmpresaContextoSupabase(u.empresa_id)
         }
         return u
       }
@@ -159,6 +163,7 @@ export function AuthProvider({ children }) {
     setSimulatedRole(null)
     sessionStorage.removeItem('versa_perfil')
     sessionStorage.removeItem('versa_empresa')
+    resetContextoEmpresa()
   }
 
   // Nome do perfil efetivo (considera simulação)
