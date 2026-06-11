@@ -25,6 +25,7 @@ import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from './lib/supabase'
 import { toast, Toaster } from './lib/toast'
 import { validarTipoImagem } from './lib/validarTipoImagem'
+import { podeAcessarModulosOperacionais } from './lib/empresaContext'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 import { pedidosService } from './services/pedidos'
@@ -43,6 +44,18 @@ import {
   escalasTrabalhoService, pontoOcorrenciasService, cercasVirtuaisService,
   conciliacaoService,
 } from './services/index'
+
+function SuperAdminSemEmpresa() {
+  return (
+    <div className="empty" style={{ padding: '60px 24px', textAlign: 'center' }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+      <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>Acesso disponível apenas via impersonation</div>
+      <div style={{ fontSize: 14, color: 'var(--t2)', maxWidth: 380, margin: '0 auto' }}>
+        Como Super Admin, selecione uma empresa específica para visualizar dados operacionais.
+      </div>
+    </div>
+  )
+}
 
 // Pagination controls — server-side
 function Pagination({ page, totalPages, total, setPage }) {
@@ -301,6 +314,8 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
   let allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
   if (effectiveRole !== 'contador' && !allowedPages.includes('chat')) allowedPages = [...allowedPages, 'chat']
   if (isSuperAdmin && !isSimulating) allowedPages = [...allowedPages, 'superadmin']
+  // Super Admin sem empresa_id vinculada só acessa Super Admin e Chat
+  if (isSuperAdmin && !isSimulating && !perfil?.empresa_id) allowedPages = ['superadmin', 'chat']
   const [msgIdx, setMsgIdx] = useState(0)
 
   useEffect(() => {
@@ -956,6 +971,10 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
 // DASHBOARD
 // ============================================================
 function Dashboard({ setPage }) {
+  if (!podeAcessarModulosOperacionais()) return <SuperAdminSemEmpresa />
+  return <DashboardInner setPage={setPage} />
+}
+function DashboardInner({ setPage }) {
   const { perfil, effectiveRole, podeVerFinanceiro, podeVerVendas } = useAuth()
   const lojaEf = useEffectiveLoja()
   const hoje = new Date().toISOString().split('T')[0]
@@ -1502,6 +1521,10 @@ function ModalDevolucao({ pedido, onClose, onConfirm }) {
 // PEDIDOS
 // ============================================================
 function Pedidos() {
+  if (!podeAcessarModulosOperacionais()) return <SuperAdminSemEmpresa />
+  return <PedidosInner />
+}
+function PedidosInner() {
   const { perfil, isGestor, effectiveRole, podeVerFinanceiro } = useAuth()
   const [statusFil, setStatusFil] = useState('Todos')
   const [lojasFil, setLojasFil] = useState([])
@@ -3063,6 +3086,10 @@ function Agenda() {
 // ASSISTENCIA - CENTRAL
 // ============================================================
 function Assistencia() {
+  if (!podeAcessarModulosOperacionais()) return <SuperAdminSemEmpresa />
+  return <AssistenciaInner />
+}
+function AssistenciaInner() {
   const { perfil, empresaId } = useAuth()
   const [sf, setSf] = useState('Todos')
   const [showNew, setShowNew] = useState(false)
@@ -9635,6 +9662,10 @@ function FinanceiroConciliacao() {
 }
 
 function Financeiro() {
+  if (!podeAcessarModulosOperacionais()) return <SuperAdminSemEmpresa />
+  return <FinanceiroInner />
+}
+function FinanceiroInner() {
   const { effectiveRole } = useAuth()
   const isAssistenteAdmin = effectiveRole === 'assistente_admin'
   const podeVerConciliacao = ['admin','diretor','assistente_admin'].includes(effectiveRole)

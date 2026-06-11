@@ -9,3 +9,14 @@ export function getEmpresaId({ ignorarSeSuperAdmin = false } = {}) {
     return null
   }
 }
+
+export function podeAcessarModulosOperacionais() {
+  try {
+    const raw = sessionStorage.getItem('versa_perfil')
+    if (!raw) return false
+    const perfil = JSON.parse(raw)
+    return !!(perfil?.empresa_id)
+  } catch {
+    return false
+  }
+}
