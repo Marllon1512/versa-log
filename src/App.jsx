@@ -7136,16 +7136,6 @@ function CadConfigSistema() {
 }
 
 function CadLojas() {
-  const LOJAS_SEED = [
-    { nome:'Movelaria Olga', cnpj:'40.168.987/0001-72' },
-    { nome:'Arca Garden', cnpj:'41.777.547/0001-85' },
-    { nome:'Santa Comércio', cnpj:'41.919.625/0001-39' },
-    { nome:'Templum Comércio', cnpj:'42.289.963/0001-05' },
-    { nome:'Templum Minas', cnpj:'42.307.110/0001-40' },
-    { nome:'Alpendre Mobiliário', cnpj:'45.635.061/0001-63' },
-    { nome:'Feirão', cnpj:'' },
-    { nome:'Grupo Versa', cnpj:'09.214.954/0001-71' },
-  ]
   const { data: lista, loading, reload } = useData(() => lojasService.list(), [])
   const [modal, setModal] = useState(null)
   const empty = { nome:'', cnpj:'', telefone:'', endereco:'', cidade:'', responsavel:'', ativa:true, logo_url:'' }
@@ -7153,13 +7143,6 @@ function CadLojas() {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
-
-  const seed = async () => {
-    try {
-      await act.run(() => lojasService.upsertByNome(LOJAS_SEED))
-      toast.success('Lojas importadas'); reload()
-    } catch (e) { toast.error(e.message) }
-  }
 
   const uploadLogo = async (file) => {
     try { await validarTipoImagem(file) } catch (e) { toast.error(e.message); return }
@@ -7187,8 +7170,7 @@ function CadLojas() {
 
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12, gap:8, flexWrap:'wrap' }}>
-        <button className="btn btn-s btn-sm" onClick={seed} disabled={act.loading}>⬆ Importar lojas padrão</button>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
         <button className="btn btn-p btn-sm" onClick={() => { setForm(empty); setModal({}) }}>+ Nova Loja</button>
       </div>
       {loading ? <Spinner /> : (lista||[]).length === 0 ? <Empty text="Nenhuma loja cadastrada" /> : (
@@ -11325,7 +11307,7 @@ function ConfirmarCompraPublica({ token }) {
 // APP ROOT
 // ============================================================
 function AppContent() {
-  const { perfil, loading, isGestor, isEntregador, simulatedRole, effectiveRole, modulosPermitidos } = useAuth()
+  const { perfil, loading, isGestor, isEntregador, simulatedRole, effectiveRole, modulosPermitidos, impersonatingEmpresaId } = useAuth()
   useVerificarLembretesPonto()
   const defaultPage = isEntregador && !isGestor ? 'rota' : 'dashboard'
   const [page, setPage] = useState(defaultPage)
@@ -11333,7 +11315,7 @@ function AppContent() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [animKey, setAnimKey] = useState(0)
   const [lojaFiltro, setLojaFiltro] = useState('')
-  const { data: lojasData } = useData(() => lojasService.list(), [])
+  const { data: lojasData } = useData(() => lojasService.list(), [impersonatingEmpresaId])
   const lojas = lojasData ?? []
   const [chatTarget, setChatTargetState] = useState(null)
   const [chatUnread, setChatUnread] = useState(0)
@@ -11347,6 +11329,9 @@ function AppContent() {
   }, [tema])
 
   const toggleTema = useCallback(() => setTema(t => t === 'dark' ? 'light' : 'dark'), [])
+
+  // Limpa o filtro de loja ao trocar de empresa via impersonation
+  useEffect(() => { setLojaFiltro('') }, [impersonatingEmpresaId])
 
   const temaRef = useRef(tema)
   useEffect(() => { temaRef.current = tema }, [tema])
