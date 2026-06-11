@@ -1,4 +1,5 @@
 import { useState } from 'react'
+
 import { useData } from '../hooks/index'
 import { npsService } from '../services/index'
 import { Spinner, Empty } from '../components/ui/index'
