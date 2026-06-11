@@ -55,6 +55,13 @@ async function fetchEmpresa(empresaId) {
   }
 }
 
+function readImpersonation() {
+  try {
+    const raw = sessionStorage.getItem('versa_impersonation')
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [perfil, setPerfil] = useState(null)
@@ -62,6 +69,11 @@ export function AuthProvider({ children }) {
   const [perfilAcesso, setPerfilAcesso] = useState(null)
   const [loading, setLoading] = useState(true)
   const [simulatedRole, setSimulatedRole] = useState(null)
+  const [simulatedLoja, setSimulatedLoja] = useState(null)
+
+  // Impersonation — persisted in sessionStorage so survives hot-reload
+  const [impersonatingEmpresaId, setImpersonatingEmpresaId] = useState(() => readImpersonation()?.empresaId || null)
+  const [impersonatingEmpresaNome, setImpersonatingEmpresaNome] = useState(() => readImpersonation()?.empresaNome || null)
 
   const loadPerfil = async (authUser) => {
     if (!authUser) { setPerfil(null); setPerfilAcesso(null); setEmpresa(null); return }
@@ -164,9 +176,43 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try { await supabase.auth.signOut() } catch {}
     setUser(null); setPerfil(null); setPerfilAcesso(null); setEmpresa(null)
-    setSimulatedRole(null)
+    setSimulatedRole(null); setSimulatedLoja(null)
+    setImpersonatingEmpresaId(null); setImpersonatingEmpresaNome(null)
     sessionStorage.removeItem('versa_perfil')
     sessionStorage.removeItem('versa_empresa')
+    sessionStorage.removeItem('versa_impersonation')
+  }
+
+  const iniciarImpersonation = async (empresaId, empresaNome) => {
+    setImpersonatingEmpresaId(empresaId)
+    setImpersonatingEmpresaNome(empresaNome)
+    sessionStorage.setItem('versa_impersonation', JSON.stringify({ empresaId, empresaNome }))
+    try {
+      await supabase.from('audit_log').insert({
+        usuario_id: perfil?.id || null,
+        acao: 'impersonation_iniciada',
+        tabela: 'empresas',
+        registro_id: String(empresaId),
+        dados_anteriores: { empresaNome },
+      })
+    } catch {}
+  }
+
+  const finalizarImpersonation = async () => {
+    const eid = impersonatingEmpresaId
+    const enome = impersonatingEmpresaNome
+    setImpersonatingEmpresaId(null)
+    setImpersonatingEmpresaNome(null)
+    sessionStorage.removeItem('versa_impersonation')
+    try {
+      await supabase.from('audit_log').insert({
+        usuario_id: perfil?.id || null,
+        acao: 'impersonation_finalizada',
+        tabela: 'empresas',
+        registro_id: String(eid),
+        dados_anteriores: { empresaNome: enome },
+      })
+    } catch {}
   }
 
   // Nome do perfil efetivo (considera simulação)
@@ -194,18 +240,22 @@ export function AuthProvider({ children }) {
   const isAdmin      = ['admin'].includes(perfil?.perfil || perfil?.role)
   const isSimulating = simulatedRole !== null
 
-  const empresaId    = perfil?.empresa_id  ?? null
+  // empresaId: usa empresa impersonada se ativa, senão a do perfil real
+  const empresaId = impersonatingEmpresaId || perfil?.empresa_id || null
   const isSuperAdmin = perfil?.super_admin === true
 
   return (
     <AuthContext.Provider value={{
       user, perfil, loading, login, logout,
       isGestor, isEntregador, isAdmin, isSuperAdmin,
-      simulatedRole, setSimulatedRole, isSimulating, effectiveRole,
+      simulatedRole, setSimulatedRole, simulatedLoja, setSimulatedLoja,
+      isSimulating, effectiveRole,
       modulosPermitidos, lojaId,
       podeVerTodasLojas, podeVerFinanceiro, podeVerVendas, podeVerMetas,
       perfilAcesso: effectivePA,
       empresa, empresaId,
+      impersonatingEmpresaId, impersonatingEmpresaNome,
+      iniciarImpersonation, finalizarImpersonation,
     }}>
       {children}
     </AuthContext.Provider>

@@ -45,6 +45,27 @@ import {
   conciliacaoService,
 } from './services/index'
 
+function ImpersonationBanner() {
+  const { impersonatingEmpresaId, impersonatingEmpresaNome, finalizarImpersonation } = useAuth()
+  if (!impersonatingEmpresaId) return null
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
+      background: 'linear-gradient(90deg, #dc2626, #b91c1c)',
+      color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '6px 16px', fontSize: 13, fontWeight: 600, gap: 12,
+    }}>
+      <span>🔴 MODO IMPERSONATION ATIVO — Você está visualizando como: <strong>{impersonatingEmpresaNome}</strong></span>
+      <button
+        onClick={finalizarImpersonation}
+        style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.5)', color: '#fff', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}
+      >
+        SAIR DO MODO IMPERSONATION
+      </button>
+    </div>
+  )
+}
+
 function SuperAdminSemEmpresa() {
   return (
     <div className="empty" style={{ padding: '60px 24px', textAlign: 'center' }}>
@@ -89,8 +110,10 @@ const AppCtx = createContext({ navigateTo: () => {}, chatTarget: null, clearChat
 
 // Retorna filtro de loja efetivo: automático para usuários sem acesso global
 function useEffectiveLoja() {
-  const { perfil, podeVerTodasLojas } = useAuth()
+  const { perfil, podeVerTodasLojas, isSimulating, simulatedLoja } = useAuth()
   const { lojaFiltro } = useLojaFiltro()
+  // Simulador com loja específica escolhida tem prioridade
+  if (isSimulating && simulatedLoja !== null) return simulatedLoja || null
   if (podeVerTodasLojas) return lojaFiltro || null
   return perfil?.loja || null
 }
@@ -309,13 +332,14 @@ const SIDEBAR_GROUPS = [
 ]
 
 function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVersaUrl }) {
-  const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, effectiveRole, modulosPermitidos, isSuperAdmin } = useAuth()
+  const { perfil, logout, isAdmin, isSimulating, simulatedRole, setSimulatedRole, simulatedLoja, setSimulatedLoja, effectiveRole, modulosPermitidos, isSuperAdmin, impersonatingEmpresaId } = useAuth()
+  const { lojas } = useLojaFiltro()
   const { chatUnread } = useContext(AppCtx)
   let allowedPages = modulosPermitidos.length ? modulosPermitidos : (PROFILE_PAGES[effectiveRole] || _ALL_PAGES)
   if (effectiveRole !== 'contador' && !allowedPages.includes('chat')) allowedPages = [...allowedPages, 'chat']
   if (isSuperAdmin && !isSimulating) allowedPages = [...allowedPages, 'superadmin']
-  // Super Admin sem empresa_id vinculada só acessa Super Admin e Chat
-  if (isSuperAdmin && !isSimulating && !perfil?.empresa_id) allowedPages = ['superadmin', 'chat']
+  // Super Admin sem empresa vinculada só acessa Super Admin e Chat (a menos que esteja em impersonation)
+  if (isSuperAdmin && !isSimulating && !perfil?.empresa_id && !impersonatingEmpresaId) allowedPages = ['superadmin', 'chat']
   const [msgIdx, setMsgIdx] = useState(0)
 
   useEffect(() => {
@@ -361,11 +385,11 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
             )}
           </div>
           {!collapsed && isAdmin && (
-            <div style={{ marginTop:8 }}>
+            <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:4 }}>
               <select
                 style={{ width:'100%', fontSize:11, padding:'4px 8px', border:'1px solid var(--border)', borderRadius:6, background:'var(--bg2)', color: isSimulating ? '#f97316' : 'var(--t2)', cursor:'pointer', fontFamily:'var(--font)' }}
                 value={simulatedRole || ''}
-                onChange={e => setSimulatedRole(e.target.value || null)}
+                onChange={e => { setSimulatedRole(e.target.value || null); setSimulatedLoja(null) }}
               >
                 <option value="">👁 Admin (real)</option>
                 <option value="diretor">Diretor</option>
@@ -382,6 +406,17 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
                 <option value="atendente">Atendente</option>
                 <option value="contador">Contador</option>
               </select>
+              {isSimulating && (
+                <select
+                  style={{ width:'100%', fontSize:11, padding:'4px 8px', border:'1px solid var(--border)', borderRadius:6, background:'var(--bg2)', color: simulatedLoja ? '#f97316' : 'var(--t2)', cursor:'pointer', fontFamily:'var(--font)' }}
+                  value={simulatedLoja ?? ''}
+                  onChange={e => setSimulatedLoja(e.target.value === '__null__' ? null : e.target.value)}
+                >
+                  <option value="__null__">🏬 Loja (real)</option>
+                  <option value="">Todas as lojas</option>
+                  {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
+                </select>
+              )}
             </div>
           )}
         </div>
@@ -574,8 +609,9 @@ function NotifBell({ navigateTo }) {
 }
 
 function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle }) {
-  const { perfil, isSimulating, simulatedRole, isGestor } = useAuth()
+  const { perfil, isSimulating, simulatedRole, isGestor, isSuperAdmin, impersonatingEmpresaId } = useAuth()
   const { lojaFiltro, setLojaFiltro, lojas } = useLojaFiltro()
+  const superAdminSemEmpresa = isSuperAdmin && !perfil?.empresa_id && !impersonatingEmpresaId
   const { tema, toggleTema } = useContext(AppCtx)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef()
@@ -597,7 +633,7 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
       <div style={{ flex:1 }}>
         <span style={{ fontWeight:600, fontSize:16, color:'var(--t1)' }}>{PAGE_LABELS[page] || page}</span>
       </div>
-      {isGestor && (
+      {isGestor && !superAdminSemEmpresa && (
         <select
           value={lojaFiltro}
           onChange={e => setLojaFiltro(e.target.value)}
@@ -11454,6 +11490,7 @@ function AppContent() {
           <div className="sys-bg-overlay" style={{ opacity: bgConfig.overlay / 100 }} />
         </div>
       )}
+      <ImpersonationBanner />
       <div className="app">
         <Sidebar
           page={page}

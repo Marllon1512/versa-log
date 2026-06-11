@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Crown, Building2, Users, Plus, Edit2, Power, Search } from 'lucide-react'
+import { Crown, Building2, Users, Plus, Edit2, Power, Search, LogIn } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Btn, Badge, Modal } from './ui/index'
@@ -322,6 +322,7 @@ function ModalUsuario({ empresas, onClose, onSaved }) {
 
 // ── Aba Empresas ─────────────────────────────────────────────
 function TabEmpresas() {
+  const { iniciarImpersonation } = useAuth()
   const isMobile = useIsMobile()
   const [empresas, setEmpresas]       = useState([])
   const [contagens, setContagens]     = useState({})
@@ -406,13 +407,16 @@ function TabEmpresas() {
               <div><span style={{ color: 'var(--t3)' }}>Fim: </span>{fmtData(emp.data_fim_plano)}</div>
               <div><span style={{ color: 'var(--t3)' }}>Usuários: </span><strong>{contagens[emp.id] || 0}</strong></div>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <Btn variant="secondary" size="sm" onClick={() => setModalEmpresa(emp)}>
                 <Edit2 size={12} style={{ marginRight: 4 }} /> Editar
               </Btn>
               <Btn variant={emp.ativo ? 'secondary' : 'success'} size="sm"
                 onClick={() => toggleAtivo(emp)} disabled={toggling === emp.id}>
                 <Power size={12} style={{ marginRight: 4 }} /> {emp.ativo ? 'Desativar' : 'Ativar'}
+              </Btn>
+              <Btn variant="ghost" size="sm" onClick={() => iniciarImpersonation(emp.id, emp.nome)}>
+                <LogIn size={12} style={{ marginRight: 4 }} /> Acessar como
               </Btn>
             </div>
           </div>
@@ -462,6 +466,13 @@ function TabEmpresas() {
                         title={emp.ativo ? 'Desativar' : 'Ativar'}
                       >
                         <Power size={13} strokeWidth={1.7} />
+                      </button>
+                      <button
+                        className="btn btn-g btn-sm btn-ico"
+                        onClick={() => iniciarImpersonation(emp.id, emp.nome)}
+                        title="Acessar como esta empresa"
+                      >
+                        <LogIn size={13} strokeWidth={1.7} />
                       </button>
                     </div>
                   </td>
