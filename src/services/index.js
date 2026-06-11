@@ -842,7 +842,7 @@ export const ordensServicoService = {
 // ── Lojas ─────────────────────────────────────────────────
 export const lojasService = {
   async list() {
-    const eid = getEmpresaId()
+    const eid = getEmpresaId({ ignorarSeSuperAdmin: true })
     let q = supabase.from('lojas').select('*').order('nome')
     if (eid) q = q.eq('empresa_id', eid)
     const { data, error } = await q

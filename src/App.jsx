@@ -69,7 +69,7 @@ function Pagination({ page, totalPages, total, setPage }) {
 }
 
 // ── Filtro global de loja ─────────────────────────────────
-const LojaCtx = createContext({ lojaFiltro: '', setLojaFiltro: () => {} })
+const LojaCtx = createContext({ lojaFiltro: '', setLojaFiltro: () => {}, lojas: [] })
 export const useLojaFiltro = () => useContext(LojaCtx)
 
 const AppCtx = createContext({ navigateTo: () => {}, chatTarget: null, clearChatTarget: () => {}, openChatWith: () => {}, chatUnread: 0, setChatUnread: () => {}, reloadBgConfig: () => {}, tema: 'dark', toggleTema: () => {} })
@@ -81,9 +81,6 @@ function useEffectiveLoja() {
   if (podeVerTodasLojas) return lojaFiltro || null
   return perfil?.loja || null
 }
-
-// ── Lojas do grupo (lista fixa) ───────────────────────────
-const LOJAS_GRUPO = ['Templum Comércio','Templum Minas','Movelaria Olga','Santa Comércio','Alpendre Mobiliário','Arca Garden','Feirão']
 
 // ── Permissões por perfil (mantido para simulação) ────────
 const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','financeiro_loja','dp','os','fila','crm','catalogo','nf','nps','relatorios','chat']
@@ -118,8 +115,10 @@ const fmtR = (v) => (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',
 const fmtNPedido = (n) => n ? String(n).padStart(6, '0') : '—'
 
 function LojaSelect({ value, onChange, className, style, placeholder }) {
-  const [outra, setOutra] = useState(() => !!(value && !LOJAS_GRUPO.includes(value)))
-  const selVal = outra ? '__outra__' : (LOJAS_GRUPO.includes(value) ? value : '')
+  const { lojas } = useLojaFiltro()
+  const nomesLojas = lojas.map(l => l.nome)
+  const [outra, setOutra] = useState(() => !!(value && !nomesLojas.includes(value)))
+  const selVal = outra ? '__outra__' : (nomesLojas.includes(value) ? value : '')
   const cls = className !== undefined ? className : 'fi'
   return (
     <div>
@@ -130,7 +129,7 @@ function LojaSelect({ value, onChange, className, style, placeholder }) {
         }}
       >
         <option value="">{placeholder || 'Selecione a loja...'}</option>
-        {LOJAS_GRUPO.map(l => <option key={l} value={l}>{l}</option>)}
+        {nomesLojas.map(l => <option key={l} value={l}>{l}</option>)}
         <option value="__outra__">Outra (digitar manualmente)</option>
       </select>
       {outra && (
@@ -143,6 +142,8 @@ function LojaSelect({ value, onChange, className, style, placeholder }) {
 }
 
 function LojaMultiSelect({ value, onChange }) {
+  const { lojas } = useLojaFiltro()
+  const nomesLojas = lojas.map(l => l.nome)
   const [open, setOpen] = useState(false)
   const ref = useRef()
   useEffect(() => {
@@ -167,7 +168,7 @@ function LojaMultiSelect({ value, onChange }) {
             <input type="checkbox" checked={todas} onChange={() => onChange([])} />
             <span style={{ fontWeight: todas ? 600 : 400 }}>Todas as lojas</span>
           </label>
-          {LOJAS_GRUPO.map(l => (
+          {nomesLojas.map(l => (
             <label key={l} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>
               <input type="checkbox" checked={value.includes(l)} onChange={() => toggle(l)} />
               {l}
@@ -559,7 +560,7 @@ function NotifBell({ navigateTo }) {
 
 function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle }) {
   const { perfil, isSimulating, simulatedRole, isGestor } = useAuth()
-  const { lojaFiltro, setLojaFiltro } = useLojaFiltro()
+  const { lojaFiltro, setLojaFiltro, lojas } = useLojaFiltro()
   const { tema, toggleTema } = useContext(AppCtx)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef()
@@ -588,7 +589,7 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
           style={{ fontSize:12, padding:'4px 8px', border:'1px solid var(--border)', borderRadius:8, background:'var(--bg2)', color:'var(--t1)', maxWidth:140, cursor:'pointer' }}
         >
           <option value="">Todas as lojas</option>
-          {LOJAS_GRUPO.map(l => <option key={l} value={l}>{l}</option>)}
+          {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
         </select>
       )}
       {isSimulating && (
@@ -6129,6 +6130,7 @@ function Ponto() {
 // GERENCIAMENTO DE PERMISSÕES
 // ============================================================
 function GerenciamentoPermissoes() {
+  const { lojas } = useLojaFiltro()
   const [usuarios, setUsuarios] = useState([])
   const [perfisDB, setPerfisDB] = useState([])
   const [loading, setLoading] = useState(true)
@@ -6217,7 +6219,7 @@ function GerenciamentoPermissoes() {
         </select>
         <select className="fi" value={filtroLoja} onChange={e => setFiltroLoja(e.target.value)}>
           <option value="">Todas as lojas</option>
-          {LOJAS_GRUPO.map(l => <option key={l} value={l}>{l}</option>)}
+          {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
         </select>
       </div>
 
@@ -9154,7 +9156,7 @@ function EstoqueMov() {
 // ============================================================
 function FinanceiroDRE() {
   const [mes, setMes] = useState(new Date().toISOString().slice(0,7))
-  const { lojaFiltro: lojaGlobal } = useLojaFiltro()
+  const { lojaFiltro: lojaGlobal, lojas } = useLojaFiltro()
   const [lojaFiltro, setLojaFiltro] = useState(lojaGlobal || '')
   const { data: vendas } = useData(() => vendasService.list(), [])
   const { data: pagar } = useData(() => financeiroService.listPagar(), [])
@@ -9216,7 +9218,7 @@ function FinanceiroDRE() {
         <input className="fi" type="month" value={mes} onChange={e=>setMes(e.target.value)} style={{ width:'auto' }} />
         <select className="fi" style={{ width:'auto' }} value={lojaFiltro} onChange={e=>setLojaFiltro(e.target.value)}>
           <option value="">Consolidado grupo</option>
-          {LOJAS_GRUPO.map(l => <option key={l}>{l}</option>)}
+          {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
         </select>
         <button className="btn btn-s btn-sm" onClick={exportarPDF} style={{display:'flex',alignItems:'center',gap:5}}><FileText size={13} strokeWidth={1.8} /> Exportar PDF</button>
       </div>
@@ -9714,6 +9716,7 @@ function FinanceiroResumo() {
 }
 
 function FinanceiroLista({ tipo }) {
+  const { lojas } = useLojaFiltro()
   const lojaEf = useEffectiveLoja()
   const queryFn = useCallback(
     ({ search, from, to }) => tipo === 'receber'
@@ -9723,7 +9726,7 @@ function FinanceiroLista({ tipo }) {
   )
   const { data: lista, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const [modal, setModal] = useState(null)
-  const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...LOJAS_GRUPO]
+  const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...lojas.map(l => l.nome)]
   const empty = { descricao:'', valor:'', vencimento:'', categoria:'', cliente_fornecedor:'', status:'pendente', obs:'', loja:'', centro_custo:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
@@ -9829,6 +9832,7 @@ function FinanceiroLista({ tipo }) {
 // DEPARTAMENTO PESSOAL
 // ============================================================
 function DP() {
+  const { lojas } = useLojaFiltro()
   const [tab, setTab] = useState('funcionarios')
   const [lojaFiltroDP, setLojaFiltroDP] = useState('')
   const TABS = [{ id:'funcionarios',label:'Funcionários' },{ id:'folha',label:'Folha de Pagamento' },{ id:'banco',label:'Banco de Horas' },{ id:'controle_ponto',label:'Controle de Ponto' }]
@@ -9838,7 +9842,7 @@ function DP() {
         <h1>Dep. Pessoal</h1>
         <select className="fi" style={{ width:'auto', fontSize:13 }} value={lojaFiltroDP} onChange={e => setLojaFiltroDP(e.target.value)}>
           <option value="">Todas as lojas</option>
-          {LOJAS_GRUPO.map(l => <option key={l}>{l}</option>)}
+          {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
         </select>
       </div>
       <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
@@ -11262,6 +11266,7 @@ function AppContent() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [animKey, setAnimKey] = useState(0)
   const [lojaFiltro, setLojaFiltro] = useState('')
+  const { data: lojas = [] } = useData(() => lojasService.list(), [])
   const [chatTarget, setChatTargetState] = useState(null)
   const [chatUnread, setChatUnread] = useState(0)
   const [bgConfig, setBgConfig] = useState({ activeUrl: null, blur: 8, overlay: 40, logoVersaUrl: null })
@@ -11411,7 +11416,7 @@ function AppContent() {
 
   return (
     <AppCtx.Provider value={{ navigateTo, chatTarget, clearChatTarget, openChatWith, chatUnread, setChatUnread, reloadBgConfig, tema, toggleTema }}>
-    <LojaCtx.Provider value={{ lojaFiltro, setLojaFiltro }}>
+    <LojaCtx.Provider value={{ lojaFiltro, setLojaFiltro, lojas }}>
       {bgConfig.activeUrl && (
         <div className="sys-bg-container">
           <img className="sys-bg-img" src={bgConfig.activeUrl} alt="" style={{ filter: bgConfig.blur > 0 ? `blur(${bgConfig.blur}px)` : undefined, transform: bgConfig.blur > 0 ? 'scale(1.05)' : undefined }} />
