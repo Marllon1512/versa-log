@@ -152,7 +152,7 @@ const fmtNPedido = (n) => n ? String(n).padStart(6, '0') : '—'
 
 function LojaSelect({ value, onChange, className, style, placeholder }) {
   const { lojas } = useLojaFiltro()
-  const nomesLojas = lojas.map(l => l.nome)
+  const nomesLojas = (lojas ?? []).map(l => l.nome)
   const [outra, setOutra] = useState(() => !!(value && !nomesLojas.includes(value)))
   const selVal = outra ? '__outra__' : (nomesLojas.includes(value) ? value : '')
   const cls = className !== undefined ? className : 'fi'
@@ -179,7 +179,7 @@ function LojaSelect({ value, onChange, className, style, placeholder }) {
 
 function LojaMultiSelect({ value, onChange }) {
   const { lojas } = useLojaFiltro()
-  const nomesLojas = lojas.map(l => l.nome)
+  const nomesLojas = (lojas ?? []).map(l => l.nome)
   const [open, setOpen] = useState(false)
   const ref = useRef()
   useEffect(() => {
@@ -414,7 +414,7 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
                 >
                   <option value="__null__">🏬 Loja (real)</option>
                   <option value="">Todas as lojas</option>
-                  {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
+                  {(lojas ?? []).map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
                 </select>
               )}
             </div>
@@ -640,7 +640,7 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
           style={{ fontSize:12, padding:'4px 8px', border:'1px solid var(--border)', borderRadius:8, background:'var(--bg2)', color:'var(--t1)', maxWidth:140, cursor:'pointer' }}
         >
           <option value="">Todas as lojas</option>
-          {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
+          {(lojas ?? []).map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
         </select>
       )}
       {isSimulating && (
@@ -6282,7 +6282,7 @@ function GerenciamentoPermissoes() {
         </select>
         <select className="fi" value={filtroLoja} onChange={e => setFiltroLoja(e.target.value)}>
           <option value="">Todas as lojas</option>
-          {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
+          {(lojas ?? []).map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
         </select>
       </div>
 
@@ -9281,7 +9281,7 @@ function FinanceiroDRE() {
         <input className="fi" type="month" value={mes} onChange={e=>setMes(e.target.value)} style={{ width:'auto' }} />
         <select className="fi" style={{ width:'auto' }} value={lojaFiltro} onChange={e=>setLojaFiltro(e.target.value)}>
           <option value="">Consolidado grupo</option>
-          {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
+          {(lojas ?? []).map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
         </select>
         <button className="btn btn-s btn-sm" onClick={exportarPDF} style={{display:'flex',alignItems:'center',gap:5}}><FileText size={13} strokeWidth={1.8} /> Exportar PDF</button>
       </div>
@@ -9793,7 +9793,7 @@ function FinanceiroLista({ tipo }) {
   )
   const { data: lista, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const [modal, setModal] = useState(null)
-  const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...lojas.map(l => l.nome)]
+  const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...(lojas ?? []).map(l => l.nome)]
   const empty = { descricao:'', valor:'', vencimento:'', categoria:'', cliente_fornecedor:'', status:'pendente', obs:'', loja:'', centro_custo:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
@@ -9909,7 +9909,7 @@ function DP() {
         <h1>Dep. Pessoal</h1>
         <select className="fi" style={{ width:'auto', fontSize:13 }} value={lojaFiltroDP} onChange={e => setLojaFiltroDP(e.target.value)}>
           <option value="">Todas as lojas</option>
-          {lojas.map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
+          {(lojas ?? []).map(l => <option key={l.id || l.nome} value={l.nome}>{l.nome}</option>)}
         </select>
       </div>
       <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap' }}>
@@ -11333,7 +11333,8 @@ function AppContent() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [animKey, setAnimKey] = useState(0)
   const [lojaFiltro, setLojaFiltro] = useState('')
-  const { data: lojas = [] } = useData(() => lojasService.list(), [])
+  const { data: lojasData } = useData(() => lojasService.list(), [])
+  const lojas = lojasData ?? []
   const [chatTarget, setChatTargetState] = useState(null)
   const [chatUnread, setChatUnread] = useState(0)
   const [bgConfig, setBgConfig] = useState({ activeUrl: null, blur: 8, overlay: 40, logoVersaUrl: null })
