@@ -15,8 +15,9 @@ import {
 } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { SuperAdmin } from './components/SuperAdmin'
-const Nps  = React.lazy(() => import('./modules/Nps.jsx'))
-const Mapa = React.lazy(() => import('./modules/Mapa.jsx'))
+const Nps        = React.lazy(() => import('./modules/Nps.jsx'))
+const Mapa       = React.lazy(() => import('./modules/Mapa.jsx'))
+const CatalogoPub = React.lazy(() => import('./modules/CatalogoPub.jsx'))
 import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
 import { useData, useAction, useDateInfo, usePrazo, usePagination, usePullToRefresh, useServerPagination } from './hooks/index'
@@ -7632,55 +7633,6 @@ function NotaFiscal() {
 }
 
 // ============================================================
-// CATÁLOGO DIGITAL (público)
-// ============================================================
-function CatalogoPub() {
-  const queryFn = useCallback(
-    ({ search, from, to }) => catalogoService.listPaged({ search, from, to }),
-    []
-  )
-  const { data: itens, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca } = useServerPagination(queryFn)
-  const [catFiltro, setCatFiltro] = useState('')
-  const categorias = [...new Set((itens||[]).map(i => i.categoria).filter(Boolean))]
-  // Category filter is UI-only
-  const filtrado = catFiltro ? (itens||[]).filter(i => i.ativo !== false && i.categoria === catFiltro) : (itens||[]).filter(i => i.ativo !== false)
-  return (
-    <div className="page">
-      <div className="ph"><h1>Catálogo Digital</h1></div>
-      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
-        <input className="fi" style={{ flex:1, minWidth:140 }} placeholder="Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
-        <select className="fi" style={{ width:'auto' }} value={catFiltro} onChange={e => setCatFiltro(e.target.value)}>
-          <option value="">Todas as categorias</option>
-          {categorias.map(c => <option key={c}>{c}</option>)}
-        </select>
-      </div>
-      {loading ? <Spinner /> : filtrado.length === 0 ? <Empty text="Nenhum produto encontrado" /> : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:10 }}>
-          {filtrado.map(p => (
-            <div key={p.id} className="card" style={{ padding:12, display:'flex', flexDirection:'column', gap:6 }}>
-              {p.foto_url
-                ? <img src={p.foto_url} alt={p.nome} loading="lazy" style={{ width:'100%', height:120, objectFit:'cover', borderRadius:8, background:'var(--bg2)' }} />
-                : <div style={{ width:'100%', height:120, borderRadius:8, background:'var(--bg2)', display:'flex', alignItems:'center', justifyContent:'center' }}><ShoppingBag size={30} color="var(--t3)" strokeWidth={1.3} /></div>
-              }
-              <div style={{ fontWeight:600, fontSize:13 }}>{p.nome}</div>
-              {p.categoria && <div style={{ fontSize:11, color:'var(--t2)' }}>{p.categoria}</div>}
-              {p.referencia && <div style={{ fontSize:11, color:'var(--t3)' }}>Ref: {p.referencia}</div>}
-              <div style={{ fontWeight:700, color:'var(--green)', fontSize:15 }}>{fmtR(p.preco_venda)}</div>
-              {p.estoque_atual !== undefined && (
-                <div style={{ fontSize:11, color: (p.estoque_atual||0) > 0 ? 'var(--green)' : 'var(--red)' }}>
-                  {(p.estoque_atual||0) > 0 ? `${p.estoque_atual} em estoque` : 'Indisponível'}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      <Pagination page={page} totalPages={totalPages} total={total} setPage={setPage} />
-    </div>
-  )
-}
-
-// ============================================================
 // VENDAS / PDV
 // ============================================================
 function VendasLista({ onNovaVenda }) {
@@ -11299,7 +11251,7 @@ function AppContent() {
     os: <OrdensServico />,
     fila: <FilaLiberacao />,
     crm: <CRM />,
-    catalogo: <CatalogoPub />,
+    catalogo: <Suspense fallback={<Spinner />}><CatalogoPub /></Suspense>,
     nf: <NotaFiscal />,
     nps: <Suspense fallback={<Spinner />}><Nps /></Suspense>,
     relatorios: <Financeiro />,
