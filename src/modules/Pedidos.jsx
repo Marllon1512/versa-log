@@ -136,7 +136,13 @@ function PedidosInner({ openChatWith }) {
     nome_produto: p.nome_produto,
     quantidade: parseInt(p.quantidade) || 1,
     status_produto: p.status_produto || 'Pendente',
-    observacao: [p.medida && `Medida: ${p.medida}`, p.acabamento && `Acabamento: ${p.acabamento}`, p.observacao].filter(Boolean).join(' | ') || null,
+    observacao: [
+      p.isManual && p.preco && `Preço: R$ ${p.preco}`,
+      p.isManual && p.categoria && `Categoria: ${p.categoria}`,
+      p.medida && `Medida: ${p.medida}`,
+      p.acabamento && `Acabamento: ${p.acabamento}`,
+      p.observacao,
+    ].filter(Boolean).join(' | ') || null,
   })
 
   const handleCreate = async (dados) => {
@@ -962,13 +968,14 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
     ...inicial,
   })
   const [produtos, setProdutos] = useState(
-    inicial?.produtos?.length ? inicial.produtos : [{ nome_produto: '', quantidade: 1, acabamento: '', medida: '', observacao: '' }]
+    inicial?.produtos?.length ? inicial.produtos : [{ nome_produto: '', quantidade: 1, acabamento: '', medida: '', observacao: '', isManual: false }]
   )
   const [errors, setErrors] = useState({})
   const { run, loading } = useAction()
 
   const up = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }))
-  const addProd = () => setProdutos(p => [...p, { nome_produto: '', quantidade: 1, acabamento: '', medida: '', observacao: '' }])
+  const addProd = () => setProdutos(p => [...p, { nome_produto: '', quantidade: 1, acabamento: '', medida: '', observacao: '', isManual: false }])
+  const addProdManual = () => setProdutos(p => [...p, { nome_produto: '', quantidade: 1, preco: '', categoria: 'Móvel sob medida', observacao: '', isManual: true }])
   const remProd = (i) => setProdutos(p => p.filter((_, idx) => idx !== i))
   const upProd = (i, k, v) => setProdutos(p => p.map((pr, idx) => idx === i ? { ...pr, [k]: v } : pr))
 
@@ -976,8 +983,8 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
     const errs = {}
     if (!form.cliente) errs.cliente = 'Obrigatório'
     if (!form.endereco) errs.endereco = 'Obrigatório'
-    if (!form.data_entrega) errs.data_entrega = 'Obrigatório'
     if (!produtos.some(p => p.nome_produto.trim())) errs.produtos = 'Adicione ao menos um produto'
+    if (produtos.some(p => p.isManual && !String(p.preco || '').trim())) errs.produtos_preco = 'Informe o preço dos produtos manuais'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -1026,9 +1033,9 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
           <input className="fi" value={form.telefone} onChange={up('telefone')} placeholder="(31) 99999-9999" />
         </div>
         <div className="fg">
-          <label className="fl">Data de Entrega *</label>
-          <input className={`fi${errors.data_entrega ? ' fi-error' : ''}`} type="date" value={form.data_entrega} onChange={up('data_entrega')} />
-          {errors.data_entrega && <div className="field-error">{errors.data_entrega}</div>}
+          <label className="fl">Data de Entrega</label>
+          <input className="fi" type="date" value={form.data_entrega} onChange={up('data_entrega')} />
+          <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>Estimativa — pode ficar em branco. Setor de entregas confirma depois.</div>
         </div>
       </div>
       <div className="fg">
@@ -1059,24 +1066,42 @@ function NovoPedidoModal({ onClose, onSave, inicial, title }) {
       <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>Produtos *</div>
-          <Btn variant="secondary" size="sm" onClick={addProd}><Ic n="plus" s={12} /> Adicionar</Btn>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Btn variant="secondary" size="sm" onClick={addProd}><Ic n="plus" s={12} /> Catálogo</Btn>
+            <Btn variant="secondary" size="sm" onClick={addProdManual}><Ic n="plus" s={12} /> Produto manual</Btn>
+          </div>
         </div>
         {errors.produtos && <div className="field-error" style={{ marginBottom: 8 }}>{errors.produtos}</div>}
+        {errors.produtos_preco && <div className="field-error" style={{ marginBottom: 8 }}>{errors.produtos_preco}</div>}
         {produtos.map((pr, i) => (
-          <div key={i} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+          <div key={i} style={{ background: 'var(--bg2)', border: `1px solid ${pr.isManual ? 'var(--amber)' : 'var(--border)'}`, borderRadius: 8, padding: 10, marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>#{i+1}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>#{i+1}</span>
+                {pr.isManual && <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--amber)', color: '#000', borderRadius: 4, padding: '1px 6px' }}>Sob medida</span>}
+              </div>
               {produtos.length > 1 && <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => remProd(i)}><Ic n="trash" s={11} /></button>}
             </div>
             <div className="fg" style={{ marginBottom: 6 }}>
               <input className="fi" placeholder="Nome do produto *" value={pr.nome_produto} onChange={e => upProd(i, 'nome_produto', e.target.value)} />
             </div>
-            <div className="grid2" style={{ gap: 6 }}>
-              <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Qtd</label><input className="fi" type="number" min="1" value={pr.quantidade} onChange={e => upProd(i, 'quantidade', parseInt(e.target.value)||1)} /></div>
-              <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Medida</label><input className="fi" value={pr.medida} onChange={e => upProd(i, 'medida', e.target.value)} placeholder="Ex: 1.80x0.90" /></div>
-              <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Acabamento</label><input className="fi" value={pr.acabamento} onChange={e => upProd(i, 'acabamento', e.target.value)} /></div>
-              <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Obs.</label><input className="fi" value={pr.observacao} onChange={e => upProd(i, 'observacao', e.target.value)} /></div>
-            </div>
+            {pr.isManual ? (
+              <>
+                <div className="grid2" style={{ gap: 6 }}>
+                  <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Qtd</label><input className="fi" type="number" min="1" value={pr.quantidade} onChange={e => upProd(i, 'quantidade', parseInt(e.target.value)||1)} /></div>
+                  <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Preço (R$) *</label><input className={`fi${errors.produtos_preco && !String(pr.preco||'').trim() ? ' fi-error' : ''}`} type="number" min="0" step="0.01" placeholder="0,00" value={pr.preco} onChange={e => upProd(i, 'preco', e.target.value)} /></div>
+                </div>
+                <div className="fg" style={{ marginBottom: 0, marginTop: 6 }}><label className="fl">Categoria</label><input className="fi" value={pr.categoria} onChange={e => upProd(i, 'categoria', e.target.value)} placeholder="Móvel sob medida" /></div>
+                <div className="fg" style={{ marginBottom: 0, marginTop: 6 }}><label className="fl">Observações</label><textarea className="fi" rows={2} value={pr.observacao} onChange={e => upProd(i, 'observacao', e.target.value)} /></div>
+              </>
+            ) : (
+              <div className="grid2" style={{ gap: 6 }}>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Qtd</label><input className="fi" type="number" min="1" value={pr.quantidade} onChange={e => upProd(i, 'quantidade', parseInt(e.target.value)||1)} /></div>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Medida</label><input className="fi" value={pr.medida} onChange={e => upProd(i, 'medida', e.target.value)} placeholder="Ex: 1.80x0.90" /></div>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Acabamento</label><input className="fi" value={pr.acabamento} onChange={e => upProd(i, 'acabamento', e.target.value)} /></div>
+                <div className="fg" style={{ marginBottom: 0 }}><label className="fl">Obs.</label><input className="fi" value={pr.observacao} onChange={e => upProd(i, 'observacao', e.target.value)} /></div>
+              </div>
+            )}
           </div>
         ))}
       </div>

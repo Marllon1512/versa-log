@@ -765,6 +765,9 @@ textarea.fi { resize: vertical; min-height: 80px; }
 /* ── Global input modes ──────────────────────────────────── */
 input[type="tel"] { -webkit-appearance: none; }
 input[type="number"] { -webkit-appearance: none; -moz-appearance: textfield; }
+input[type="date"] { color-scheme: dark; }
+[data-theme="light"] input[type="date"],
+body.light-mode input[type="date"] { color-scheme: light; }
 
 /* ── Toast ──────────────────────────────────────────────── */
 @keyframes toastIn {
