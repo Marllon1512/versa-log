@@ -144,7 +144,8 @@ function PedidosInner({ openChatWith }) {
       const { produtos, ...raw } = dados
       await pedidosService.create(
         mapPedidoDB(raw),
-        (produtos || []).map(p => mapProdutoDB(p, null))
+        (produtos || []).map(p => mapProdutoDB(p, null)),
+        perfil
       )
       await reload()
       setShowNew(false)
@@ -342,6 +343,7 @@ const TIMELINE_ICONS = {
   confirmacao_fabrica:'🏭', recebimento_produto:'📦', conferencia:'🔍',
   separacao:'📋', agendamento:'📅', agendamento_entrega:'📅',
   entrega:'🏠', follow_up:'💬', anexo:'📎', edicao:'✏️',
+  cancelamento:'🚫', remarcacao:'📅', devolucao:'↩️', em_rota:'🚚',
 }
 const TIMELINE_COLORS = {
   criacao:'var(--accent)', aprovacao:'var(--green)', rejeicao:'var(--red)',
@@ -349,6 +351,7 @@ const TIMELINE_COLORS = {
   recebimento_produto:'var(--amber)', conferencia:'var(--accent)',
   separacao:'var(--amber)', agendamento:'var(--green)', agendamento_entrega:'var(--green)',
   entrega:'var(--green)', follow_up:'var(--accent)', anexo:'var(--t2)', edicao:'var(--amber)',
+  cancelamento:'var(--red)', remarcacao:'var(--amber)', devolucao:'var(--amber)', em_rota:'var(--blue)',
 }
 
 // ── Pedido Detalhe ────────────────────────────────────────
@@ -403,7 +406,9 @@ export function PedidoDetalhe({ pedidoId, onBack, openChatWith }) {
       await runAction(async () => {
         await pedidosService.update(pedidoId, { status: proximoStatus })
         await pedidosService.addHistorico(pedidoId, 'Status alterado', `Status alterado para ${proximoStatus}`, perfil)
-        reload(); reloadHist()
+        const _tipoStatus = { 'Pronto para Rota': 'conferencia', 'Em Rota': 'em_rota', 'Entregue': 'entrega' }[proximoStatus] || 'edicao'
+        await pedidosTimelineService.create({ pedido_id: pedidoId, usuario_id: perfil?.id || null, usuario_nome: perfil?.full_name || null, tipo: _tipoStatus, descricao: `Status alterado de ${pedido.status} para ${proximoStatus}` })
+        reload(); reloadHist(); reloadTimeline()
       })
       toast.success(`Status: ${proximoStatus}`)
     } catch (e) { console.error('[Pedido] avancar:', e); toast.error('Erro: ' + e.message) }
@@ -416,7 +421,8 @@ export function PedidoDetalhe({ pedidoId, onBack, openChatWith }) {
         await pedidosService.update(pedidoId, { entregador_id: entId, entregador_nome: entNome })
         await pedidosService.addHistorico(pedidoId, 'Status alterado',
           `Entregador alterado de ${anterior} para ${entNome}. Motivo: ${motivo || 'Não informado'}`, perfil)
-        reload(); reloadHist(); setShowTroca(false)
+        await pedidosTimelineService.create({ pedido_id: pedidoId, usuario_id: perfil?.id || null, usuario_nome: perfil?.full_name || null, tipo: 'edicao', descricao: `Entregador alterado de ${anterior} para ${entNome}. Motivo: ${motivo || 'Não informado'}` })
+        reload(); reloadHist(); reloadTimeline(); setShowTroca(false)
       })
       toast.success('Entregador atualizado!')
     } catch (e) { console.error('[Pedido] handleTroca:', e); toast.error('Erro: ' + e.message) }
@@ -521,7 +527,8 @@ export function PedidoDetalhe({ pedidoId, onBack, openChatWith }) {
         await pedidosService.update(pedidoId, { status: 'Remarcado', data_entrega: novaData })
         await pedidosService.addHistorico(pedidoId, 'Remarcado',
           `Entrega remarcada para ${new Date(novaData + 'T12:00').toLocaleDateString('pt-BR')}. Motivo: ${motivo || 'Não informado'}`, perfil)
-        reload(); reloadHist(); setShowRemarcar(false)
+        await pedidosTimelineService.create({ pedido_id: pedidoId, usuario_id: perfil?.id || null, usuario_nome: perfil?.full_name || null, tipo: 'remarcacao', descricao: `Entrega remarcada para ${new Date(novaData + 'T12:00').toLocaleDateString('pt-BR')}. Motivo: ${motivo || 'Não informado'}` })
+        reload(); reloadHist(); reloadTimeline(); setShowRemarcar(false)
       })
       toast.success('Entrega remarcada!')
     } catch (e) { console.error('[Pedido] handleRemarcar:', e); toast.error('Erro: ' + e.message) }
@@ -533,7 +540,8 @@ export function PedidoDetalhe({ pedidoId, onBack, openChatWith }) {
         await pedidosService.update(pedidoId, { status: 'Cancelado' })
         await pedidosService.addHistorico(pedidoId, 'Cancelado',
           `Pedido cancelado. Motivo: ${motivo || 'Não informado'}`, perfil)
-        reload(); reloadHist(); setShowCancelar(false)
+        await pedidosTimelineService.create({ pedido_id: pedidoId, usuario_id: perfil?.id || null, usuario_nome: perfil?.full_name || null, tipo: 'cancelamento', descricao: `Pedido cancelado. Motivo: ${motivo || 'Não informado'}` })
+        reload(); reloadHist(); reloadTimeline(); setShowCancelar(false)
       })
       toast.success('Pedido cancelado.')
     } catch (e) { console.error('[Pedido] handleCancelar:', e); toast.error('Erro: ' + e.message) }
@@ -582,7 +590,8 @@ export function PedidoDetalhe({ pedidoId, onBack, openChatWith }) {
               await devolucoesService.create({ pedido_id: pedido.id, cliente_nome: pedido.cliente, loja: pedido.local_separacao, registrado_por: perfil?.full_name, ...devForm })
               await pedidosService.update(pedido.id, { status: statusLabel, status_fluxo: statusFluxo })
               await pedidosService.addHistorico(pedido.id, statusLabel, `Devolução ${devForm.tipo} registrada. Motivo: ${devForm.motivo}`, perfil)
-              reload(); reloadHist(); setShowDevolucao(false)
+              await pedidosTimelineService.create({ pedido_id: pedido.id, usuario_id: perfil?.id || null, usuario_nome: perfil?.full_name || null, tipo: 'devolucao', descricao: `Devolução ${devForm.tipo} registrada. Motivo: ${devForm.motivo}` })
+              reload(); reloadHist(); reloadTimeline(); setShowDevolucao(false)
             })
             toast.success('Devolução registrada')
           } catch (e) { toast.error(e.message) }

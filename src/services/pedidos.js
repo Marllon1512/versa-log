@@ -108,7 +108,7 @@ export const pedidosService = {
     return data
   },
 
-  async create(pedido, produtos = []) {
+  async create(pedido, produtos = [], usuario = null) {
     const eid = getEmpresaId()
     const { numero_pedido: _np, ...rest } = pedido
     const pedidoData = eid ? { ...rest, empresa_id: eid } : rest
@@ -117,6 +117,10 @@ export const pedidosService = {
       p_produtos: produtos,
     })
     if (error) throw error
+    // data é o UUID do novo pedido quando o RPC o retorna
+    if (data && typeof data === 'string' && usuario) {
+      _timeline(data, usuario, 'criacao', `Pedido criado por ${usuario.full_name || usuario.email}`).catch(() => {})
+    }
     return data
   },
 
@@ -295,7 +299,7 @@ export const pedidosService = {
     const { error } = await q
     if (error) throw error
     const dataFmt = new Date(dataEntrega + 'T12:00').toLocaleDateString('pt-BR')
-    await _timeline(pedidoId, usuario, 'agendamento', `Entrega agendada para ${dataFmt}`)
+    await _timeline(pedidoId, usuario, 'agendamento_entrega', `Entrega agendada para ${dataFmt}`)
     await _notificarUsuario(vendedorId, 'pedido_agendado', 'Entrega agendada', `Pedido #${numeroPedido} agendado para ${dataFmt}`, pedidoId, usuario)
     _whatsapp(telefoneCliente, `Olá ${nomeCliente?.split(' ')[0] || 'cliente'}! Sua entrega do pedido #${numeroPedido} está agendada para o dia ${dataFmt}. Qualquer dúvida estamos à disposição! 😊`)
   },
