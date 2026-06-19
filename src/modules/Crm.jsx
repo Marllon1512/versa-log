@@ -23,22 +23,22 @@ const CRM_COLUNAS = [
 
 function CRMVisitas() {
   const { data: leads } = useData(() => crmService.list(), [])
-  const visitas = (leads||[]).filter(l => l.estagio === 'visita' || l.proxima_visita)
+  const visitas = (leads||[]).filter(l => l.estagio === 'visita' || l.proxima_acao)
   const hoje = new Date().toISOString().split('T')[0]
   return (
     <div>
       {visitas.length === 0 ? <Empty text="Nenhuma visita agendada" /> : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {visitas.sort((a,b) => (a.proxima_visita||'')>(b.proxima_visita||'')?1:-1).map(v => (
+          {visitas.sort((a,b) => (a.proxima_acao||'')>(b.proxima_acao||'')?1:-1).map(v => (
             <div key={v.id} className="card" style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
-              <div style={{ width:4, borderRadius:4, background: v.proxima_visita < hoje ? 'var(--red)' : 'var(--accent)', alignSelf:'stretch', flexShrink:0 }} />
+              <div style={{ width:4, borderRadius:4, background: v.proxima_acao < hoje ? 'var(--red)' : 'var(--accent)', alignSelf:'stretch', flexShrink:0 }} />
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600 }}>{v.nome}</div>
                 <div style={{ fontSize:12, color:'var(--t2)' }}>{v.loja} · {v.responsavel}</div>
-                {v.proxima_visita && <div style={{ fontSize:12, color: v.proxima_visita < hoje ? 'var(--red)' : 'var(--green)', marginTop:2 }}>📅 {new Date(v.proxima_visita).toLocaleDateString('pt-BR')}</div>}
-                {v.obs && <div style={{ fontSize:12, color:'var(--t2)', marginTop:2 }}>{v.obs}</div>}
+                {v.proxima_acao && <div style={{ fontSize:12, color: v.proxima_acao < hoje ? 'var(--red)' : 'var(--green)', marginTop:2 }}>📅 {new Date(v.proxima_acao).toLocaleDateString('pt-BR')}</div>}
+                {v.observacoes && <div style={{ fontSize:12, color:'var(--t2)', marginTop:2 }}>{v.observacoes}</div>}
               </div>
-              <Badge variant={v.proxima_visita < hoje ? 'bg-red' : 'bg-green'} style={{ fontSize:10 }}>{v.proxima_visita < hoje ? 'Atrasada' : 'Agendada'}</Badge>
+              <Badge variant={v.proxima_acao < hoje ? 'bg-red' : 'bg-green'} style={{ fontSize:10 }}>{v.proxima_acao < hoje ? 'Atrasada' : 'Agendada'}</Badge>
             </div>
           ))}
         </div>
@@ -55,7 +55,7 @@ function CRMKanban({ openNew, onOpenNewConsumed }) {
   )
   const { data: leads, loading, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn, 200)
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', telefone:'', email:'', loja:'', responsavel:'', estagio:'lead', valor_estimado:0, proxima_visita:'', obs:'' }
+  const empty = { nome:'', telefone:'', email:'', loja:'', responsavel:'', estagio:'lead', valor_estimado:0, proxima_acao:'', observacoes:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -107,7 +107,7 @@ function CRMKanban({ openNew, onOpenNewConsumed }) {
                       <div style={{ fontWeight:600, fontSize:13, marginBottom:2 }}>{lead.nome}</div>
                       {lead.loja && <div style={{ fontSize:11, color:'var(--t2)' }}>{lead.loja}</div>}
                       {lead.valor_estimado > 0 && <div style={{ fontSize:11, color:'var(--green)', fontWeight:600 }}>{fmtR(lead.valor_estimado)}</div>}
-                      {lead.proxima_visita && <div style={{ fontSize:10, color:'var(--accent)' }}>📅 {new Date(lead.proxima_visita).toLocaleDateString('pt-BR')}</div>}
+                      {lead.proxima_acao && <div style={{ fontSize:10, color:'var(--accent)' }}>📅 {new Date(lead.proxima_acao).toLocaleDateString('pt-BR')}</div>}
                       <div style={{ display:'flex', gap:4, marginTop:6, flexWrap:'wrap' }}>
                         {CRM_COLUNAS.filter(c => c.id !== col.id && c.id !== 'perdido').slice(0,2).map(c => (
                           <button key={c.id} className="btn btn-s" style={{ fontSize:10, padding:'2px 6px' }}
@@ -135,8 +135,8 @@ function CRMKanban({ openNew, onOpenNewConsumed }) {
               </select>
             </div>
             <div className="fg"><label className="fl">Valor estimado (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.valor_estimado||0} onChange={up('valor_estimado')} /></div>
-            <div className="fg"><label className="fl">Próxima visita</label><input className="fi" type="date" value={form.proxima_visita||''} onChange={up('proxima_visita')} /></div>
-            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Observações</label><textarea className="fi" rows={2} value={form.obs||''} onChange={up('obs')} /></div>
+            <div className="fg"><label className="fl">Próxima ação</label><input className="fi" type="date" value={form.proxima_acao||''} onChange={up('proxima_acao')} /></div>
+            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Observações</label><textarea className="fi" rows={2} value={form.observacoes||''} onChange={up('observacoes')} /></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
             <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
