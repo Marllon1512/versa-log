@@ -47,7 +47,7 @@ function Pagination({ page, totalPages, total, setPage }) {
 }
 
 function ModalDevolucao({ pedido, onClose, onConfirm }) {
-  const [form, setForm] = useState({ tipo:'total', motivo:'arrependimento', descricao:'', valor_devolvido:0, estoque_revertido:true, financeiro_revertido:true })
+  const [form, setForm] = useState({ tipo:'total', motivo:'arrependimento', valor_devolvido:0 })
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
   const MOTIVOS = ['arrependimento','defeito','medida errada','item incorreto','outro']
@@ -67,15 +67,6 @@ function ModalDevolucao({ pedido, onClose, onConfirm }) {
           </select>
         </div>
         <div className="fg"><label className="fl">Valor devolvido (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" min={0} value={form.valor_devolvido} onChange={up('valor_devolvido')} /></div>
-        <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Descrição</label><textarea className="fi" rows={2} value={form.descricao} onChange={up('descricao')} /></div>
-        <label className="fl" style={{ display:'flex', gap:8, alignItems:'center', cursor:'pointer' }}>
-          <input type="checkbox" checked={form.estoque_revertido} onChange={e => setForm(p => ({ ...p, estoque_revertido: e.target.checked }))} />
-          Reverter estoque
-        </label>
-        <label className="fl" style={{ display:'flex', gap:8, alignItems:'center', cursor:'pointer' }}>
-          <input type="checkbox" checked={form.financeiro_revertido} onChange={e => setForm(p => ({ ...p, financeiro_revertido: e.target.checked }))} />
-          Estornar financeiro
-        </label>
       </div>
       <div style={{ display:'flex', gap:8, marginTop:12 }}>
         <button className="btn btn-p" style={{ flex:1, background:'var(--red)' }} onClick={() => onConfirm(form)} disabled={act.loading}>Confirmar Devolução</button>
@@ -593,7 +584,7 @@ export function PedidoDetalhe({ pedidoId, onBack, openChatWith }) {
             await runAction(async () => {
               const statusFluxo = devForm.tipo === 'parcial' ? 'devolvido_parcial' : 'devolvido'
               const statusLabel = devForm.tipo === 'parcial' ? 'Devolvido Parcial' : 'Devolvido'
-              await devolucoesService.create({ pedido_id: pedido.id, cliente_nome: pedido.cliente, loja: pedido.local_separacao, registrado_por: perfil?.full_name, ...devForm })
+              await devolucoesService.create({ pedido_id: pedido.id, cliente: pedido.cliente, loja: pedido.local_separacao, criado_por: perfil?.full_name, ...devForm })
               await pedidosService.update(pedido.id, { status: statusLabel, status_fluxo: statusFluxo })
               await pedidosService.addHistorico(pedido.id, statusLabel, `Devolução ${devForm.tipo} registrada. Motivo: ${devForm.motivo}`, perfil)
               await pedidosTimelineService.create({ pedido_id: pedido.id, usuario_id: perfil?.id || null, usuario_nome: perfil?.full_name || null, tipo: 'devolucao', descricao: `Devolução ${devForm.tipo} registrada. Motivo: ${devForm.motivo}` })
