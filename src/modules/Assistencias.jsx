@@ -73,12 +73,10 @@ function AssistenciaProdutosAba({ itens }) {
       {itens.map(item => (
         <div className="card-sm" key={item.id} style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <div style={{ fontWeight: 500, fontSize: 13 }}>{item.produto}</div>
+            <div style={{ fontWeight: 500, fontSize: 13 }}>{item.descricao}</div>
             <Badge status={item.status} />
           </div>
-          <div style={{ fontSize: 12, color: 'var(--t2)' }}>{item.motivo}{item.fornecedor ? ` · ${item.fornecedor}` : ''}</div>
-          {item.descricao && <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 4 }}>{item.descricao}</div>}
-          {item.prazo && <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 6 }}>⏱ Prazo: {new Date(item.prazo + 'T12:00').toLocaleDateString('pt-BR')}</div>}
+          {item.fornecedor && <div style={{ fontSize: 12, color: 'var(--t2)' }}>{item.fornecedor}</div>}
         </div>
       ))}
     </div>
@@ -507,17 +505,16 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
   const { perfil } = useAuth()
   const [step, setStep] = useState(0)
   const [dados, setDados] = useState({ solicitante: perfil?.full_name || '', telefone: prefill?.telefone || '', numero_pedido: prefill?.numero_pedido || '', cliente: prefill?.cliente || '', loja: prefill?.loja || '' })
-  const [itens, setItens] = useState([{ id: 1, produto: '', fornecedor: '', motivo: '', descricao: '' }])
+  const [itens, setItens] = useState([{ id: 1, descricao: '', fornecedor: '' }])
   const { run, loading } = useAction()
 
-  const motivos = ['Avaria', 'Defeito de fabricação', 'Erro de acabamento', 'Item incorreto', 'Outros']
-  const addItem = () => setItens(prev => [...prev, { id: Date.now(), produto: '', fornecedor: '', motivo: '', descricao: '' }])
+  const addItem = () => setItens(prev => [...prev, { id: Date.now(), descricao: '', fornecedor: '' }])
   const remItem = (id) => setItens(prev => prev.filter(x => x.id !== id))
   const upItem = (id, k, v) => setItens(prev => prev.map(x => x.id === id ? { ...x, [k]: v } : x))
   const upDados = (k) => (e) => setDados(prev => ({ ...prev, [k]: e.target.value }))
 
   const canNext0 = dados.cliente.trim() && dados.solicitante.trim()
-  const canNext1 = itens.every(i => i.produto.trim() && i.motivo && i.descricao.trim())
+  const canNext1 = itens.every(i => i.descricao.trim())
 
   const handleSave = async () => {
     const prazo = new Date()
@@ -531,11 +528,11 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
         data_abertura: new Date().toISOString().split('T')[0],
         prazo: prazo.toISOString().split('T')[0],
         status: 'Aberto',
-        tipo_problema: itens[0]?.motivo || 'Outros',
+        tipo_problema: itens[0]?.descricao || 'Outros',
         observacoes: itens[0]?.descricao || '',
         responsavel_nome: dados.solicitante,
         origem: 'app',
-        itens: itens.map(({ id: _, ...rest }) => ({ ...rest, status: 'Aberto', prazo: prazo.toISOString().split('T')[0] })),
+        itens: itens.map(({ id: _, ...rest }) => ({ ...rest, status: 'Aberto' })),
       }))
     } catch {
       // error handled by parent handleCreate via toast
@@ -592,19 +589,8 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
                 {itens.length > 1 && <button className="btn btn-g btn-ico btn-sm" style={{ color: 'var(--red)' }} onClick={() => remItem(item.id)}><Ic n="trash" s={12} /></button>}
               </div>
               <div className="grid2">
-                <div className="fg"><label className="fl">Nome *</label><input className="fi" value={item.produto} onChange={e => upItem(item.id, 'produto', e.target.value)} placeholder="Ex: Sofá Bless" /></div>
+                <div className="fg"><label className="fl">Descrição *</label><input className="fi" value={item.descricao} onChange={e => upItem(item.id, 'descricao', e.target.value)} placeholder="Ex: Sofá Bless — descreva o problema" /></div>
                 <div className="fg"><label className="fl">Fornecedor</label><input className="fi" value={item.fornecedor} onChange={e => upItem(item.id, 'fornecedor', e.target.value)} /></div>
-              </div>
-              <div className="fg">
-                <label className="fl">Motivo *</label>
-                <select className="fi" value={item.motivo} onChange={e => upItem(item.id, 'motivo', e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {motivos.map(m => <option key={m}>{m}</option>)}
-                </select>
-              </div>
-              <div className="fg" style={{ marginBottom: 0 }}>
-                <label className="fl">Descrição *</label>
-                <textarea className="fi" rows={2} value={item.descricao} onChange={e => upItem(item.id, 'descricao', e.target.value)} placeholder="Descreva o problema..." />
               </div>
             </div>
           ))}
@@ -625,9 +611,8 @@ function NovaAssistenciaModal({ onClose, onSave, prefill }) {
           {itens.map((item, idx) => (
             <div className="card-sm" key={item.id} style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 11, color: 'var(--accent)', marginBottom: 5 }}>Produto {idx + 1}</div>
-              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 3 }}>{item.produto}</div>
-              <div style={{ fontSize: 12, color: 'var(--t2)' }}>{item.motivo} · {item.fornecedor || '—'}</div>
-              <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 3 }}>{item.descricao}</div>
+              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 3 }}>{item.descricao}</div>
+              {item.fornecedor && <div style={{ fontSize: 12, color: 'var(--t2)' }}>{item.fornecedor}</div>}
             </div>
           ))}
         </>
@@ -917,10 +902,8 @@ function AssistenciaInner() {
         for (const row of itemsNovas) {
           await supabase.from('assistencia_itens').insert({
             assistencia_id: existing.id,
-            produto: (row.produto || row.categoria || row.descricao || 'Item importado').trim(),
-            fornecedor: row.fornecedor || null, motivo: row.categoria || 'Outros',
-            descricao: row.descricao || null, status: 'Aberto',
-            prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+            descricao: (row.produto || row.categoria || row.descricao || 'Item importado').trim(),
+            fornecedor: row.fornecedor || null, status: 'Aberto',
           })
         }
         atualizadas++
@@ -959,10 +942,8 @@ function AssistenciaInner() {
             for (const row of lote[j].itens) {
               itemsPayload.push({
                 assistencia_id: inseridos[j].id,
-                produto: (row.produto || row.categoria || row.descricao || 'Item importado').trim(),
-                fornecedor: row.fornecedor || null, motivo: row.categoria || 'Outros',
-                descricao: row.descricao || null, status: 'Aberto',
-                prazo: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+                descricao: (row.produto || row.categoria || row.descricao || 'Item importado').trim(),
+                fornecedor: row.fornecedor || null, status: 'Aberto',
               })
             }
           }
