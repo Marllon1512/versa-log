@@ -12,7 +12,7 @@ import { Spinner, Empty, Modal, Alert, Badge } from '../components/ui/index'
 import { supabase } from '../lib/supabase'
 import { toast } from '../lib/toast'
 import {
-  consignacoesService, catalogoService, clientesService,
+  consignacoesService, clientesService,
   estoqueService, fornecedoresService,
 } from '../services/index'
 
@@ -42,29 +42,27 @@ function Pagination({ page, totalPages, total, setPage }) {
 }
 
 function ConsignacaoTab() {
-  const { perfil } = useAuth()
   const { data: lista, loading, reload } = useData(() => consignacoesService.list(), [])
   const [modal, setModal] = useState(null)
-  const { data: catalogo } = useData(() => catalogoService.list(), [])
   const { data: clientes } = useData(() => clientesService.list(), [])
-  const empty = { produto_nome:'', quantidade:1, cliente_nome:'', loja:'', data_saida:new Date().toISOString().split('T')[0], prazo_retorno:'', observacoes:'' }
+  const empty = { cliente_nome:'', loja:'', data_saida:new Date().toISOString().split('T')[0], data_retorno_prevista:'', observacoes:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
   const hoje = new Date().toISOString().split('T')[0]
 
-  const prazoAlert = (lista||[]).filter(c => c.status === 'em_aprovacao' && c.prazo_retorno && c.prazo_retorno <= new Date(Date.now() + 86400000).toISOString().split('T')[0])
+  const prazoAlert = (lista||[]).filter(c => c.status === 'em_aprovacao' && c.data_retorno_prevista && c.data_retorno_prevista <= new Date(Date.now() + 86400000).toISOString().split('T')[0])
 
   const salvar = async () => {
-    if (!form.produto_nome || !form.cliente_nome) return toast.error('Produto e cliente obrigatórios')
+    if (!form.cliente_nome) return toast.error('Cliente obrigatório')
     try {
-      await act.run(() => consignacoesService.create({ ...form, registrado_por: perfil?.full_name, status: 'em_aprovacao' }))
+      await act.run(() => consignacoesService.create({ ...form, status: 'em_aprovacao' }))
       toast.success('Consignação registrada'); setModal(null); reload()
     } catch (e) { toast.error(e.message) }
   }
 
   const atualizarStatus = async (id, status) => {
-    try { await act.run(() => consignacoesService.update(id, { status, devolvido_em: status === 'devolvido' ? hoje : null })); reload(); toast.success('Atualizado') } catch (e) { toast.error(e.message) }
+    try { await act.run(() => consignacoesService.update(id, { status, data_retorno_real: status === 'devolvido' ? hoje : null })); reload(); toast.success('Atualizado') } catch (e) { toast.error(e.message) }
   }
 
   const STATUS_COR = { em_aprovacao:'var(--amber)', aprovado:'var(--green)', devolvido:'var(--t2)', vencido:'var(--red)' }
@@ -82,12 +80,12 @@ function ConsignacaoTab() {
             <div key={c.id} className="card" style={{ borderLeft:`3px solid ${STATUS_COR[c.status]||'var(--border)'}` }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
                 <div>
-                  <div style={{ fontWeight:600 }}>{c.produto_nome} × {c.quantidade}</div>
-                  <div style={{ fontSize:12, color:'var(--t2)' }}>{c.cliente_nome} · {c.loja||'—'}</div>
+                  <div style={{ fontWeight:600 }}>{c.cliente_nome}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>{c.loja||'—'}</div>
                 </div>
                 <Badge variant="bg">{STATUS_LABEL[c.status]||c.status}</Badge>
               </div>
-              <div style={{ fontSize:12, color:'var(--t2)' }}>Saída: {c.data_saida} · Prazo: {c.prazo_retorno||'—'}{c.prazo_retorno && c.prazo_retorno < hoje && c.status==='em_aprovacao' ? ' ⚠️' : ''}</div>
+              <div style={{ fontSize:12, color:'var(--t2)' }}>Saída: {c.data_saida} · Prazo: {c.data_retorno_prevista||'—'}{c.data_retorno_prevista && c.data_retorno_prevista < hoje && c.status==='em_aprovacao' ? ' ⚠️' : ''}</div>
               {c.status === 'em_aprovacao' && (
                 <div style={{ display:'flex', gap:6, marginTop:8 }}>
                   <button className="btn btn-p btn-sm" onClick={() => atualizarStatus(c.id,'aprovado')}>✓ Vira Venda</button>
@@ -101,15 +99,7 @@ function ConsignacaoTab() {
       {modal && (
         <Modal title="Nova Consignação" onClose={() => setModal(null)}>
           <div className="grid2">
-            <div className="fg" style={{ gridColumn:'1/-1' }}>
-              <label className="fl">Produto *</label>
-              <select className="fi" value={form.produto_nome} onChange={e => setForm(p => ({ ...p, produto_nome: e.target.value }))}>
-                <option value="">Selecionar...</option>
-                {(catalogo||[]).map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-              </select>
-            </div>
-            <div className="fg"><label className="fl">Quantidade</label><input className="fi" type="number" min={1} value={form.quantidade} onChange={up('quantidade')} /></div>
-            <div className="fg"><label className="fl">Cliente *</label>
+            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Cliente *</label>
               <select className="fi" value={form.cliente_nome} onChange={e => setForm(p => ({ ...p, cliente_nome: e.target.value }))}>
                 <option value="">Selecionar...</option>
                 {(clientes||[]).map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
@@ -117,7 +107,7 @@ function ConsignacaoTab() {
             </div>
             <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
             <div className="fg"><label className="fl">Data saída</label><input className="fi" type="date" value={form.data_saida} onChange={up('data_saida')} /></div>
-            <div className="fg"><label className="fl">Prazo retorno</label><input className="fi" type="date" value={form.prazo_retorno} onChange={up('prazo_retorno')} /></div>
+            <div className="fg"><label className="fl">Prazo retorno</label><input className="fi" type="date" value={form.data_retorno_prevista} onChange={up('data_retorno_prevista')} /></div>
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Observações</label><textarea className="fi" rows={2} value={form.observacoes} onChange={up('observacoes')} /></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
