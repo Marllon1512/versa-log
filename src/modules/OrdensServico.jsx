@@ -40,16 +40,15 @@ export default function OrdensServico() {
   const act = useAction()
 
   const STATUS_COR = { aberta:'var(--amber)', em_andamento:'var(--blue)', concluida:'var(--green)', cancelada:'var(--red)' }
-  const PRIORIDADES = ['baixa','normal','alta','urgente']
 
-  const empty = { titulo:'', cliente:'', telefone:'', descricao:'', tecnico_responsavel:'', prioridade:'normal', status:'aberta', loja:'', previsao_conclusao:'', valor_orcamento:'', obs:'' }
+  const empty = { cliente:'', descricao:'', tecnico:'', status:'aberta', loja:'', valor:'' }
   const [form, setForm] = useState(empty)
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
   const salvar = async () => {
-    if (!form.titulo || !form.cliente) return toast.error('Título e cliente obrigatórios')
+    if (!form.cliente) return toast.error('Cliente obrigatório')
     try {
-      const payload = { ...form, valor_orcamento: parseFloat(form.valor_orcamento)||0 }
+      const payload = { cliente: form.cliente, descricao: form.descricao, tecnico: form.tecnico, status: form.status, loja: form.loja, valor: parseFloat(form.valor)||0 }
       if (!modal.item) await act.run(() => ordensServicoService.create(payload))
       else await act.run(() => ordensServicoService.update(modal.item.id, payload))
       toast.success('OS salva'); setModal(null); reload()
@@ -81,13 +80,12 @@ export default function OrdensServico() {
             <div key={os.id} className="card">
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
                 <div>
-                  <div style={{ fontWeight:600 }}>{os.titulo}</div>
-                  <div style={{ fontSize:12, color:'var(--t2)' }}>{os.cliente} · {os.loja} · {os.tecnico_responsavel || 'Sem técnico'}</div>
-                  {os.valor_orcamento > 0 && <div style={{ fontSize:12, color:'var(--accent)', fontWeight:600 }}>{fmtMoeda(os.valor_orcamento)}</div>}
+                  <div style={{ fontWeight:600 }}>{os.cliente}</div>
+                  <div style={{ fontSize:12, color:'var(--t2)' }}>{os.descricao} · {os.loja} · {os.tecnico || 'Sem técnico'}</div>
+                  {os.valor > 0 && <div style={{ fontSize:12, color:'var(--accent)', fontWeight:600 }}>{fmtMoeda(os.valor)}</div>}
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
                   <span style={{ fontSize:11, background:STATUS_COR[os.status]||'var(--t2)', color:'#fff', padding:'2px 8px', borderRadius:12 }}>{(os.status||'').replace('_',' ')}</span>
-                  <span style={{ fontSize:11, color:'var(--t2)' }}>{os.prioridade}</span>
                 </div>
               </div>
               <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -103,26 +101,17 @@ export default function OrdensServico() {
       {modal && (
         <Modal title={modal.item ? 'Editar O.S.' : 'Nova Ordem de Serviço'} onClose={() => setModal(null)}>
           <div className="grid2">
-            <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Título *</label><input className="fi" value={form.titulo} onChange={up('titulo')} /></div>
             <div className="fg"><label className="fl">Cliente *</label><input className="fi" value={form.cliente} onChange={up('cliente')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
+            <div className="fg"><label className="fl">Técnico</label><input className="fi" value={form.tecnico} onChange={up('tecnico')} /></div>
             <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
-            <div className="fg"><label className="fl">Técnico</label><input className="fi" value={form.tecnico_responsavel} onChange={up('tecnico_responsavel')} /></div>
-            <div className="fg"><label className="fl">Prioridade</label>
-              <select className="fi" value={form.prioridade} onChange={up('prioridade')}>
-                {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
-              </select>
-            </div>
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={form.status} onChange={up('status')}>
                 {['aberta','em_andamento','concluida','cancelada'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}
               </select>
             </div>
-            <div className="fg"><label className="fl">Previsão</label><input className="fi" type="date" value={form.previsao_conclusao} onChange={up('previsao_conclusao')} /></div>
-            <div className="fg"><label className="fl">Orçamento (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.valor_orcamento} onChange={up('valor_orcamento')} /></div>
+            <div className="fg"><label className="fl">Valor (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.valor} onChange={up('valor')} /></div>
           </div>
           <div className="fg"><label className="fl">Descrição</label><textarea className="fi" value={form.descricao} onChange={up('descricao')} rows={3} /></div>
-          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs} onChange={up('obs')} rows={2} /></div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
             <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
             <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
