@@ -61,13 +61,13 @@ function ComprasPrevisao() {
 
 function ModalCompra({ modal, onClose }) {
   const { data: forns } = useData(() => fornecedoresService.list(), [])
-  const empty = { fornecedor_id:'', fornecedor_nome:'', data_prevista:'', obs:'', status:'rascunho' }
+  const empty = { fornecedor_id:'', fornecedor_nome:'', previsao_entrega:'', observacoes:'', status:'rascunho' }
   const [form, setForm] = useState(modal.item ? { ...empty, ...modal.item } : empty)
-  const [itens, setItens] = useState(modal.item?.pedido_compra_itens || [{ descricao:'', quantidade:1, preco_unitario:0, unidade:'un' }])
+  const [itens, setItens] = useState(modal.item?.pedido_compra_itens || [{ descricao:'', quantidade:1, preco_unitario:0 }])
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
   const upItem = (idx, k, v) => setItens(p => p.map((it,i) => i===idx ? { ...it, [k]: v } : it))
-  const addItem = () => setItens(p => [...p, { descricao:'', quantidade:1, preco_unitario:0, unidade:'un' }])
+  const addItem = () => setItens(p => [...p, { descricao:'', quantidade:1, preco_unitario:0 }])
   const remItem = (idx) => setItens(p => p.filter((_,i) => i!==idx))
   const total = itens.reduce((s,i) => s + ((parseFloat(i.preco_unitario)||0) * (parseInt(i.quantidade)||0)), 0)
   const fmtMoeda = (v) => (parseFloat(v)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })
@@ -75,10 +75,10 @@ function ModalCompra({ modal, onClose }) {
   const salvar = async () => {
     if (!form.fornecedor_nome) return toast.error('Fornecedor obrigatório')
     try {
-      const payload = { ...form, total }
+      const payload = { ...form, valor_total: total }
       if (modal.mode === 'new') {
         const criado = await act.run(() => comprasService.create(payload))
-        const itensSave = itens.map(i => ({ ...i, pedido_compra_id: criado.id, quantidade: parseInt(i.quantidade)||1, preco_unitario: parseFloat(i.preco_unitario)||0 }))
+        const itensSave = itens.map(({ unidade: _u, ...i }) => ({ ...i, pedido_compra_id: criado.id, quantidade: parseInt(i.quantidade)||1, preco_unitario: parseFloat(i.preco_unitario)||0 }))
         await comprasService.createItens(itensSave)
       } else {
         await act.run(() => comprasService.update(modal.item.id, payload))
@@ -101,7 +101,7 @@ function ModalCompra({ modal, onClose }) {
           </select>
           {!form.fornecedor_id && <input className="fi" style={{ marginTop:4 }} value={form.fornecedor_nome} onChange={up('fornecedor_nome')} placeholder="Ou digitar nome" />}
         </div>
-        <div className="fg"><label className="fl">Entrega prevista</label><input className="fi" type="date" value={form.data_prevista||''} onChange={up('data_prevista')} /></div>
+        <div className="fg"><label className="fl">Entrega prevista</label><input className="fi" type="date" value={form.previsao_entrega||''} onChange={up('previsao_entrega')} /></div>
       </div>
       <div style={{ fontWeight:600, margin:'12px 0 8px' }}>Itens</div>
       {itens.map((it, idx) => (
@@ -114,7 +114,7 @@ function ModalCompra({ modal, onClose }) {
       ))}
       <button className="btn btn-s btn-sm" onClick={addItem} style={{ marginBottom:8 }}>+ Item</button>
       <div style={{ textAlign:'right', fontWeight:600, marginBottom:12 }}>Total: {fmtMoeda(total)}</div>
-      <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs||''} onChange={up('obs')} rows={2} /></div>
+      <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes||''} onChange={up('observacoes')} rows={2} /></div>
       <div style={{ display:'flex', gap:8, marginTop:8 }}>
         <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
         <button className="btn btn-s" onClick={onClose}>Cancelar</button>
@@ -174,14 +174,14 @@ export default function Compras() {
                       <div style={{ fontSize:12, color:'var(--t2)' }}>{new Date(c.created_at).toLocaleDateString('pt-BR')} · {c.pedido_compra_itens?.length||0} itens</div>
                     </div>
                     <div style={{ textAlign:'right' }}>
-                      <div style={{ fontWeight:700 }}>{fmtMoeda(c.total)}</div>
+                      <div style={{ fontWeight:700 }}>{fmtMoeda(c.valor_total)}</div>
                       <span style={{ fontSize:11, background:STATUS_COR[c.status]||'var(--t2)', color:'#fff', padding:'2px 8px', borderRadius:12 }}>{c.status}</span>
                     </div>
                   </div>
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                     {c.status === 'rascunho' && <button className="btn btn-p btn-sm" onClick={() => atualizar(c.id,{status:'enviado'})}>Enviar ao Fornecedor</button>}
                     {c.status === 'enviado' && <button className="btn btn-p btn-sm" onClick={() => atualizar(c.id,{status:'confirmado'})}>Marcar Confirmado</button>}
-                    {c.status === 'confirmado' && <button className="btn btn-p btn-sm" onClick={() => atualizar(c.id,{status:'recebido', data_recebimento: new Date().toISOString().split('T')[0]})}>Recebido</button>}
+                    {c.status === 'confirmado' && <button className="btn btn-p btn-sm" onClick={() => atualizar(c.id,{status:'recebido'})}>Recebido</button>}
                     <button className="btn btn-s btn-sm" onClick={() => setModal({ mode:'edit', item:c })}>Ver/Editar</button>
                   </div>
                 </div>
