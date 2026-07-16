@@ -67,8 +67,7 @@ function VendaDetalhe({ venda, onClose }) {
           <div><span style={{ color:'var(--t2)' }}>Vendedor:</span> {v.vendedor_nome}</div>
           <div><span style={{ color:'var(--t2)' }}>Pagamento:</span> {v.forma_pagamento}</div>
           <div><span style={{ color:'var(--t2)' }}>Status:</span> <span style={{ textTransform:'capitalize' }}>{(v.status||'').replace('_',' ')}</span></div>
-          <div><span style={{ color:'var(--t2)' }}>Subtotal:</span> {fmtMoeda(v.subtotal)}</div>
-          <div><span style={{ color:'var(--t2)' }}>Desconto:</span> {v.desconto_perc||0}% ({fmtMoeda(v.desconto_valor)})</div>
+          <div><span style={{ color:'var(--t2)' }}>Desconto:</span> {v.desconto||0}%</div>
           <div style={{ fontWeight:700, fontSize:16, gridColumn:'1/-1' }}>Total: {fmtMoeda(v.total)}</div>
         </div>
       </div>
@@ -171,14 +170,14 @@ function Orcamentos() {
     if (!form.cliente_nome) return toast.error('Cliente obrigatório')
     const expira = new Date(); expira.setDate(expira.getDate()+(parseInt(form.validade_dias)||7))
     try {
-      await act.run(() => orcamentosService.create({ ...form, itens, subtotal, total, desconto_percentual: descPerc, expira_em: expira.toISOString().split('T')[0] }))
+      await act.run(() => orcamentosService.create({ ...form, itens, total, desconto_percentual: descPerc, validade: expira.toISOString().split('T')[0] }))
       toast.success('Orçamento salvo'); setModal(null); reload()
     } catch(e) { toast.error(e.message) }
   }
 
   const converter = async (orc) => {
     try {
-      const nova = await vendasService.create({ cliente_nome: orc.cliente_nome, loja: orc.loja, vendedor_nome: orc.vendedor_nome, vendedor_id: perfil?.id, subtotal: orc.subtotal, desconto_perc: orc.desconto_percentual, desconto_valor: orc.subtotal-orc.total, total: orc.total, obs: orc.observacoes, status: 'aprovado', forma_pagamento:'' })
+      const nova = await vendasService.create({ cliente_nome: orc.cliente_nome, loja: orc.loja, vendedor_nome: orc.vendedor_nome, vendedor_id: perfil?.id, desconto: orc.desconto_percentual, total: orc.total, observacoes: orc.observacoes, status: 'aprovado', forma_pagamento:'' })
       if (orc.itens?.length) await vendasService.createItens(orc.itens.map(i=>({...i,venda_id:nova.id})))
       await orcamentosService.update(orc.id, { status:'aprovado' })
       toast.success('Convertido em venda!'); reload()
@@ -197,7 +196,7 @@ function Orcamentos() {
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                 <div>
                   <div style={{fontWeight:600}}>{o.cliente_nome}</div>
-                  <div style={{fontSize:12,color:'var(--t2)'}}>{o.loja} · {o.vendedor_nome} · validade: {o.expira_em ? new Date(o.expira_em+'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
+                  <div style={{fontSize:12,color:'var(--t2)'}}>{o.loja} · {o.vendedor_nome} · validade: {o.validade ? new Date(o.validade+'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
                 </div>
                 <div style={{textAlign:'right'}}>
                   <div style={{fontWeight:700}}>{fmtR(o.total)}</div>
@@ -209,8 +208,8 @@ function Orcamentos() {
                 {o.status==='rascunho' && <button className="btn btn-s btn-sm" onClick={()=>orcamentosService.update(o.id,{status:'enviado'}).then(reload)}>Enviar ao Cliente</button>}
                 <button className="btn btn-s btn-sm" onClick={()=>{
                   const tel = o.whatsapp || ''
-                  const msg = encodeURIComponent(`Olá ${o.cliente_nome}, segue seu orçamento:\n\n${(o.itens||[]).map(i=>`• ${i.nome} x${i.quantidade} — ${fmtR(i.preco_unitario*i.quantidade)}`).join('\n')}\n\nTotal: ${fmtR(o.total)}\nValidade: ${o.expira_em ? new Date(o.expira_em+'T12:00').toLocaleDateString('pt-BR') : 'N/A'}`)
-                  window.open(`https://wa.me/?text=${msg}`,'_blank')
+                  const msg = encodeURIComponent(`Olá ${o.cliente_nome}, segue seu orçamento:\n\n${(o.itens||[]).map(i=>`• ${i.nome} x${i.quantidade} — ${fmtR(i.preco_unitario*i.quantidade)}`).join('\n')}\n\nTotal: ${fmtR(o.total)}\nValidade: ${o.validade ? new Date(o.validade+'T12:00').toLocaleDateString('pt-BR') : 'N/A'}`)
+                  window.open(`https://wa.me/?text=${msg}`, '_blank')
                 }}>Enviar WhatsApp</button>
               </div>
             </div>
@@ -273,7 +272,7 @@ function NovaVenda({ onClose }) {
   const { data: acabamentos } = useData(() => acabamentosService.list(), [])
   const { data: tecidos } = useData(() => tecidosService.list(), [])
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ cliente_id:'', cliente_nome:'', loja: lojaEf || '', vendedor_nome: perfil?.full_name || '', obs:'' })
+  const [form, setForm] = useState({ cliente_id:'', cliente_nome:'', loja: lojaEf || '', vendedor_nome: perfil?.full_name || '', observacoes:'' })
   const [itens, setItens] = useState([])
   const [desconto, setDesconto] = useState(0)
   const [motivo, setMotivo] = useState('')
@@ -310,12 +309,9 @@ function NovaVenda({ onClose }) {
         loja: form.loja,
         vendedor_nome: form.vendedor_nome,
         vendedor_id: perfil?.id,
-        subtotal, desconto_perc: desconto, desconto_valor: totalDesc, total,
-        motivo_desconto: motivo,
+        desconto, total,
         forma_pagamento: pagamento.forma,
-        parcelas: pagamento.parcelas,
-        entrada: parseFloat(pagamento.entrada)||0,
-        obs: form.obs,
+        observacoes: form.observacoes,
         status,
       }))
       if (itens.length) await vendasService.createItens(itens.map(it => ({ ...it, venda_id: nova.id })))
@@ -522,7 +518,7 @@ function NovaVenda({ onClose }) {
           {pagamento.forma === 'Financiamento' && (
             <div className="fg"><label className="fl">Entrada (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={pagamento.entrada} onChange={e => setPagamento(p => ({ ...p, entrada: e.target.value }))} /></div>
           )}
-          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs} onChange={up('obs')} rows={2} /></div>
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes} onChange={up('observacoes')} rows={2} /></div>
           <div style={{ display:'flex', gap:8, marginTop:16 }}>
             <button className="btn btn-s" onClick={() => setStep(3)}>← Voltar</button>
             <button className="btn btn-p" style={{ flex:1 }} disabled={!pagamento.forma} onClick={() => setStep(5)}>Próximo →</button>
@@ -537,7 +533,6 @@ function NovaVenda({ onClose }) {
             <div><span style={{ color:'var(--t2)' }}>Cliente:</span> {form.cliente_nome}</div>
             <div><span style={{ color:'var(--t2)' }}>Loja:</span> {form.loja}</div>
             <div><span style={{ color:'var(--t2)' }}>Itens:</span> {itens.length} produtos</div>
-            <div><span style={{ color:'var(--t2)' }}>Subtotal:</span> {fmtMoeda(subtotal)}</div>
             {desconto > 0 && <div><span style={{ color:'var(--t2)' }}>Desconto:</span> {desconto}% ({fmtMoeda(totalDesc)})</div>}
             <div style={{ fontWeight:700, fontSize:16 }}>Total: {fmtMoeda(total)}</div>
             <div><span style={{ color:'var(--t2)' }}>Pagamento:</span> {pagamento.forma}{pagamento.parcelas > 1 ? ` em ${pagamento.parcelas}x` : ''}</div>
