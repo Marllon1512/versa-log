@@ -514,7 +514,6 @@ function FinanceiroResumo() {
 }
 
 function FinanceiroLista({ tipo }) {
-  const { lojas } = useLojaFiltro()
   const lojaEf = useEffectiveLoja()
   const queryFn = useCallback(
     ({ search, from, to }) => tipo === 'receber'
@@ -524,8 +523,8 @@ function FinanceiroLista({ tipo }) {
   )
   const { data: lista, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const [modal, setModal] = useState(null)
-  const CENTROS_CUSTO = ['Grupo Versa','Administrativo','Logística',...(lojas ?? []).map(l => l.nome)]
-  const empty = { descricao:'', valor:'', vencimento:'', categoria:'', cliente_fornecedor:'', status:'pendente', obs:'', loja:'', centro_custo:'' }
+  const nomeCampo = tipo === 'receber' ? 'cliente_nome' : 'fornecedor_nome'
+  const empty = { descricao:'', valor:'', vencimento:'', [nomeCampo]:'', status:'pendente', observacoes:'', loja:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -555,9 +554,6 @@ function FinanceiroLista({ tipo }) {
     } catch (e) { toast.error(e.message) }
   }
 
-  const CATS_REC = ['Venda','Serviço','Aluguel','Outros']
-  const CATS_PAG = ['Fornecedor','Aluguel','Salário','Impostos','Serviços','Outros']
-  const CATS = tipo === 'receber' ? CATS_REC : CATS_PAG
 
   return (
     <div>
@@ -575,7 +571,7 @@ function FinanceiroLista({ tipo }) {
                   {item.status === 'pago' && <Badge variant="bg-green">Pago</Badge>}
                   {item.status !== 'pago' && item.vencimento < hoje && <Badge variant="bg-red">Vencido</Badge>}
                 </div>
-                <div style={{ fontSize:12, color:'var(--t2)' }}>{item.cliente_fornecedor} · Venc: {item.vencimento ? new Date(item.vencimento+'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{item.cliente_nome || item.fornecedor_nome} · Venc: {item.vencimento ? new Date(item.vencimento+'T12:00').toLocaleDateString('pt-BR') : '—'}</div>
               </div>
               <div style={{ textAlign:'right' }}>
                 <div style={{ fontWeight:700 }}>{fmtMoeda(item.valor)}</div>
@@ -593,20 +589,8 @@ function FinanceiroLista({ tipo }) {
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Descrição *</label><input className="fi" value={form.descricao} onChange={up('descricao')} /></div>
             <div className="fg"><label className="fl">Valor (R$) *</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.valor} onChange={up('valor')} /></div>
             <div className="fg"><label className="fl">Vencimento *</label><input className="fi" type="date" value={form.vencimento} onChange={up('vencimento')} /></div>
-            <div className="fg"><label className="fl">{tipo==='receber'?'Cliente':'Fornecedor'}</label><input className="fi" value={form.cliente_fornecedor} onChange={up('cliente_fornecedor')} /></div>
-            <div className="fg"><label className="fl">Categoria</label>
-              <select className="fi" value={form.categoria} onChange={up('categoria')}>
-                <option value="">—</option>
-                {CATS.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
+            <div className="fg"><label className="fl">{tipo==='receber'?'Cliente':'Fornecedor'}</label><input className="fi" value={form[nomeCampo]||''} onChange={up(nomeCampo)} /></div>
             <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja||''} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
-            <div className="fg"><label className="fl">Centro de Custo</label>
-              <select className="fi" value={form.centro_custo||''} onChange={up('centro_custo')}>
-                <option value="">—</option>
-                {CENTROS_CUSTO.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={form.status} onChange={up('status')}>
                 <option value="pendente">Pendente</option>
@@ -615,7 +599,7 @@ function FinanceiroLista({ tipo }) {
               </select>
             </div>
           </div>
-          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.obs} onChange={up('obs')} rows={2} /></div>
+          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes||''} onChange={up('observacoes')} rows={2} /></div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
             <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
             <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
