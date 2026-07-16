@@ -109,19 +109,25 @@ function CadClientes() {
   const queryFn = useCallback(({ search, from, to }) => clientesService.listPaged({ search, from, to }), [])
   const { data: paged, loading, total, page, setPage, totalPages, search: busca, setSearch: setBusca, reload } = useServerPagination(queryFn)
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', cpf_cnpj:'', telefone:'', email:'', endereco:'', cidade:'', estado:'', cep:'', observacoes:'' }
+  const empty = { nome:'', cpf_cnpj:'', telefone:'', email:'', endereco:'', cidade:'', cep:'', observacoes:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
 
   const abrirNovo = () => { setForm(empty); setModal({ mode:'new' }) }
-  const abrirEdit = (it) => { setForm({ ...empty, ...it }); setModal({ mode:'edit', item: it }) }
+  const abrirEdit = (it) => { setForm({ ...empty, ...it, cpf_cnpj: it.cpf || it.cnpj || '' }); setModal({ mode:'edit', item: it }) }
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
   const salvar = async () => {
     if (!form.nome.trim()) return toast.error('Nome obrigatório')
     try {
-      if (modal.mode === 'new') await act.run(() => clientesService.create({ ...form }))
-      else await act.run(() => clientesService.update(modal.item.id, form))
+      const docNumeros = (form.cpf_cnpj || '').replace(/\D/g, '')
+      const docPayload = docNumeros.length <= 11
+        ? { cpf: form.cpf_cnpj || null, cnpj: null }
+        : { cpf: null, cnpj: form.cpf_cnpj || null }
+      const { cpf_cnpj: _doc, ...rest } = form
+      const payload = { ...rest, ...docPayload }
+      if (modal.mode === 'new') await act.run(() => clientesService.create(payload))
+      else await act.run(() => clientesService.update(modal.item.id, payload))
       toast.success('Salvo com sucesso')
       setModal(null)
       reload()
@@ -146,7 +152,7 @@ function CadClientes() {
             <div key={c.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{c.nome}</div>
-                <div style={{ fontSize:12, color:'var(--t2)' }}>{[c.cpf_cnpj, c.telefone, c.cidade].filter(Boolean).join(' · ')}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{[c.cpf || c.cnpj, c.telefone, c.cidade].filter(Boolean).join(' · ')}</div>
               </div>
               <button className="btn btn-s btn-sm" onClick={() => setModal({ mode:'historico', item:c })}>Histórico</button>
               <button className="btn btn-s btn-sm" onClick={() => abrirEdit(c)}>Editar</button>
@@ -561,7 +567,7 @@ function CadConfigSistema() {
 function CadLojas() {
   const { data: lista, loading, reload } = useData(() => lojasService.list(), [])
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', cnpj:'', telefone:'', endereco:'', cidade:'', responsavel:'', ativa:true, logo_url:'' }
+  const empty = { nome:'', telefone:'', endereco:'', logo_url:'' }
   const [form, setForm] = useState(empty)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const act = useAction()
@@ -606,9 +612,8 @@ function CadLojas() {
               }
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{l.nome}</div>
-                <div style={{ fontSize:12, color:'var(--t2)' }}>{l.cnpj || 'Sem CNPJ'} · {l.cidade || '—'}</div>
+                {l.telefone && <div style={{ fontSize:12, color:'var(--t2)' }}>{l.telefone}</div>}
               </div>
-              <Badge variant={l.ativa===false?'bg':'bg-green'}>{l.ativa===false?'Inativa':'Ativa'}</Badge>
               <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...l }); setModal({ item:l }) }}>Editar</button>
             </div>
           ))}
@@ -632,16 +637,8 @@ function CadLojas() {
           </div>
           <div className="grid2">
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
-            <div className="fg"><label className="fl">CNPJ</label><input className="fi" value={form.cnpj||''} onChange={up('cnpj')} /></div>
             <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
-            <div className="fg"><label className="fl">Cidade</label><input className="fi" value={form.cidade||''} onChange={up('cidade')} /></div>
-            <div className="fg"><label className="fl">Responsável</label><input className="fi" value={form.responsavel||''} onChange={up('responsavel')} /></div>
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Endereço</label><input className="fi" value={form.endereco||''} onChange={up('endereco')} /></div>
-            <div className="fg"><label className="fl">Status</label>
-              <select className="fi" value={form.ativa===false?'false':'true'} onChange={e => setForm(p => ({ ...p, ativa: e.target.value === 'true' }))}>
-                <option value="true">Ativa</option><option value="false">Inativa</option>
-              </select>
-            </div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
             <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>

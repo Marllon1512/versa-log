@@ -309,7 +309,7 @@ export const clientesService = {
     const eid = getEmpresaId()
     let q = supabase.from('clientes').select('*', { count: 'exact' })
     if (eid) q = q.eq('empresa_id', eid)
-    if (search) q = q.or(`nome.ilike.%${search}%,cpf_cnpj.ilike.%${search}%,telefone.ilike.%${search}%`)
+    if (search) q = q.or(`nome.ilike.%${search}%,cpf.ilike.%${search}%,cnpj.ilike.%${search}%,telefone.ilike.%${search}%`)
     q = q.order('nome', { ascending: true }).range(from, to)
     const { data, count, error } = await q
     if (error) throw error
