@@ -449,20 +449,15 @@ export const catalogoService = {
 }
 
 // ── Configurações do Sistema ──────────────────────────────
-// Nota: para multi-empresa a tabela precisa ter empresa_id como chave discriminadora
 const CFG_ID = '00000000-0000-0000-0000-000000000001'
 export const configSistemaService = {
   async get() {
-    const eid = getEmpresaId()
-    let q = supabase.from('configuracoes').select('*').eq('chave', 'sistema')
-    if (eid) q = q.eq('empresa_id', eid)
-    const { data, error } = await q.maybeSingle()
+    const { data, error } = await supabase.from('configuracoes').select('*').eq('id', CFG_ID).maybeSingle()
     if (error) throw error
     return data || {}
   },
   async save(updates) {
-    const eid = getEmpresaId()
-    const payload = { id: CFG_ID, chave: 'sistema', ...updates, ...(eid ? { empresa_id: eid } : {}) }
+    const payload = { id: CFG_ID, ...updates }
     const { data, error } = await supabase
       .from('configuracoes')
       .upsert(payload, { onConflict: 'id' })

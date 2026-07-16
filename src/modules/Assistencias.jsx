@@ -930,7 +930,7 @@ function AssistenciaInner() {
       try {
         const { data: inseridos, error } = await supabase
           .from('assistencias')
-          .upsert(payload, { onConflict: 'pedido_ref,cliente', ignoreDuplicates: false })
+          .insert(payload)
           .select('id, cliente, pedido_ref')
 
         if (error) {
