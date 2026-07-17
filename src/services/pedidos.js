@@ -28,9 +28,7 @@ async function _notificarUsuario(usuarioId, tipo, titulo, mensagem, pedidoId, or
 
 async function _notificarPerfil(loja, perfis, tipo, titulo, mensagem, pedidoId, origem) {
   if (!loja || !perfis?.length) return
-  const eid = getEmpresaId()
   let q = supabase.from('usuarios').select('id').eq('loja', loja).in('perfil', perfis)
-  if (eid) q = q.eq('empresa_id', eid)
   const { data } = await q
   if (!data?.length) return
   await supabase.from('notificacoes').insert(data.map(u => ({
@@ -53,9 +51,7 @@ function _whatsapp(telefone, mensagem) {
 
 export const pedidosService = {
   async list(filters = {}) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').select('*').order('created_at', { ascending: false })
-    if (eid) q = q.eq('empresa_id', eid)
     if (filters.status) q = q.eq('status', filters.status)
     if (filters.data_entrega) q = q.eq('data_entrega', filters.data_entrega)
     if (filters.entregador_id) q = q.eq('entregador_id', filters.entregador_id)
@@ -68,9 +64,7 @@ export const pedidosService = {
   },
 
   async listPaged({ search = '', from = 0, to = 99, status, lojas, loja_filtro, fluxoFil, data_entrega_from, data_entrega_to, status_excluir } = {}) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').select('*', { count: 'exact' })
-    if (eid) q = q.eq('empresa_id', eid)
     if (search) q = q.or(`numero_pedido.ilike.%${search}%,cliente.ilike.%${search}%`)
     if (status && status !== 'Todos') q = q.eq('status', status)
     if (lojas && lojas.length > 0) q = q.in('local_separacao', lojas)
@@ -100,20 +94,16 @@ export const pedidosService = {
   },
 
   async getById(id) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').select('*, produtos(*)').eq('id', id)
-    if (eid) q = q.eq('empresa_id', eid)
     const { data, error } = await q.single()
     if (error) throw error
     return data
   },
 
   async create(pedido, produtos = [], usuario = null) {
-    const eid = getEmpresaId()
     const { numero_pedido: _np, ...rest } = pedido
-    const pedidoData = eid ? { ...rest, empresa_id: eid } : rest
     const { data, error } = await supabase.rpc('criar_pedido_com_produtos', {
-      p_pedido: pedidoData,
+      p_pedido: rest,
       p_produtos: produtos,
     })
     if (error) throw error
@@ -125,29 +115,21 @@ export const pedidosService = {
   },
 
   async importLote(lote) {
-    const eid = getEmpresaId()
-    const loteComEmpresa = eid
-      ? lote.map(item => ({ ...item, pedido: { ...item.pedido, empresa_id: eid } }))
-      : lote
-    const { error } = await supabase.rpc('importar_pedidos_lote', { p_lote: loteComEmpresa })
+    const { error } = await supabase.rpc('importar_pedidos_lote', { p_lote: lote })
     if (error) throw error
   },
 
   async update(id, updates) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
-    if (eid) q = q.eq('empresa_id', eid)
     const { data, error } = await q.select().single()
     if (error) throw error
     return data
   },
 
   async remove(id) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').delete().eq('id', id)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     return true
@@ -177,9 +159,7 @@ export const pedidosService = {
 
   // ── Fluxo de aprovação ────────────────────────────────
   async submeterParaAprovacao(pedidoId, usuario, { loja, numeroPedido }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({ status_fluxo: 'aguardando_gerente' }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'criacao', `Pedido #${numeroPedido} submetido para aprovação do gerente`)
@@ -187,13 +167,11 @@ export const pedidosService = {
   },
 
   async aprovarGerente(pedidoId, usuario, { loja, numeroPedido }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({
       status_fluxo: 'aguardando_financeiro',
       aprovado_gerente_por: usuario.id,
       aprovado_gerente_em: new Date().toISOString(),
     }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'aprovacao', `Aprovado pelo gerente ${usuario.full_name}`)
@@ -201,12 +179,10 @@ export const pedidosService = {
   },
 
   async rejeitarGerente(pedidoId, usuario, { motivo, numeroPedido, vendedorId }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({
       status_fluxo: 'rejeitado_gerente',
       rejeitado_gerente_motivo: motivo,
     }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'rejeicao', `Rejeitado pelo gerente: ${motivo}`)
@@ -214,13 +190,11 @@ export const pedidosService = {
   },
 
   async aprovarFinanceiro(pedidoId, usuario, { loja, numeroPedido, telefonesFabrica, linkConfirmacao }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({
       status_fluxo: 'aguardando_fabrica',
       aprovado_financeiro_por: usuario.id,
       aprovado_financeiro_em: new Date().toISOString(),
     }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'aprovacao', `Aprovado financeiramente por ${usuario.full_name}`)
@@ -230,12 +204,10 @@ export const pedidosService = {
   },
 
   async rejeitarFinanceiro(pedidoId, usuario, { motivo, numeroPedido, vendedorId, loja }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({
       status_fluxo: 'rejeitado_financeiro',
       rejeitado_financeiro_motivo: motivo,
     }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'rejeicao', `Rejeitado pelo financeiro: ${motivo}`)
@@ -249,9 +221,7 @@ export const pedidosService = {
     const updates = isRejGerente
       ? { status_fluxo: novoStatus, rejeitado_gerente_motivo: null }
       : { status_fluxo: novoStatus, rejeitado_financeiro_motivo: null }
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update(updates).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'edicao', `Pedido #${numeroPedido} corrigido e reenviado`)
@@ -263,13 +233,11 @@ export const pedidosService = {
   },
 
   async registrarConfirmacaoFabrica(pedidoId, usuario, { doc, numeroPedido, vendedorId, loja }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({
       status_fluxo: 'aguardando_produto',
       confirmado_fabrica_em: new Date().toISOString(),
       confirmado_fabrica_doc: doc || null,
     }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'confirmacao_fabrica', `Confirmação da fábrica registrada${doc ? ` — doc: ${doc}` : ''}`)
@@ -278,9 +246,7 @@ export const pedidosService = {
   },
 
   async registrarRecebimentoProduto(pedidoId, usuario, { fotos = [], numeroPedido, loja }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({ status_fluxo: 'aprovado_entrega' }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'recebimento_produto', `Produto recebido — ${fotos.length} foto(s) registrada(s)`, { anexos: fotos })
@@ -288,14 +254,12 @@ export const pedidosService = {
   },
 
   async agendarEntrega(pedidoId, usuario, { dataEntrega, telefoneCliente, nomeCliente, numeroPedido, vendedorId }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({
       status_fluxo: 'aprovado_entrega',
       data_entrega_agendada: dataEntrega,
       agendado_por: usuario.id,
       agendado_em: new Date().toISOString(),
     }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     const dataFmt = new Date(dataEntrega + 'T12:00').toLocaleDateString('pt-BR')
@@ -305,9 +269,7 @@ export const pedidosService = {
   },
 
   async registrarSeparacao(pedidoId, usuario, { fotos = [], numeroPedido, loja }) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').update({ status_fluxo: 'separado' }).eq('id', pedidoId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { error } = await q
     if (error) throw error
     await _timeline(pedidoId, usuario, 'separacao', `Pedido #${numeroPedido} separado — ${fotos.length} foto(s)`, { anexos: fotos })
@@ -364,10 +326,8 @@ export const pedidosService = {
 
   // ── Dashboard targeted queries ────────────────────────────
   async listHoje(lojaFiltro) {
-    const eid = getEmpresaId()
     const hoje = new Date().toISOString().split('T')[0]
     let q = supabase.from('pedidos').select('*').eq('data_entrega', hoje)
-    if (eid) q = q.eq('empresa_id', eid)
     if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
     const { data, error } = await q.order('created_at', { ascending: false })
     if (error) throw error
@@ -375,13 +335,11 @@ export const pedidosService = {
   },
 
   async listAtrasados(lojaFiltro) {
-    const eid = getEmpresaId()
     const hoje = new Date().toISOString().split('T')[0]
     let q = supabase.from('pedidos').select('*')
       .lt('data_entrega', hoje)
       .neq('status', 'Entregue')
       .neq('status', 'Cancelado')
-    if (eid) q = q.eq('empresa_id', eid)
     if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
     const { data, error } = await q.order('created_at', { ascending: false })
     if (error) throw error
@@ -389,9 +347,7 @@ export const pedidosService = {
   },
 
   async listPorFluxo(statusFluxo, lojaFiltro) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').select('*').eq('status_fluxo', statusFluxo)
-    if (eid) q = q.eq('empresa_id', eid)
     if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
     const { data, error } = await q.order('created_at', { ascending: false })
     if (error) throw error
@@ -399,11 +355,9 @@ export const pedidosService = {
   },
 
   async listParaAgendar(lojaFiltro) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').select('*')
       .eq('status_fluxo', 'aprovado_entrega')
       .is('data_entrega_agendada', null)
-    if (eid) q = q.eq('empresa_id', eid)
     if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
     const { data, error } = await q.order('created_at', { ascending: false })
     if (error) throw error
@@ -411,11 +365,9 @@ export const pedidosService = {
   },
 
   async listSeparadosHoje(hoje, lojaFiltro) {
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').select('*')
       .eq('status_fluxo', 'separado')
       .eq('data_entrega_agendada', hoje)
-    if (eid) q = q.eq('empresa_id', eid)
     if (lojaFiltro) q = q.or(`loja.eq.${lojaFiltro},local_separacao.eq.${lojaFiltro}`)
     const { data, error } = await q.order('created_at', { ascending: false })
     if (error) throw error
@@ -424,9 +376,7 @@ export const pedidosService = {
 
   async listMeusPedidos(vendedorId) {
     if (!vendedorId) return []
-    const eid = getEmpresaId()
     let q = supabase.from('pedidos').select('*').eq('vendedor_id', vendedorId)
-    if (eid) q = q.eq('empresa_id', eid)
     const { data, error } = await q.order('created_at', { ascending: false })
     if (error) throw error
     return data || []
