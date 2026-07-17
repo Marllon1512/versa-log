@@ -66,9 +66,7 @@ export const usuariosService = {
     return data
   },
   async create(usuario) {
-    const eid = getEmpresaId()
-    const payload = eid ? { ...usuario, empresa_id: eid } : usuario
-    const { data, error } = await supabase.from('usuarios').insert(payload).select().single()
+    const { data, error } = await supabase.from('usuarios').insert(usuario).select().single()
     if (error) throw error
     return data
   },
