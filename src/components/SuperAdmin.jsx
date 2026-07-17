@@ -15,7 +15,7 @@ const PLANOS = [
 const PLANO_BADGE = { trial: 'bg-amber', basico: 'bg-blue', pro: 'bg-green', enterprise: 'bg-accent' }
 
 const PERFIS = [
-  'admin','gestor','diretor','gerente','assistente_admin','vendedor',
+  'admin','gestor','gerente','assistente_admin','vendedor',
   'gerente_logistica','supervisor_logistica','expedidor','entregador',
   'motorista','separador','conferente','estoque','tecnico','atendente','contador',
 ]

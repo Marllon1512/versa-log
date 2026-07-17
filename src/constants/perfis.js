@@ -1,7 +1,7 @@
 export const _ALL_PAGES = ['dashboard','pedidos','separacao','agenda','assistencia','roteiro','conferencia','equipe','ranking','mapa','rota','ponto','config','cadastros','vendas','compras','estoque','financeiro','financeiro_loja','dp','os','fila','crm','catalogo','nf','nps','relatorios','chat']
 
 export const PROFILE_PAGES = {
-  admin:     _ALL_PAGES, gestor: _ALL_PAGES, diretor: _ALL_PAGES,
+  admin:     _ALL_PAGES, gestor: _ALL_PAGES,
   gerente:   ['dashboard','pedidos','agenda','assistencia','conferencia','equipe','ranking','ponto','cadastros','vendas','estoque','os','crm','nps','chat'],
   assistente_admin: ['dashboard','pedidos','agenda','ponto','cadastros','compras','estoque','dp','financeiro_loja','chat'],
   vendedor:  ['dashboard','vendas','cadastros','ponto','crm','ranking','chat'],
@@ -19,7 +19,7 @@ export const PROFILE_PAGES = {
 }
 
 export const PROFILE_LABELS = {
-  admin:'Administrador', diretor:'Diretor', gerente:'Gerente de Loja',
+  admin:'Administrador', gerente:'Gerente de Loja',
   assistente_admin:'Assistente Adm.', vendedor:'Vendedor',
   gerente_logistica:'Ger. Logística', supervisor_logistica:'Supervisor Log.',
   expedidor:'Expedição', gestor:'Gestor',
