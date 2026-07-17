@@ -23,7 +23,7 @@ function DPFuncionarios({ lojaFiltro }) {
   const filtroAtivo = lojaEf || lojaFiltro || null
   const { data: lista, loading, reload } = useData(() => dpService.listFuncionarios(filtroAtivo), [filtroAtivo])
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', cpf:'', cargo:'', departamento:'', admissao:'', salario:'', status:'ativo', email:'', telefone:'', loja:'', foto_url:'' }
+  const empty = { nome:'', cpf:'', cargo:'', data_admissao:'', salario:'', status:'ativo', loja:'', foto_url:'' }
   const [form, setForm] = useState(empty)
   const [uploadingFoto, setUploadingFoto] = useState(false)
   const act = useAction()
@@ -73,7 +73,7 @@ function DPFuncionarios({ lojaFiltro }) {
               </div>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{f.nome}</div>
-                <div style={{ fontSize:12, color:'var(--t2)' }}>{f.cargo} · {f.departamento} · {fmtMoeda(f.salario)}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{f.cargo} · {fmtMoeda(f.salario)}</div>
               </div>
               <Badge variant={f.status==='ativo'?'bg-green':'bg'}>{f.status}</Badge>
               <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...f }); setModal({ item:f }) }}>Editar</button>
@@ -103,11 +103,8 @@ function DPFuncionarios({ lojaFiltro }) {
             <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} /></div>
             <div className="fg"><label className="fl">CPF</label><input className="fi" value={form.cpf} onChange={up('cpf')} /></div>
             <div className="fg"><label className="fl">Cargo *</label><input className="fi" value={form.cargo} onChange={up('cargo')} /></div>
-            <div className="fg"><label className="fl">Departamento</label><input className="fi" value={form.departamento} onChange={up('departamento')} /></div>
-            <div className="fg"><label className="fl">Admissão</label><input className="fi" type="date" value={form.admissao} onChange={up('admissao')} /></div>
+            <div className="fg"><label className="fl">Admissão</label><input className="fi" type="date" value={form.data_admissao} onChange={up('data_admissao')} /></div>
             <div className="fg"><label className="fl">Salário (R$)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.salario} onChange={up('salario')} /></div>
-            <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email} onChange={up('email')} /></div>
-            <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja||''} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={form.status} onChange={up('status')}>
