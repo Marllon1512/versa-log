@@ -673,7 +673,7 @@ function CadDecoradores() {
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           {(lista||[]).map(d => (
             <div key={d.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
-              <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#a78bfa,#6366f1)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0 }}>{d.nome?.[0]}</div>
+              <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#a78bfa,#3b82f6)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0 }}>{d.nome?.[0]}</div>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{d.nome}</div>
                 <div style={{ fontSize:12, color:'var(--t2)' }}>{d.especialidade || '—'}</div>

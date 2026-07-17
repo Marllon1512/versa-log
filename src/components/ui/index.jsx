@@ -155,12 +155,29 @@ export function Alert({ type = 'info', children, style }) {
 
 // ── Loading spinner ───────────────────────────────────────
 export function Spinner({ text = 'Carregando...' }) {
-  return <div className="empty">{text}</div>
+  return (
+    <div className="empty">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+        </svg>
+        <span style={{ fontSize: 13, color: 'var(--t3)', fontWeight: 500 }}>{text}</span>
+      </div>
+    </div>
+  )
 }
 
 // ── Empty state ───────────────────────────────────────────
-export function Empty({ icon = '📭', text = 'Nenhum item encontrado' }) {
-  return <div className="empty"><div style={{ fontSize: 32, marginBottom: 8 }}>{icon}</div><div>{text}</div></div>
+export function Empty({ icon = '📭', text = 'Nenhum item encontrado', sub, action }) {
+  return (
+    <div className="empty">
+      <div className="empty-icon">{icon}</div>
+      <div className="empty-text">{text}</div>
+      {sub && <div className="empty-sub">{sub}</div>}
+      {action && <div style={{ marginTop: 16 }}>{action}</div>}
+    </div>
+  )
 }
 
 // ── Icons ─────────────────────────────────────────────────

@@ -55,9 +55,9 @@ export function LeitorCodigoBarras({ onScan, onClose }) {
         <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#000', maxWidth: 400, margin: '0 auto' }}>
           <video ref={videoRef} style={{ width: '100%', display: 'block' }} />
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <div style={{ width: 220, height: 90, border: '2px solid #6366f1', borderRadius: 8, boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)', position: 'relative' }}>
+            <div style={{ width: 220, height: 90, border: '2px solid #3b82f6', borderRadius: 8, boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)', position: 'relative' }}>
               {[['top:-2px', 'left:-2px', 'borderTop', 'borderLeft', '4px 0 0 0'], ['top:-2px', 'right:-2px', 'borderTop', 'borderRight', '0 4px 0 0'], ['bottom:-2px', 'left:-2px', 'borderBottom', 'borderLeft', '0 0 0 4px'], ['bottom:-2px', 'right:-2px', 'borderBottom', 'borderRight', '0 0 4px 0']].map(([t, s, b1, b2, r], i) => (
-                <div key={i} style={{ position: 'absolute', [t.split(':')[0]]: t.split(':')[1], [s.split(':')[0]]: s.split(':')[1], width: 20, height: 20, [b1]: '3px solid #6366f1', [b2]: '3px solid #6366f1', borderRadius: r }} />
+                <div key={i} style={{ position: 'absolute', [t.split(':')[0]]: t.split(':')[1], [s.split(':')[0]]: s.split(':')[1], width: 20, height: 20, [b1]: '3px solid #3b82f6', [b2]: '3px solid #3b82f6', borderRadius: r }} />
               ))}
             </div>
           </div>

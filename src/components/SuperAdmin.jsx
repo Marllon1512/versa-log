@@ -57,7 +57,7 @@ function ModalEmpresa({ empresa, onClose, onSaved }) {
     documento:        empresa?.documento          || '',
     nome_sistema:     empresa?.nome_sistema       || '',
     logo_url:         empresa?.logo_url           || '',
-    cor_primaria:     empresa?.cor_primaria       || '#6366f1',
+    cor_primaria:     empresa?.cor_primaria       || '#3b82f6',
     tema_padrao:      empresa?.tema_padrao        || 'dark',
     plano:            empresa?.plano              || 'trial',
     data_inicio_plano: empresa?.data_inicio_plano?.slice(0, 10) || '',
@@ -78,7 +78,7 @@ function ModalEmpresa({ empresa, onClose, onSaved }) {
         documento:        form.documento.trim()     || null,
         nome_sistema:     form.nome_sistema.trim()  || null,
         logo_url:         form.logo_url.trim()      || null,
-        cor_primaria:     form.cor_primaria         || '#6366f1',
+        cor_primaria:     form.cor_primaria         || '#3b82f6',
         tema_padrao:      form.tema_padrao,
         plano:            form.plano,
         data_inicio_plano: form.data_inicio_plano   || null,
@@ -141,7 +141,7 @@ function ModalEmpresa({ empresa, onClose, onSaved }) {
             <div style={{ display: 'flex', gap: 8 }}>
               <input type="color" value={form.cor_primaria} onChange={e => set('cor_primaria', e.target.value)}
                 style={{ width: 40, height: 38, border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: 'none', padding: 2, flexShrink: 0 }} />
-              <input style={{ ...INPUT_S, flex: 1, width: 'auto' }} value={form.cor_primaria} onChange={e => set('cor_primaria', e.target.value)} placeholder="#6366f1" />
+              <input style={{ ...INPUT_S, flex: 1, width: 'auto' }} value={form.cor_primaria} onChange={e => set('cor_primaria', e.target.value)} placeholder="#3b82f6" />
             </div>
           </div>
           <div>

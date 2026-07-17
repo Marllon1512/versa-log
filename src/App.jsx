@@ -150,7 +150,7 @@ function Login() {
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg0)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
       {/* Background glow */}
-      <div style={{ position:'fixed', top:'20%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle, rgba(110,110,240,0.08) 0%, transparent 70%)', pointerEvents:'none' }} />
+      <div style={{ position:'fixed', top:'20%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)', pointerEvents:'none' }} />
 
       <div style={{ background:'var(--bg1)', border:'1px solid var(--border)', borderRadius:24, padding:'40px 36px', width:'100%', maxWidth:400, position:'relative', boxShadow:'0 24px 64px rgba(0,0,0,0.5)' }}>
 
@@ -277,7 +277,7 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
         {/* User profile */}
         <div style={{ padding:'12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, overflow:'hidden' }}>
-            <div style={{ width:32, height:32, borderRadius:'50%', background: perfil?.foto_url ? 'transparent' : 'linear-gradient(135deg,var(--accent),#a78bfa)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:13, flexShrink:0, overflow:'hidden' }}>
+            <div style={{ width:32, height:32, borderRadius:'50%', background: perfil?.foto_url ? 'transparent' : 'linear-gradient(135deg,var(--accent),#93c5fd)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:13, flexShrink:0, overflow:'hidden' }}>
               {perfil?.foto_url
                 ? <img src={perfil.foto_url} alt="" style={{ width:32, height:32, objectFit:'cover', borderRadius:'50%' }} />
                 : perfil?.full_name?.[0]?.toUpperCase() || 'U'}
@@ -345,7 +345,7 @@ function Sidebar({ page, setPage, collapsed, mobileOpen, setMobileOpen, logoVers
                     title={collapsed ? it.label : undefined}
                     style={collapsed ? { justifyContent:'center', padding:'10px 0', margin:'1px 4px', width:'calc(100% - 8px)', borderLeft:'none' } : {}}
                   >
-                    <span className="sb-icon"><it.Icon size={17} strokeWidth={1.7} /></span>
+                    <span className="sb-icon"><it.Icon size={20} strokeWidth={1.6} /></span>
                     {!collapsed && <span className="sb-label">{it.label}</span>}
                     {it.id === 'chat' && chatUnread > 0 && (
                       <span style={{ marginLeft:'auto', background:'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, minWidth:16, height:16, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px' }}>
@@ -568,7 +568,7 @@ function ContentTopbar({ page, setMobileOpen, navigateTo, collapsed, onToggle })
       <div ref={menuRef} style={{ position:'relative' }}>
         <button
           onClick={() => setMenuOpen(o => !o)}
-          style={{ width:34, height:34, borderRadius:'50%', border:'none', background: perfil?.foto_url ? 'transparent' : 'linear-gradient(135deg,var(--accent),#a78bfa)', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', padding:0 }}>
+          style={{ width:34, height:34, borderRadius:'50%', border:'none', background: perfil?.foto_url ? 'transparent' : 'linear-gradient(135deg,var(--accent),#93c5fd)', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', padding:0 }}>
           {perfil?.foto_url
             ? <img src={perfil.foto_url} alt="" style={{ width:34, height:34, objectFit:'cover', borderRadius:'50%' }} />
             : perfil?.full_name?.[0]?.toUpperCase() || 'U'}
@@ -810,7 +810,7 @@ function SeparacaoDetalhe({ pedidoId, onBack }) {
       {produtos.map(pr => (
         <div key={pr.id} style={{
           background: scanHighlight === pr.id ? 'rgba(99,102,241,0.12)' : pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.05)' : 'var(--bg1)',
-          border: `1px solid ${scanHighlight === pr.id ? '#6366f1' : pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+          border: `1px solid ${scanHighlight === pr.id ? 'var(--accent)' : pr.status_produto === 'Separado' ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
           borderRadius: 12, padding: 16, marginBottom: 12, transition:'border-color .3s, background .3s',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -981,7 +981,7 @@ function NotaFiscal() {
             A emissão de NF-e estará disponível em breve. Integração com SEFAZ e geração de XML e DANFE.
           </div>
         </div>
-        <span style={{ background:'linear-gradient(135deg,#6366f1,#a78bfa)', color:'#fff', padding:'6px 18px', borderRadius:20, fontSize:12, fontWeight:600, letterSpacing:1 }}>EM BREVE</span>
+        <span style={{ background:'linear-gradient(135deg,var(--accent),#93c5fd)', color:'#fff', padding:'6px 18px', borderRadius:20, fontSize:12, fontWeight:600, letterSpacing:1 }}>EM BREVE</span>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:8, maxWidth:360 }}>
           {['NF-e','NFS-e','NFC-e','CT-e'].map(tp => (
             <div key={tp} className="card" style={{ textAlign:'center', padding:'12px 8px', opacity:0.6 }}>
@@ -1154,7 +1154,7 @@ function SolicitarAssistenciaPublica() {
     <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '16px', display: 'flex', justifyContent: 'center' }}>
       <div style={{ background: '#fff', borderRadius: 16, padding: '24px', maxWidth: 500, width: '100%', height: 'fit-content' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
-          <div style={{ width: 40, height: 40, background: '#6366f1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16 }}>V</div>
+          <div style={{ width: 40, height: 40, background: 'var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16 }}>V</div>
           <div><div style={{ fontWeight: 700, color: '#1e293b' }}>VERSA LOG</div><div style={{ fontSize: 12, color: '#64748b' }}>Solicitar Assistência Técnica</div></div>
         </div>
         <div style={{ marginBottom: 12 }}>
@@ -1194,7 +1194,7 @@ function SolicitarAssistenciaPublica() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <label style={{ fontSize: 12, color: '#64748b' }}>Fotos do problema (opcional, até 5)</label>
             {fotos.length < 5 && (
-              <label style={{ padding: '6px 12px', background: '#6366f1', color: '#fff', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>
+              <label style={{ padding: '6px 12px', background: 'var(--accent)', color: '#fff', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>
                 + Adicionar foto
                 <input type="file" multiple accept="image/*" capture="environment" style={{ display: 'none' }} onChange={addFotos} />
               </label>
@@ -1212,7 +1212,7 @@ function SolicitarAssistenciaPublica() {
           )}
         </div>
         <button disabled={!canSend || loading}
-          style={{ width: '100%', padding: '13px', background: canSend ? '#6366f1' : '#e2e8f0', color: canSend ? '#fff' : '#94a3b8', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: canSend ? 'pointer' : 'default' }}
+          style={{ width: '100%', padding: '13px', background: canSend ? 'var(--accent)' : '#e2e8f0', color: canSend ? '#fff' : '#94a3b8', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: canSend ? 'pointer' : 'default' }}
           onClick={handleEnviar}>
           {loading ? 'Enviando...' : 'Enviar Solicitação'}
         </button>
@@ -1246,7 +1246,7 @@ function NPSPublico({ token }) {
 
   const COR_NOTA = (n) => n <= 6 ? '#ef4444' : n <= 8 ? '#f59e0b' : '#22c55e'
 
-  if (loading) return <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ color:'#6366f1', fontSize:24 }}>Carregando...</div></div>
+  if (loading) return <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ color:'var(--accent)', fontSize:24 }}>Carregando...</div></div>
   if (erro || !nps) return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
       <div style={{ textAlign:'center' }}>
@@ -1262,7 +1262,7 @@ function NPSPublico({ token }) {
         <div style={{ fontSize:56, marginBottom:12 }}>🙏</div>
         <h2 style={{ color:'#1e293b', marginBottom:8 }}>Obrigado pelo feedback!</h2>
         <p style={{ color:'#64748b', fontSize:14 }}>Sua avaliação nos ajuda a melhorar cada vez mais.</p>
-        {nps.loja && <div style={{ marginTop:12, fontSize:13, color:'#6366f1', fontWeight:600 }}>{nps.loja}</div>}
+        {nps.loja && <div style={{ marginTop:12, fontSize:13, color:'var(--accent)', fontWeight:600 }}>{nps.loja}</div>}
       </div>
     </div>
   )
@@ -1271,7 +1271,7 @@ function NPSPublico({ token }) {
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#f8fafc,#eff6ff)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
       <div style={{ background:'#fff', borderRadius:20, padding:'28px 24px', maxWidth:440, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,.1)' }}>
         <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, paddingBottom:16, borderBottom:'1px solid #e2e8f0' }}>
-          <div style={{ width:44, height:44, background:'#6366f1', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:18, flexShrink:0 }}>V</div>
+          <div style={{ width:44, height:44, background:'var(--accent)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:18, flexShrink:0 }}>V</div>
           <div>
             <div style={{ fontWeight:700, color:'#1e293b' }}>VERSA LOG{nps.loja ? ` · ${nps.loja}` : ''}</div>
             <div style={{ fontSize:12, color:'#64748b' }}>Avaliação de entrega</div>
@@ -1297,7 +1297,7 @@ function NPSPublico({ token }) {
           <textarea style={{ width:'100%', padding:'10px 12px', border:'1px solid #e2e8f0', borderRadius:10, fontSize:13, boxSizing:'border-box', resize:'vertical', minHeight:70 }} value={comentario} onChange={e => setComentario(e.target.value)} placeholder="Sua opinião é muito importante..." />
         </div>
         <button disabled={nota === null} onClick={enviar}
-          style={{ width:'100%', padding:14, background: nota !== null ? '#6366f1' : '#e2e8f0', color: nota !== null ? '#fff' : '#94a3b8', border:'none', borderRadius:12, fontWeight:700, fontSize:15, cursor: nota !== null ? 'pointer' : 'default', transition:'all .2s' }}>
+          style={{ width:'100%', padding:14, background: nota !== null ? 'var(--accent)' : '#e2e8f0', color: nota !== null ? '#fff' : '#94a3b8', border:'none', borderRadius:12, fontWeight:700, fontSize:15, cursor: nota !== null ? 'pointer' : 'default', transition:'all .2s' }}>
           Enviar Avaliação
         </button>
       </div>
@@ -1678,7 +1678,7 @@ function ConfirmarCompraPublica({ token }) {
     setEnviando(false)
   }
 
-  if (loadingP) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#6366f1', fontSize: 24 }}>Carregando...</div></div>
+  if (loadingP) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ color: 'var(--accent)', fontSize: 24 }}>Carregando...</div></div>
   if (erro || !pedido) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ textAlign: 'center' }}>
@@ -1701,7 +1701,7 @@ function ConfirmarCompraPublica({ token }) {
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#f8fafc,#eff6ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: '#fff', borderRadius: 20, padding: '28px 24px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
-          <div style={{ width: 44, height: 44, background: '#6366f1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 18, flexShrink: 0 }}>V</div>
+          <div style={{ width: 44, height: 44, background: 'var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 18, flexShrink: 0 }}>V</div>
           <div>
             <div style={{ fontWeight: 700, color: '#1e293b' }}>VERSA LOG</div>
             <div style={{ fontSize: 12, color: '#64748b' }}>Confirmação de Pedido — Fábrica</div>
@@ -1729,7 +1729,7 @@ function ConfirmarCompraPublica({ token }) {
           )}
         </div>
         <button disabled={enviando} onClick={confirmar}
-          style={{ width: '100%', padding: 14, background: enviando ? '#e2e8f0' : '#6366f1', color: enviando ? '#94a3b8' : '#fff', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: enviando ? 'default' : 'pointer', transition: 'all .2s' }}>
+          style={{ width: '100%', padding: 14, background: enviando ? '#e2e8f0' : 'var(--accent)', color: enviando ? '#94a3b8' : '#fff', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: enviando ? 'default' : 'pointer', transition: 'all .2s' }}>
           {enviando ? 'Confirmando...' : '✅ Confirmar Pedido'}
         </button>
       </div>

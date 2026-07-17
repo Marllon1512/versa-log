@@ -146,7 +146,7 @@ export function EtiquetaModal({ produto, onClose }) {
     <Modal title="Gerar Etiqueta" onClose={onClose}>
       <div style={{ background:'#fff', color:'#000', border:'2px solid #ddd', borderRadius:8, padding:'12px 16px', maxWidth:340, margin:'0 auto 16px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8, minHeight:28 }}>
-          {logoVersa ? <img src={logoVersa} alt="Versa" style={{ height:26, objectFit:'contain', maxWidth:90 }} /> : <span style={{ fontSize:11, fontWeight:700, color:'#6366f1' }}>VERSA</span>}
+          {logoVersa ? <img src={logoVersa} alt="Versa" style={{ height:26, objectFit:'contain', maxWidth:90 }} /> : <span style={{ fontSize:11, fontWeight:700, color:'#3b82f6' }}>VERSA</span>}
           {logoLoja ? <img src={logoLoja} alt="Loja" style={{ height:26, objectFit:'contain', maxWidth:90 }} /> : <span style={{ fontSize:10, color:'#888' }}>{nomeLoja}</span>}
         </div>
         <div style={{ borderBottom:'1px solid #ddd', paddingBottom:5, marginBottom:5, textAlign:'center', fontWeight:700, fontSize:13 }}>{nomeLoja}</div>

@@ -12,7 +12,7 @@ import { crmService } from '../services/index'
 const fmtR = (v) => (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
 
 const CRM_COLUNAS = [
-  { id:'lead',       label:'Leads',       cor:'#6366f1' },
+  { id:'lead',       label:'Leads',       cor:'#3b82f6' },
   { id:'contato',    label:'Contato',     cor:'#8b5cf6' },
   { id:'visita',     label:'Visita',      cor:'#f59e0b' },
   { id:'proposta',   label:'Proposta',    cor:'#3b82f6' },
