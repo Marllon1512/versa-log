@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { Truck, Users, Camera } from 'lucide-react'
+import { Camera } from 'lucide-react'
 
 import { useData, useAction } from '../hooks/index'
 import { equipesService, usuariosService } from '../services/index'
@@ -23,41 +23,14 @@ function PerfilModulosDesc({ perfil: perfilNome }) {
   )
 }
 
-function NovaEquipeForm({ usuarios, onClose, onSave }) {
-  const [form, setForm] = useState({ nome: '', motorista_id: '', motorista_nome: '', entregadores: [], entregadores_nomes: [], status: 'Ativa' })
+function NovaEquipeForm({ onClose, onSave }) {
+  const [form, setForm] = useState({ nome: '' })
   const { run, loading } = useAction()
-  const motoristas = usuarios.filter(u => ['motorista', 'entregador'].includes(u.role))
-  const entregadores = usuarios.filter(u => u.role === 'entregador')
 
   return (
     <>
       <div className="mb">
         <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={e => setForm(p => ({ ...p, nome: e.target.value }))} placeholder="Ex: Equipe Alpha" /></div>
-        <div className="fg">
-          <label className="fl">Motorista</label>
-          <select className="fi" value={form.motorista_id} onChange={e => {
-            const u = motoristas.find(x => x.id === e.target.value)
-            setForm(p => ({ ...p, motorista_id: e.target.value, motorista_nome: u?.full_name || '' }))
-          }}>
-            <option value="">Selecione...</option>
-            {motoristas.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-          </select>
-        </div>
-        {entregadores.length > 0 && (
-          <div className="fg">
-            <label className="fl">Entregadores</label>
-            {entregadores.map(u => (
-              <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 13 }}>
-                <input type="checkbox" checked={form.entregadores.includes(u.id)} onChange={e => setForm(p => ({
-                  ...p,
-                  entregadores: e.target.checked ? [...p.entregadores, u.id] : p.entregadores.filter(x => x !== u.id),
-                  entregadores_nomes: e.target.checked ? [...p.entregadores_nomes, u.full_name] : p.entregadores_nomes.filter(x => x !== u.full_name),
-                }))} />
-                {u.full_name}
-              </label>
-            ))}
-          </div>
-        )}
       </div>
       <div className="mf">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
@@ -68,23 +41,18 @@ function NovaEquipeForm({ usuarios, onClose, onSave }) {
 }
 
 function NovoUsuarioForm({ onClose, onSave }) {
-  const [form, setForm] = useState({ full_name: '', usuario: '', senha: '', perfil: 'vendedor', loja: '', telefone: '' })
+  const [form, setForm] = useState({ full_name: '', usuario: '', senha: '', perfil: 'vendedor', loja: '' })
   const { run, loading } = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
   const canSave = form.full_name.trim() && form.usuario.trim() && form.senha.length >= 4
 
   const handleSave = async () => {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(form.senha))
-    const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
     await onSave({
       full_name: form.full_name.trim(),
       email: `${form.usuario.trim()}@versalog.local`,
-      usuario: form.usuario.trim().toLowerCase(),
-      senha_hash: hash,
       perfil: form.perfil,
       role: form.perfil,
       loja: form.loja || null,
-      telefone: form.telefone,
     })
   }
 
@@ -109,7 +77,6 @@ function NovoUsuarioForm({ onClose, onSave }) {
             <LojaSelect value={form.loja} onChange={loja => setForm(p => ({ ...p, loja }))} placeholder="Sem loja específica" />
           </div>
         </div>
-        <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
       </div>
       <div className="mf">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
@@ -124,7 +91,6 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
     full_name: u.full_name || '',
     perfil: u.perfil || u.role || 'vendedor',
     loja: u.loja || '',
-    telefone: u.telefone || '',
     nova_senha: '',
     foto_url: u.foto_url || '',
   })
@@ -154,12 +120,7 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
         perfil: form.perfil,
         role: form.perfil,
         loja: form.loja || null,
-        telefone: form.telefone,
         foto_url: form.foto_url || null,
-      }
-      if (form.nova_senha.length >= 4) {
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(form.nova_senha))
-        updates.senha_hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
       }
       await run(() => onSave(updates))
     } catch {
@@ -208,7 +169,6 @@ function EditarUsuarioModal({ usuario: u, onClose, onSave }) {
           <LojaSelect value={form.loja} onChange={loja => setForm(p => ({ ...p, loja }))} placeholder="Sem loja específica" />
         </div>
       </div>
-      <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone} onChange={up('telefone')} type="tel" /></div>
       <div className="fg"><label className="fl">Nova Senha (deixe em branco para manter)</label><input className="fi" type="password" value={form.nova_senha} onChange={up('nova_senha')} placeholder="mín. 4 caracteres" /></div>
       <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 4 }}>Login: {u.usuario || u.email}</div>
     </Modal>
@@ -274,12 +234,7 @@ export default function Equipe() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12, marginBottom: 24 }}>
           {(equipes || []).map(e => (
             <div className="card" key={e.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ fontWeight: 600 }}>{e.nome}</div>
-                <Badge status={e.status || 'Ativa'} />
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 4, display:'flex', alignItems:'center', gap:4 }}><Truck size={12} strokeWidth={1.7} /> {e.motorista_nome || 'Sem motorista'}</div>
-              <div style={{ fontSize: 12, color: 'var(--t2)', display:'flex', alignItems:'center', gap:4 }}><Users size={12} strokeWidth={1.7} /> {(e.entregadores_nomes || []).join(', ') || 'Sem entregadores'}</div>
+              <div style={{ fontWeight: 600 }}>{e.nome}</div>
             </div>
           ))}
         </div>
@@ -314,7 +269,7 @@ export default function Equipe() {
 
       {showNewEquipe && (
         <Modal title="Nova Equipe" onClose={() => setShowNewEquipe(false)} footer={null}>
-          <NovaEquipeForm usuarios={usuarios || []} onClose={() => setShowNewEquipe(false)} onSave={handleEquipe} />
+          <NovaEquipeForm onClose={() => setShowNewEquipe(false)} onSave={handleEquipe} />
         </Modal>
       )}
       {showNewUser && (
