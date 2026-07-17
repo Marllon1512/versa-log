@@ -41,7 +41,7 @@ function HistoricoClienteModal({ cliente, onClose }) {
   const { empresaId } = useAuth()
   const [contatos, setContatos] = useState([])
   const [carregando, setCarregando] = useState(true)
-  const [novoForm, setNovoForm] = useState({ tipo:'WhatsApp', assunto:'', resultado:'', proximo_contato:'' })
+  const [novoForm, setNovoForm] = useState({ tipo:'WhatsApp', assunto:'', descricao:'' })
   const [salvando, setSalvando] = useState(false)
   const TIPOS = ['WhatsApp','Telefone','Email','Visita','Outro']
 
@@ -58,7 +58,7 @@ function HistoricoClienteModal({ cliente, onClose }) {
     try {
       const { data } = await supabase.from('contatos_historico').insert({ ...novoForm, cliente_id: cliente.id, cliente_nome: cliente.nome, ...(empresaId ? { empresa_id: empresaId } : {}) }).select().single()
       if (data) setContatos(p => [data, ...p])
-      setNovoForm({ tipo:'WhatsApp', assunto:'', resultado:'', proximo_contato:'' })
+      setNovoForm({ tipo:'WhatsApp', assunto:'', descricao:'' })
     } catch {}
     setSalvando(false)
   }
@@ -75,9 +75,8 @@ function HistoricoClienteModal({ cliente, onClose }) {
               {TIPOS.map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
-          <div className="fg"><label className="fl">Próximo contato</label><input className="fi" type="date" value={novoForm.proximo_contato} onChange={e => setNovoForm(p => ({ ...p, proximo_contato: e.target.value }))} /></div>
           <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Assunto *</label><input className="fi" value={novoForm.assunto} onChange={e => setNovoForm(p => ({ ...p, assunto: e.target.value }))} /></div>
-          <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Resultado</label><input className="fi" value={novoForm.resultado} onChange={e => setNovoForm(p => ({ ...p, resultado: e.target.value }))} /></div>
+          <div className="fg" style={{ gridColumn:'1/-1' }}><label className="fl">Descrição</label><input className="fi" value={novoForm.descricao} onChange={e => setNovoForm(p => ({ ...p, descricao: e.target.value }))} /></div>
         </div>
         <button className="btn btn-p btn-sm" onClick={salvar} disabled={salvando || !novoForm.assunto}>{salvando?'...':'Registrar'}</button>
       </div>
@@ -90,10 +89,9 @@ function HistoricoClienteModal({ cliente, onClose }) {
                 <div style={{ fontSize:20, flexShrink:0 }}>{ICONE[c.tipo]||'📝'}</div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:600, fontSize:13 }}>{c.assunto}</div>
-                  {c.resultado && <div style={{ fontSize:12, color:'var(--t2)' }}>{c.resultado}</div>}
+                  {c.descricao && <div style={{ fontSize:12, color:'var(--t2)' }}>{c.descricao}</div>}
                   <div style={{ fontSize:11, color:'var(--t3)', marginTop:2 }}>
                     {c.tipo} · {new Date(c.created_at).toLocaleDateString('pt-BR')}
-                    {c.proximo_contato && ` · Próx: ${new Date(c.proximo_contato+'T12:00').toLocaleDateString('pt-BR')}`}
                   </div>
                 </div>
               </div>
@@ -194,7 +192,7 @@ function CadFornecedores() {
   const { data: todosReps } = useData(() => representantesService.list(), [])
   const [modal, setModal] = useState(null)
   const [vincModal, setVincModal] = useState(null)
-  const empty = { nome:'', cnpj:'', contato:'', telefone:'', email:'', categoria:'', observacoes:'' }
+  const empty = { nome:'', cnpj:'', contato:'', telefone:'', email:'', observacoes:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -232,7 +230,7 @@ function CadFornecedores() {
             <div key={f.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{f.nome}</div>
-                <div style={{ fontSize:12, color:'var(--t2)' }}>{[f.cnpj, f.categoria, f.telefone].filter(Boolean).join(' · ')}</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{[f.cnpj, f.telefone].filter(Boolean).join(' · ')}</div>
               </div>
               <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...f }); setModal({ item:f }) }}>Editar</button>
               <button className="btn btn-g btn-sm" onClick={() => excluir(f.id)}>✕</button>
@@ -249,7 +247,6 @@ function CadFornecedores() {
             <div className="fg"><label className="fl">Contato</label><input className="fi" value={form.contato||''} onChange={up('contato')} /></div>
             <div className="fg"><label className="fl">Telefone</label><input className="fi" type="tel" value={form.telefone||''} onChange={up('telefone')} /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email||''} onChange={up('email')} /></div>
-            <div className="fg"><label className="fl">Categoria</label><input className="fi" value={form.categoria||''} onChange={up('categoria')} placeholder="Ex: Móveis, Tecidos..." /></div>
           </div>
           <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes||''} onChange={up('observacoes')} rows={2} /></div>
           {modal.item && (
@@ -653,7 +650,7 @@ function CadLojas() {
 function CadDecoradores() {
   const { data: lista, loading, reload } = useData(() => decoradoresService.list(), [])
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', telefone:'', email:'', especialidade:'', comissao_rt:0, status:'ativo' }
+  const empty = { nome:'', telefone:'', email:'', especialidade:'', ativo:true }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -679,9 +676,9 @@ function CadDecoradores() {
               <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#a78bfa,#6366f1)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, flexShrink:0 }}>{d.nome?.[0]}</div>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{d.nome}</div>
-                <div style={{ fontSize:12, color:'var(--t2)' }}>{d.especialidade || '—'} · RT: {d.comissao_rt||0}%</div>
+                <div style={{ fontSize:12, color:'var(--t2)' }}>{d.especialidade || '—'}</div>
               </div>
-              <Badge variant={d.status==='ativo'?'bg-green':'bg'}>{d.status}</Badge>
+              <Badge variant={d.ativo!==false?'bg-green':'bg'}>{d.ativo!==false?'Ativo':'Inativo'}</Badge>
               <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...d }); setModal({ item:d }) }}>Editar</button>
             </div>
           ))}
@@ -694,10 +691,9 @@ function CadDecoradores() {
             <div className="fg"><label className="fl">Telefone</label><input className="fi" value={form.telefone||''} onChange={up('telefone')} type="tel" /></div>
             <div className="fg"><label className="fl">Email</label><input className="fi" value={form.email||''} onChange={up('email')} /></div>
             <div className="fg"><label className="fl">Especialidade</label><input className="fi" value={form.especialidade||''} onChange={up('especialidade')} /></div>
-            <div className="fg"><label className="fl">Comissão RT (%)</label><input className="fi" type="number" step="0.1" min="0" value={form.comissao_rt||0} onChange={up('comissao_rt')} /></div>
             <div className="fg"><label className="fl">Status</label>
-              <select className="fi" value={form.status} onChange={up('status')}>
-                <option value="ativo">Ativo</option><option value="inativo">Inativo</option>
+              <select className="fi" value={form.ativo!==false?'true':'false'} onChange={e => setForm(p => ({ ...p, ativo: e.target.value === 'true' }))}>
+                <option value="true">Ativo</option><option value="false">Inativo</option>
               </select>
             </div>
           </div>
@@ -714,7 +710,7 @@ function CadDecoradores() {
 function CadAcabamentos() {
   const { data: lista, loading, reload } = useData(() => acabamentosService.list(), [])
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', descricao:'', ativo:true }
+  const empty = { nome:'', descricao:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -741,7 +737,6 @@ function CadAcabamentos() {
                 <div style={{ fontWeight:600, fontSize:14 }}>{a.nome}</div>
                 {a.descricao && <div style={{ fontSize:12, color:'var(--t2)' }}>{a.descricao}</div>}
               </div>
-              <Badge variant={a.ativo!==false?'bg-green':'bg'}>{a.ativo!==false?'Ativo':'Inativo'}</Badge>
               <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...a }); setModal({ item:a }) }}>Editar</button>
             </div>
           ))}
@@ -751,11 +746,6 @@ function CadAcabamentos() {
         <Modal title={modal.item ? 'Editar Acabamento' : 'Novo Acabamento'} onClose={() => setModal(null)}>
           <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} placeholder="Ex: Linho, Veludo, MDF..." /></div>
           <div className="fg"><label className="fl">Descrição</label><input className="fi" value={form.descricao||''} onChange={up('descricao')} /></div>
-          <div className="fg"><label className="fl">Status</label>
-            <select className="fi" value={form.ativo!==false?'true':'false'} onChange={e => setForm(p => ({ ...p, ativo: e.target.value === 'true' }))}>
-              <option value="true">Ativo</option><option value="false">Inativo</option>
-            </select>
-          </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
             <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
             <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
@@ -769,7 +759,7 @@ function CadAcabamentos() {
 function CadTecidos() {
   const { data: lista, loading, reload } = useData(() => tecidosService.list(), [])
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', composicao:'', ativo:true }
+  const empty = { nome:'' }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -794,9 +784,7 @@ function CadTecidos() {
             <div key={t.id} className="card" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px' }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{t.nome}</div>
-                {t.composicao && <div style={{ fontSize:12, color:'var(--t2)' }}>{t.composicao}</div>}
               </div>
-              <Badge variant={t.ativo!==false?'bg-green':'bg'}>{t.ativo!==false?'Ativo':'Inativo'}</Badge>
               <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...t }); setModal({ item:t }) }}>Editar</button>
             </div>
           ))}
@@ -805,12 +793,6 @@ function CadTecidos() {
       {modal && (
         <Modal title={modal.item ? 'Editar Tecido' : 'Novo Tecido'} onClose={() => setModal(null)}>
           <div className="fg"><label className="fl">Nome *</label><input className="fi" value={form.nome} onChange={up('nome')} placeholder="Ex: Algodão, Sintético, Microfibra..." /></div>
-          <div className="fg"><label className="fl">Composição</label><input className="fi" value={form.composicao||''} onChange={up('composicao')} placeholder="Ex: 100% Poliéster" /></div>
-          <div className="fg"><label className="fl">Status</label>
-            <select className="fi" value={form.ativo!==false?'true':'false'} onChange={e => setForm(p => ({ ...p, ativo: e.target.value === 'true' }))}>
-              <option value="true">Ativo</option><option value="false">Inativo</option>
-            </select>
-          </div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
             <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
             <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
@@ -828,7 +810,7 @@ function CadRepresentantes() {
   const [filtroForn, setFiltroForn] = useState('')
   const [filtroAtivo, setFiltroAtivo] = useState('')
   const [modal, setModal] = useState(null)
-  const empty = { nome:'', cpf:'', telefone:'', email:'', fornecedor_id:'', comissao_percent:'', regiao:'', observacoes:'', ativo:true }
+  const empty = { nome:'', cpf:'', telefone:'', email:'', fornecedor_id:'', comissao:'', ativo:true }
   const [form, setForm] = useState(empty)
   const act = useAction()
   const up = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -836,7 +818,7 @@ function CadRepresentantes() {
   const salvar = async () => {
     if (!form.nome.trim()) return toast.error('Nome obrigatório')
     try {
-      const payload = { ...form, comissao_percent: parseFloat(form.comissao_percent)||0, fornecedor_id: form.fornecedor_id || null }
+      const payload = { ...form, comissao: parseFloat(form.comissao)||0, fornecedor_id: form.fornecedor_id || null }
       if (!modal.item) await act.run(() => representantesService.create(payload))
       else await act.run(() => representantesService.update(modal.item.id, payload))
       toast.success('Salvo'); setModal(null); reload()
@@ -879,7 +861,7 @@ function CadRepresentantes() {
                   <span className={`badge ${r.ativo ? 'bg-green' : 'bg'}`}>{r.ativo ? 'Ativo' : 'Inativo'}</span>
                 </div>
                 <div style={{ fontSize:12, color:'var(--t2)', marginTop:2 }}>
-                  {[r.telefone, r.fornecedores?.nome, r.comissao_percent ? `${r.comissao_percent}%` : null].filter(Boolean).join(' · ')}
+                  {[r.telefone, r.fornecedores?.nome, r.comissao ? `${r.comissao}%` : null].filter(Boolean).join(' · ')}
                 </div>
               </div>
               <button className="btn btn-s btn-sm" onClick={() => { setForm({ ...empty, ...r }); setModal({ item:r }) }}>Editar</button>
@@ -901,14 +883,12 @@ function CadRepresentantes() {
                 {(forns||[]).map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
             </div>
-            <div className="fg"><label className="fl">Comissão (%)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.comissao_percent||''} onChange={up('comissao_percent')} /></div>
-            <div className="fg"><label className="fl">Região de atuação</label><input className="fi" value={form.regiao||''} onChange={up('regiao')} /></div>
+            <div className="fg"><label className="fl">Comissão (%)</label><input className="fi" type="number" step="0.01" inputMode="decimal" value={form.comissao||''} onChange={up('comissao')} /></div>
             <div className="fg" style={{ display:'flex', alignItems:'center', gap:8, paddingTop:24 }}>
               <input type="checkbox" id="ativo-rep" checked={!!form.ativo} onChange={e => setForm(p => ({ ...p, ativo: e.target.checked }))} />
               <label htmlFor="ativo-rep" style={{ fontSize:13 }}>Ativo</label>
             </div>
           </div>
-          <div className="fg"><label className="fl">Observações</label><textarea className="fi" value={form.observacoes||''} onChange={up('observacoes')} rows={2} /></div>
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
             <button className="btn btn-p" style={{ flex:1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
             <button className="btn btn-s" onClick={() => setModal(null)}>Cancelar</button>
