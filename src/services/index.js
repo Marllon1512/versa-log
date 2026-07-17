@@ -73,6 +73,11 @@ export const usuariosService = {
     if (error) throw error
     return data || []
   },
+  async remove(id) {
+    const { error } = await supabase.from('usuarios').delete().eq('id', id)
+    if (error) throw error
+    return true
+  },
 }
 
 // ── Equipes ───────────────────────────────────────────────

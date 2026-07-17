@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { Camera } from 'lucide-react'
+import { Camera, Trash2 } from 'lucide-react'
 
 import { useData, useAction } from '../hooks/index'
 import { equipesService, usuariosService } from '../services/index'
@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { validarTipoImagem } from '../lib/validarTipoImagem'
 import { PROFILE_PAGES, PROFILE_LABELS, PAGE_LABELS } from '../constants/perfis'
-import { Btn, Badge, Ic, Modal } from '../components/ui/index'
+import { Btn, Badge, Ic, Modal, ConfirmModal } from '../components/ui/index'
 import { LojaSelect } from '../components/LojaSelect'
 import { toast } from '../lib/toast'
 
@@ -180,6 +180,8 @@ export default function Equipe() {
   const [showNewEquipe, setShowNewEquipe] = useState(false)
   const [showNewUser, setShowNewUser] = useState(false)
   const [editUser, setEditUser] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
   const [buscaUser, setBuscaUser] = useState('')
   const { data: equipes, reload: reloadEq } = useData(() => equipesService.list(), [])
   const { data: usuarios, reload: reloadU } = useData(() => usuariosService.list(), [])
@@ -205,6 +207,33 @@ export default function Equipe() {
     } catch (e) {
       console.error('[Equipe] handleUser:', e)
       toast.error('Erro ao criar usuário: ' + (e.message || e.details || 'desconhecido'))
+    }
+  }
+
+  const pedirExclusao = (u) => {
+    if (u.id === perfil?.id) {
+      toast.error('Você não pode excluir seu próprio usuário')
+      return
+    }
+    if (u.email === 'admin@versalog.com') {
+      toast.error('Não é permitido excluir o usuário administrador principal')
+      return
+    }
+    setDeleteTarget(u)
+  }
+
+  const confirmarExclusao = async () => {
+    if (!deleteTarget) return
+    setDeleteLoading(true)
+    try {
+      await usuariosService.remove(deleteTarget.id)
+      await reloadU()
+      toast.success('Usuário excluído')
+      setDeleteTarget(null)
+    } catch (e) {
+      toast.error('Erro ao excluir: ' + (e.message || 'desconhecido'))
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -260,7 +289,10 @@ export default function Equipe() {
                 </td>
                 <td style={{ fontSize: 12, color: 'var(--t2)' }}>{u.email}</td>
                 <td><span className="badge bg-accent" style={{ textTransform: 'capitalize' }}>{u.role}</span></td>
-                <td><button className="btn btn-g btn-ico btn-sm" onClick={() => setEditUser(u)}><Ic n="edit" s={13} /></button></td>
+                <td style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn btn-g btn-ico btn-sm" onClick={() => setEditUser(u)}><Ic n="edit" s={13} /></button>
+                  <button className="btn btn-d btn-ico btn-sm" onClick={() => pedirExclusao(u)}><Trash2 size={13} strokeWidth={1.8} /></button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -279,6 +311,16 @@ export default function Equipe() {
       )}
       {editUser && (
         <EditarUsuarioModal usuario={editUser} onClose={() => setEditUser(null)} onSave={(dados) => handleEditUser(editUser.id, dados)} />
+      )}
+      {deleteTarget && (
+        <ConfirmModal
+          title="Excluir usuário"
+          message={`Deseja realmente excluir o usuário "${deleteTarget.full_name}"? Essa ação não pode ser desfeita.`}
+          confirmLabel="Excluir"
+          loading={deleteLoading}
+          onConfirm={confirmarExclusao}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   )
