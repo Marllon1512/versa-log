@@ -44,23 +44,16 @@ export const produtosService = {
 // ── Usuários ──────────────────────────────────────────────
 export const usuariosService = {
   async list() {
-    const eid = getEmpresaId()
-    let q = supabase.from('usuarios').select('*').order('full_name')
-    if (eid) q = q.eq('empresa_id', eid)
-    const { data, error } = await q
+    const { data, error } = await supabase.from('usuarios').select('*').order('full_name')
     if (error) throw error
     return data || []
   },
   async getById(id) {
-    const eid = getEmpresaId()
-    let q = supabase.from('usuarios').select('*').eq('id', id)
-    if (eid) q = q.eq('empresa_id', eid)
-    const { data, error } = await q.single()
+    const { data, error } = await supabase.from('usuarios').select('*').eq('id', id).single()
     if (error) throw error
     return data
   },
   async getByEmail(email) {
-    // Sem filtro empresa_id — usado internamente no auth
     const { data, error } = await supabase.from('usuarios').select('*').eq('email', email).single()
     if (error) throw error
     return data
@@ -71,18 +64,12 @@ export const usuariosService = {
     return data
   },
   async update(id, updates) {
-    const eid = getEmpresaId()
-    let q = supabase.from('usuarios').update(updates).eq('id', id)
-    if (eid) q = q.eq('empresa_id', eid)
-    const { data, error } = await q.select().single()
+    const { data, error } = await supabase.from('usuarios').update(updates).eq('id', id).select().single()
     if (error) throw error
     return data
   },
   async listEntregadores() {
-    const eid = getEmpresaId()
-    let q = supabase.from('usuarios').select('*').in('role', ['entregador', 'motorista']).order('full_name')
-    if (eid) q = q.eq('empresa_id', eid)
-    const { data, error } = await q
+    const { data, error } = await supabase.from('usuarios').select('*').in('role', ['entregador', 'motorista']).order('full_name')
     if (error) throw error
     return data || []
   },
