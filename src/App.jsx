@@ -1021,7 +1021,7 @@ function FilaLiberacao() {
 
   const liberarParaEntrega = async (pedido) => {
     try {
-      await act.run(() => pedidosService.update(pedido.id, { status: 'liberado', data_liberacao: new Date().toISOString() }))
+      await act.run(() => pedidosService.update(pedido.id, { status: 'liberado', confirmado_fabrica_em: new Date().toISOString() }))
       toast.success(`Pedido #${pedido.numero_pedido} liberado para entrega`)
       reload()
     } catch (e) { toast.error(e.message) }
