@@ -7,7 +7,6 @@ import { pedidosService } from '../services/pedidos'
 import { metasService, vendasService } from '../services/index'
 import { useAuth } from '../context/AuthContext'
 import { Spinner, Empty, Modal } from '../components/ui/index'
-import { LojaSelect } from '../components/LojaSelect'
 import { toast } from '../lib/toast'
 
 const fmtR = (v) => (parseFloat(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -54,7 +53,7 @@ function RankingMetas() {
   const { data: vendas } = useData(() => vendasService.list(), [])
   const { isGestor } = useAuth()
   const [modal, setModal] = useState(null)
-  const [form, setForm] = useState({ tipo: 'vendedor', referencia_nome: '', loja: '', valor_meta: '' })
+  const [form, setForm] = useState({ tipo: 'vendedor', referencia_nome: '', valor_meta: '' })
   const act = useAction()
   const up = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
@@ -82,7 +81,7 @@ function RankingMetas() {
           {[...Array(12)].map((_, i) => <option key={i + 1} value={i + 1}>{new Date(2000, i).toLocaleString('pt-BR', { month: 'long' })}</option>)}
         </select>
         <input className="fi" type="number" style={{ width: 90 }} value={ano} onChange={e => setAno(+e.target.value)} />
-        {isGestor && <button className="btn btn-p btn-sm" onClick={() => { setForm({ tipo: 'vendedor', referencia_nome: '', loja: '', valor_meta: '' }); setModal(true) }}>+ Meta</button>}
+        {isGestor && <button className="btn btn-p btn-sm" onClick={() => { setForm({ tipo: 'vendedor', referencia_nome: '', valor_meta: '' }); setModal(true) }}>+ Meta</button>}
       </div>
       {loading ? <Spinner /> : (metas || []).length === 0 ? <Empty text="Nenhuma meta definida" /> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -95,7 +94,7 @@ function RankingMetas() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                   <div>
                     <div style={{ fontWeight: 600 }}>{m.referencia_nome}</div>
-                    <div style={{ fontSize: 11, color: 'var(--t3)' }}>{m.tipo} · {m.loja}</div>
+                    <div style={{ fontSize: 11, color: 'var(--t3)' }}>{m.tipo}</div>
                   </div>
                   <div style={{ textAlign: 'right', fontSize: 13 }}>
                     <div style={{ fontWeight: 700, color: cor }}>{pct}%</div>
@@ -119,7 +118,6 @@ function RankingMetas() {
             </select>
           </div>
           <div className="fg"><label className="fl">Nome</label><input className="fi" value={form.referencia_nome} onChange={up('referencia_nome')} placeholder="Nome do vendedor ou loja" /></div>
-          <div className="fg"><label className="fl">Loja</label><LojaSelect value={form.loja} onChange={v => setForm(p => ({ ...p, loja: v }))} /></div>
           <div className="fg"><label className="fl">Valor da Meta (R$)</label><input className="fi" type="number" step="100" value={form.valor_meta} onChange={up('valor_meta')} /></div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button className="btn btn-p" style={{ flex: 1 }} onClick={salvar} disabled={act.loading}>{act.loading ? '...' : 'Salvar'}</button>
