@@ -161,7 +161,7 @@ function DPFolha({ lojaFiltro }) {
           const inss = calcINSS(sal)
           const irrf = calcIRRF(sal - inss)
           const liquido = sal - inss - irrf
-          await dpService.upsertFolha({ funcionario_id: f.id, funcionario_nome: f.nome, cargo: f.cargo, mes, salario_bruto: sal, inss, irrf, outros_descontos: 0, liquido, status: 'gerado' })
+          await dpService.upsertFolha({ funcionario_id: f.id, funcionario_nome: f.nome, mes, salario_base: sal, inss, ir: irrf, descontos: 0, liquido })
         }
       })
       toast.success(`Folha gerada para ${ativos.length} funcionários`)
@@ -186,12 +186,11 @@ function DPFolha({ lojaFiltro }) {
             <div key={f.id} className="card" style={{ display:'flex', alignItems:'center', padding:'10px 14px', marginBottom:6 }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600, fontSize:14 }}>{f.funcionario_nome}</div>
-                <div style={{ fontSize:12, color:'var(--t2)' }}>{f.cargo}</div>
               </div>
               <div style={{ fontSize:12, textAlign:'right', display:'flex', flexDirection:'column', gap:2 }}>
-                <span>Bruto: {fmtMoeda(f.salario_bruto)}</span>
+                <span>Bruto: {fmtMoeda(f.salario_base)}</span>
                 <span style={{ color:'var(--red)' }}>INSS: -{fmtMoeda(f.inss)}</span>
-                <span style={{ color:'var(--red)' }}>IRRF: -{fmtMoeda(f.irrf)}</span>
+                <span style={{ color:'var(--red)' }}>IRRF: -{fmtMoeda(f.ir)}</span>
                 <span style={{ fontWeight:700, color:'var(--green)' }}>Líq: {fmtMoeda(f.liquido)}</span>
               </div>
             </div>
